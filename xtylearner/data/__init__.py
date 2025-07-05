@@ -9,6 +9,7 @@ from .synthetic_dataset import load_synthetic_dataset
 from .mixed_synthetic_dataset import load_mixed_synthetic_dataset
 from .ihdp_dataset import load_ihdp
 from .twins_dataset import load_twins
+from .tabular_dataset import load_tabular_dataset
 
 
 _DATASETS: Dict[str, Callable[..., object]] = {
@@ -50,4 +51,5 @@ __all__ = [
     "load_mixed_synthetic_dataset",
     "load_ihdp",
     "load_twins",
+    "load_tabular_dataset",
 ]
