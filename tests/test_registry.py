@@ -1,11 +1,14 @@
 import pytest
 import torch.nn as nn
-from xtylearner.models import get_model, CycleDual
+from xtylearner.models import get_model, CycleDual, DiffusionCEVAE
 
 
 def test_get_model_valid():
     model = get_model("cycle_dual", d_x=2, d_y=1, k=2)
     assert isinstance(model, CycleDual)
+
+    model2 = get_model("diffusion_cevae", d_x=2, d_y=1, k=2)
+    assert isinstance(model2, DiffusionCEVAE)
 
 
 def test_get_model_with_mlp_args():
