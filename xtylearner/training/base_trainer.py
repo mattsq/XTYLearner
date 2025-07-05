@@ -3,6 +3,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Iterable, Optional
 
+from .logger import TrainerLogger
+
 import torch
 
 
@@ -16,12 +18,14 @@ class BaseTrainer(ABC):
         train_loader: Iterable,
         val_loader: Optional[Iterable] = None,
         device: str = "cpu",
+        logger: Optional[TrainerLogger] = None,
     ) -> None:
         self.model = model.to(device)
         self.optimizer = optimizer
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.device = device
+        self.logger = logger
 
     @abstractmethod
     def fit(self, num_epochs: int) -> None:

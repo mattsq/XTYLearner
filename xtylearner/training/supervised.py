@@ -25,13 +25,26 @@ class SupervisedTrainer(BaseTrainer):
         raise ValueError("Model must implement a 'loss' method or return a loss tensor")
 
     def fit(self, num_epochs: int) -> None:
-        for _ in range(num_epochs):
+        for epoch in range(num_epochs):
             self.model.train()
-            for batch in self.train_loader:
+            num_batches = (
+                len(self.train_loader) if hasattr(self.train_loader, "__len__") else -1
+            )
+            if self.logger:
+                self.logger.start_epoch(epoch, num_epochs, num_batches)
+            total_loss, n_batches = 0.0, 0
+            for batch_idx, batch in enumerate(self.train_loader):
                 loss = self.step(batch)
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
+                total_loss += float(loss.item())
+                n_batches += 1
+                if self.logger:
+                    self.logger.log_batch(batch_idx, num_batches, loss)
+            if self.logger:
+                avg_loss = total_loss / max(n_batches, 1)
+                self.logger.end_epoch(epoch, avg_loss)
 
     def evaluate(self, data_loader: Iterable) -> float:
         self.model.eval()
