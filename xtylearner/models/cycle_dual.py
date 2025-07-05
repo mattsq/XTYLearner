@@ -7,11 +7,12 @@
 
 import torch
 import torch.nn as nn
-from torch.nn.functional import one_hot, cross_entropy
+from torch.nn.functional import one_hot
 
 from .layers import make_mlp
 
 from .registry import register_model
+from ..training.metrics import cross_entropy_loss, mse_loss
 
 
 # ---------- dual-network module -----------------------------------------
@@ -79,13 +80,13 @@ class CycleDual(nn.Module):
         Y_cyc = self.G_Y(torch.cat([X_hat.detach(), T_1h], -1))
 
         # === STEP 3 : losses ==========================================
-        mse = nn.functional.mse_loss
+        mse = mse_loss
 
         # supervised parts (labelled rows only)
         L_sup_Y = mse(Y_hat[labelled], Y[labelled]) if labelled.any() else 0.0
         L_sup_X = mse(X_hat[labelled], X[labelled]) if labelled.any() else 0.0
         L_sup_T = (
-            cross_entropy(logits_T[labelled], T_obs[labelled])
+            cross_entropy_loss(logits_T[labelled], T_obs[labelled])
             if labelled.any()
             else 0.0
         )
