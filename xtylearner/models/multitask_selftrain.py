@@ -16,19 +16,13 @@
 import torch
 import torch.nn as nn
 
+from .layers import make_mlp
+
 from .registry import register_model
 
 
 # ------------------------------------------------------------
 # shared encoder for any vector input -------------------------
-def mlp(in_dim, out_dim, hidden=128):
-    return nn.Sequential(
-        nn.Linear(in_dim, hidden),
-        nn.ReLU(),
-        nn.Linear(hidden, hidden),
-        nn.ReLU(),
-        nn.Linear(hidden, out_dim),
-    )
 
 
 @register_model("multitask")
@@ -43,11 +37,11 @@ class MultiTask(nn.Module):
     def __init__(self, d_x, d_y, k, h_dim=128):
         super().__init__()
         self.k = k
-        self.h = mlp(d_x, h_dim)
+        self.h = make_mlp([d_x, 128, 128, h_dim])
 
-        self.head_Y = mlp(h_dim + k, d_y)  # predict Y
-        self.head_T = mlp(d_x + d_y, k)  # predict T
-        self.head_X = mlp(d_y + k, d_x)  # reconstruct X
+        self.head_Y = make_mlp([h_dim + k, 128, 128, d_y])  # predict Y
+        self.head_T = make_mlp([d_x + d_y, 128, 128, k])  # predict T
+        self.head_X = make_mlp([d_y + k, 128, 128, d_x])  # reconstruct X
 
     # --------------------------------------------------------
     def forward(self, X, Y, T_onehot):
