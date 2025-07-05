@@ -1,6 +1,7 @@
 """Training utilities and trainer implementations."""
 
 from .base_trainer import BaseTrainer
+from .logger import TrainerLogger, ConsoleLogger
 from .generative import GenerativeTrainer
 from .supervised import SupervisedTrainer
 from .diffusion import DiffusionTrainer
@@ -17,6 +18,8 @@ __all__ = [
     "GenerativeTrainer",
     "SupervisedTrainer",
     "DiffusionTrainer",
+    "TrainerLogger",
+    "ConsoleLogger",
     "mse_loss",
     "mae_loss",
     "rmse_loss",
