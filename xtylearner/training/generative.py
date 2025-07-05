@@ -150,7 +150,12 @@ class GenerativeTrainer(BaseTrainer):
     """Trainer for generative models using an ELBO objective."""
 
     def step(self, batch: Iterable[torch.Tensor]) -> torch.Tensor:
-        x, y, t = (b.to(self.device) for b in batch)
+        data = [b.to(self.device) for b in batch]
+        if len(data) == 2:
+            x, y = data
+            t = torch.full((x.size(0),), -1, dtype=torch.long, device=self.device)
+        else:
+            x, y, t = data
         return self.model.elbo(x, y, t)
 
     def fit(self, num_epochs: int) -> None:

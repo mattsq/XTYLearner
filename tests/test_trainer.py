@@ -1,6 +1,6 @@
 import torch
 from torch.utils.data import DataLoader
-from xtylearner.data import load_toy_dataset
+from xtylearner.data import load_toy_dataset, load_mixed_synthetic_dataset
 from xtylearner.models import CycleDual, MixtureOfFlows, MultiTask
 from xtylearner.training import (
     SupervisedTrainer,
@@ -57,6 +57,28 @@ def test_m2vae_trainer_runs():
 
 def test_cevae_trainer_runs():
     dataset = load_toy_dataset(n_samples=20, d_x=2, seed=4)
+    loader = DataLoader(dataset, batch_size=5)
+    model = SS_CEVAE(d_x=2, d_y=1, k=2)
+    opt = torch.optim.Adam(model.parameters(), lr=0.01)
+    trainer = CEVAETrainer(model, opt, loader)
+    trainer.fit(1)
+    loss = trainer.evaluate(loader)
+    assert isinstance(loss, float)
+
+
+def test_supervised_trainer_mixed_dataset():
+    dataset = load_mixed_synthetic_dataset(n_samples=20, d_x=2, seed=5, label_ratio=0.5)
+    loader = DataLoader(dataset, batch_size=5)
+    model = CycleDual(d_x=2, d_y=1, k=2)
+    opt = torch.optim.SGD(model.parameters(), lr=0.01)
+    trainer = SupervisedTrainer(model, opt, loader)
+    trainer.fit(1)
+    loss = trainer.evaluate(loader)
+    assert isinstance(loss, float)
+
+
+def test_cevae_trainer_mixed_dataset():
+    dataset = load_mixed_synthetic_dataset(n_samples=20, d_x=2, seed=6, label_ratio=0.5)
     loader = DataLoader(dataset, batch_size=5)
     model = SS_CEVAE(d_x=2, d_y=1, k=2)
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
