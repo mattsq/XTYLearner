@@ -19,6 +19,8 @@ class GenerativeTrainer(BaseTrainer):
             t = torch.full((x.size(0),), -1, dtype=torch.long, device=self.device)
         else:
             x, y, t = data
+        if hasattr(self.model, "loss"):
+            return self.model.loss(x, y, t)
         return self.model.elbo(x, y, t)
 
     def fit(self, num_epochs: int) -> None:
