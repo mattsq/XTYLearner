@@ -7,14 +7,144 @@ import torch.nn as nn
 from torch.nn.functional import one_hot, softmax, gumbel_softmax
 from torch.distributions import Normal
 
+from .layers import make_mlp
 from .registry import register_model
-from .m2_vae import (
-    EncoderZ as M2EncoderZ,
-    ClassifierT as M2ClassifierT,
-    DecoderX as M2DecoderX,
-    DecoderT as M2DecoderT,
-    DecoderY as M2DecoderY,
-)
+
+
+class EncoderZ(nn.Module):  # q_phi(z | x,t)
+    def __init__(
+        self,
+        d_x: int,
+        k: int,
+        d_z: int,
+        *,
+        hidden_dims=(128, 128),
+        activation=nn.ReLU,
+        dropout=None,
+        norm_layer=None,
+    ) -> None:
+        super().__init__()
+        dims = [d_x + k, *hidden_dims, d_z]
+        self.net_mu = make_mlp(
+            dims,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+        self.net_log = make_mlp(
+            dims,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+
+    def forward(
+        self, x: torch.Tensor, t_onehot: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        h = torch.cat([x, t_onehot], -1)
+        mu = self.net_mu(h)
+        log = self.net_log(h).clamp(-8, 8)
+        std = (0.5 * log).exp()
+        eps = torch.randn_like(std)
+        return mu + eps * std, mu, log  # re-par trick
+
+
+class ClassifierT(nn.Module):  # q_phi(t | x,y)
+    def __init__(
+        self,
+        d_x: int,
+        d_y: int,
+        k: int,
+        *,
+        hidden_dims=(128, 128),
+        activation=nn.ReLU,
+        dropout=None,
+        norm_layer=None,
+    ) -> None:
+        super().__init__()
+        self.net = make_mlp(
+            [d_x + d_y, *hidden_dims, k],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+
+    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        return self.net(torch.cat([x, y], -1))  # logits
+
+
+class DecoderX(nn.Module):  # p_theta(x | z)
+    def __init__(
+        self,
+        d_z: int,
+        d_x: int,
+        *,
+        hidden_dims=(128, 128),
+        activation=nn.ReLU,
+        dropout=None,
+        norm_layer=None,
+    ) -> None:
+        super().__init__()
+        self.net = make_mlp(
+            [d_z, *hidden_dims, d_x],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+
+    def forward(self, z: torch.Tensor) -> torch.Tensor:
+        return self.net(z)  # Gaussian mean
+
+
+class DecoderT(nn.Module):  # p_theta(t | x,z)
+    def __init__(
+        self,
+        d_x: int,
+        d_z: int,
+        k: int,
+        *,
+        hidden_dims=(128, 128),
+        activation=nn.ReLU,
+        dropout=None,
+        norm_layer=None,
+    ) -> None:
+        super().__init__()
+        self.net = make_mlp(
+            [d_x + d_z, *hidden_dims, k],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+
+    def forward(self, x: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
+        return self.net(torch.cat([x, z], -1))  # logits
+
+
+class DecoderY(nn.Module):  # p_theta(y | x,t,z)
+    def __init__(
+        self,
+        d_x: int,
+        k: int,
+        d_z: int,
+        d_y: int,
+        *,
+        hidden_dims=(128, 128),
+        activation=nn.ReLU,
+        dropout=None,
+        norm_layer=None,
+    ) -> None:
+        super().__init__()
+        self.net = make_mlp(
+            [d_x + k + d_z, *hidden_dims, d_y],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+
+    def forward(
+        self, x: torch.Tensor, t_onehot: torch.Tensor, z: torch.Tensor
+    ) -> torch.Tensor:
+        return self.net(torch.cat([x, t_onehot, z], -1))  # mean
 
 
 @register_model("m2_vae")
@@ -35,7 +165,7 @@ class M2VAE(nn.Module):
         norm_layer=None,
     ) -> None:
         super().__init__()
-        self.enc_z = M2EncoderZ(
+        self.enc_z = EncoderZ(
             d_x,
             k,
             d_z,
@@ -44,7 +174,7 @@ class M2VAE(nn.Module):
             dropout=dropout,
             norm_layer=norm_layer,
         )
-        self.cls_t = M2ClassifierT(
+        self.cls_t = ClassifierT(
             d_x,
             d_y,
             k,
@@ -53,7 +183,7 @@ class M2VAE(nn.Module):
             dropout=dropout,
             norm_layer=norm_layer,
         )
-        self.dec_x = M2DecoderX(
+        self.dec_x = DecoderX(
             d_z,
             d_x,
             hidden_dims=hidden_dims,
@@ -61,7 +191,7 @@ class M2VAE(nn.Module):
             dropout=dropout,
             norm_layer=norm_layer,
         )
-        self.dec_t = M2DecoderT(
+        self.dec_t = DecoderT(
             d_x,
             d_z,
             k,
@@ -70,7 +200,7 @@ class M2VAE(nn.Module):
             dropout=dropout,
             norm_layer=norm_layer,
         )
-        self.dec_y = M2DecoderY(
+        self.dec_y = DecoderY(
             d_x,
             k,
             d_z,
