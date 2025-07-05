@@ -1,0 +1,1 @@
+## `get_model(name, **hparams)` factory
