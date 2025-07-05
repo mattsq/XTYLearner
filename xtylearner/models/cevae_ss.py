@@ -5,23 +5,17 @@
 import torch
 import torch.nn as nn
 
+from .layers import make_mlp
+
 
 # ------------------------------------------------------------
-def mlp(in_dim, out_dim, hid=128):
-    return nn.Sequential(
-        nn.Linear(in_dim, hid),
-        nn.ReLU(),
-        nn.Linear(hid, hid),
-        nn.ReLU(),
-        nn.Linear(hid, out_dim),
-    )
 
 
 class EncoderZ(nn.Module):  # q(z | x,t,y)
     def __init__(self, d_x, k, d_y, d_z):
         super().__init__()
-        self.mu = mlp(d_x + k + d_y, d_z)
-        self.log = mlp(d_x + k + d_y, d_z)
+        self.mu = make_mlp([d_x + k + d_y, 128, 128, d_z])
+        self.log = make_mlp([d_x + k + d_y, 128, 128, d_z])
 
     def forward(self, x, t_1h, y):
         h = torch.cat([x, t_1h, y], -1)
@@ -34,7 +28,7 @@ class EncoderZ(nn.Module):  # q(z | x,t,y)
 class ClassifierT(nn.Module):  # q(t | x,y)
     def __init__(self, d_x, d_y, k):
         super().__init__()
-        self.net = mlp(d_x + d_y, k)
+        self.net = make_mlp([d_x + d_y, 128, 128, k])
 
     def forward(self, x, y):  # logits
         return self.net(torch.cat([x, y], -1))
@@ -43,7 +37,7 @@ class ClassifierT(nn.Module):  # q(t | x,y)
 class DecoderX(nn.Module):  # p(x | z)
     def __init__(self, d_z, d_x):
         super().__init__()
-        self.net = mlp(d_z, d_x)
+        self.net = make_mlp([d_z, 128, 128, d_x])
 
     def forward(self, z):  # Gaussian mean
         return self.net(z)
@@ -52,7 +46,7 @@ class DecoderX(nn.Module):  # p(x | z)
 class DecoderT(nn.Module):  # p(t | z,x)
     def __init__(self, d_z, d_x, k):
         super().__init__()
-        self.net = mlp(d_z + d_x, k)
+        self.net = make_mlp([d_z + d_x, 128, 128, k])
 
     def forward(self, z, x):  # logits
         return self.net(torch.cat([z, x], -1))
@@ -61,7 +55,7 @@ class DecoderT(nn.Module):  # p(t | z,x)
 class DecoderY(nn.Module):  # p(y | z,x,t)
     def __init__(self, d_z, d_x, k, d_y):
         super().__init__()
-        self.net = mlp(d_z + d_x + k, d_y)
+        self.net = make_mlp([d_z + d_x + k, 128, 128, d_y])
 
     def forward(self, z, x, t_1h):  # mean
         return self.net(torch.cat([z, x, t_1h], -1))

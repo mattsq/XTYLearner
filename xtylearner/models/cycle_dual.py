@@ -9,18 +9,9 @@ import torch
 import torch.nn as nn
 from torch.nn.functional import one_hot, cross_entropy
 
+from .layers import make_mlp
+
 from .registry import register_model
-
-
-# ---------- tiny helper MLP ---------------------------------------------
-def mlp(in_dim, out_dim, hidden=128):
-    return nn.Sequential(
-        nn.Linear(in_dim, hidden),
-        nn.ReLU(),
-        nn.Linear(hidden, hidden),
-        nn.ReLU(),
-        nn.Linear(hidden, out_dim),
-    )
 
 
 # ---------- dual-network module -----------------------------------------
@@ -35,9 +26,9 @@ class CycleDual(nn.Module):
     def __init__(self, d_x, d_y, k):
         super().__init__()
         self.k = k
-        self.G_Y = mlp(d_x + k, d_y)
-        self.G_X = mlp(k + d_y, d_x)
-        self.C = mlp(d_x + d_y, k)
+        self.G_Y = make_mlp([d_x + k, 128, 128, d_y])
+        self.G_X = make_mlp([k + d_y, 128, 128, d_x])
+        self.C = make_mlp([d_x + d_y, 128, 128, k])
 
     # ------------------------------------------------------------------
     def loss(self, X, Y, T_obs, λ_sup=1.0, λ_cyc=1.0, λ_ent=0.1):

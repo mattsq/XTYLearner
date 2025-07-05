@@ -5,17 +5,7 @@
 import torch
 import torch.nn as nn
 
-
-# ------------------------------------------------------------
-# 1. tiny helper MLP
-def mlp(in_dim, out_dim, hidden=128):
-    return nn.Sequential(
-        nn.Linear(in_dim, hidden),
-        nn.ReLU(),
-        nn.Linear(hidden, hidden),
-        nn.ReLU(),
-        nn.Linear(hidden, out_dim),
-    )
+from .layers import make_mlp
 
 
 # ------------------------------------------------------------
@@ -23,8 +13,8 @@ def mlp(in_dim, out_dim, hidden=128):
 class EncoderZ(nn.Module):  # q_phi(z | x,t)
     def __init__(self, d_x, k, d_z):
         super().__init__()
-        self.net_mu = mlp(d_x + k, d_z)
-        self.net_log = mlp(d_x + k, d_z)
+        self.net_mu = make_mlp([d_x + k, 128, 128, d_z])
+        self.net_log = make_mlp([d_x + k, 128, 128, d_z])
 
     def forward(self, x, t_onehot):
         h = torch.cat([x, t_onehot], -1)
@@ -38,7 +28,7 @@ class EncoderZ(nn.Module):  # q_phi(z | x,t)
 class ClassifierT(nn.Module):  # q_phi(t | x,y)
     def __init__(self, d_x, d_y, k):
         super().__init__()
-        self.net = mlp(d_x + d_y, k)
+        self.net = make_mlp([d_x + d_y, 128, 128, k])
 
     def forward(self, x, y):
         return self.net(torch.cat([x, y], -1))  # logits
@@ -47,7 +37,7 @@ class ClassifierT(nn.Module):  # q_phi(t | x,y)
 class DecoderX(nn.Module):  # p_theta(x | z)
     def __init__(self, d_z, d_x):
         super().__init__()
-        self.net = mlp(d_z, d_x)
+        self.net = make_mlp([d_z, 128, 128, d_x])
 
     def forward(self, z):
         return self.net(z)  # Gaussian mean
@@ -56,7 +46,7 @@ class DecoderX(nn.Module):  # p_theta(x | z)
 class DecoderT(nn.Module):  # p_theta(t | x,z)
     def __init__(self, d_x, d_z, k):
         super().__init__()
-        self.net = mlp(d_x + d_z, k)
+        self.net = make_mlp([d_x + d_z, 128, 128, k])
 
     def forward(self, x, z):
         return self.net(torch.cat([x, z], -1))  # logits
@@ -65,7 +55,7 @@ class DecoderT(nn.Module):  # p_theta(t | x,z)
 class DecoderY(nn.Module):  # p_theta(y | x,t,z)
     def __init__(self, d_x, k, d_z, d_y):
         super().__init__()
-        self.net = mlp(d_x + k + d_z, d_y)
+        self.net = make_mlp([d_x + k + d_z, 128, 128, d_y])
 
     def forward(self, x, t_onehot, z):
         return self.net(torch.cat([x, t_onehot, z], -1))  # mean
