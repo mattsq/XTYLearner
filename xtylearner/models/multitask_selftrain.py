@@ -34,14 +34,45 @@ class MultiTask(nn.Module):
     f_X(Y,T)        : inverse regressor
     """
 
-    def __init__(self, d_x, d_y, k, h_dim=128):
+    def __init__(
+        self,
+        d_x,
+        d_y,
+        k,
+        h_dim=128,
+        *,
+        hidden_dims=(128, 128),
+        activation=nn.ReLU,
+        dropout=None,
+        norm_layer=None,
+    ):
         super().__init__()
         self.k = k
-        self.h = make_mlp([d_x, 128, 128, h_dim])
+        self.h = make_mlp(
+            [d_x, *hidden_dims, h_dim],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
 
-        self.head_Y = make_mlp([h_dim + k, 128, 128, d_y])  # predict Y
-        self.head_T = make_mlp([d_x + d_y, 128, 128, k])  # predict T
-        self.head_X = make_mlp([d_y + k, 128, 128, d_x])  # reconstruct X
+        self.head_Y = make_mlp(
+            [h_dim + k, *hidden_dims, d_y],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )  # predict Y
+        self.head_T = make_mlp(
+            [d_x + d_y, *hidden_dims, k],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )  # predict T
+        self.head_X = make_mlp(
+            [d_y + k, *hidden_dims, d_x],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )  # reconstruct X
 
     # --------------------------------------------------------
     def forward(self, X, Y, T_onehot):

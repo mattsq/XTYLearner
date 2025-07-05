@@ -23,12 +23,37 @@ class CycleDual(nn.Module):
     C   : (X ⊕ Y) → logits(T)
     """
 
-    def __init__(self, d_x, d_y, k):
+    def __init__(
+        self,
+        d_x,
+        d_y,
+        k,
+        *,
+        hidden_dims=(128, 128),
+        activation=nn.ReLU,
+        dropout=None,
+        norm_layer=None,
+    ):
         super().__init__()
         self.k = k
-        self.G_Y = make_mlp([d_x + k, 128, 128, d_y])
-        self.G_X = make_mlp([k + d_y, 128, 128, d_x])
-        self.C = make_mlp([d_x + d_y, 128, 128, k])
+        self.G_Y = make_mlp(
+            [d_x + k, *hidden_dims, d_y],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+        self.G_X = make_mlp(
+            [k + d_y, *hidden_dims, d_x],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+        self.C = make_mlp(
+            [d_x + d_y, *hidden_dims, k],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
 
     # ------------------------------------------------------------------
     def loss(self, X, Y, T_obs, λ_sup=1.0, λ_cyc=1.0, λ_ent=0.1):
