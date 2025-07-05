@@ -16,6 +16,8 @@
 import torch, torch.nn as nn
 from torch.nn.functional import one_hot, cross_entropy, mse_loss
 
+from .registry import register_model
+
 # ------------------------------------------------------------
 # shared encoder for any vector input -------------------------
 def mlp(in_dim, out_dim, hidden=128):
@@ -24,6 +26,7 @@ def mlp(in_dim, out_dim, hidden=128):
         nn.Linear(hidden, hidden), nn.ReLU(),
         nn.Linear(hidden, out_dim))
 
+@register_model("multitask")
 class MultiTask(nn.Module):
     """
     h               : shared encoder from X  → ℝ^h
