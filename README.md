@@ -47,6 +47,22 @@ from xtylearner.models import get_model
 model = get_model("m2_vae", d_x=2, d_y=1, k=2)
 ```
 
+### Available Models
+
+XTYLearner includes a small collection of reference architectures:
+
+- ``CycleDual`` – a cycle-consistent dual network that imputes missing
+  treatment labels.
+- ``MixtureOfFlows`` – a semi-supervised conditional normalising flow
+  combining an invertible network with a classifier.
+- ``MultiTask`` – a discriminative network trained with self-training on
+  pseudo-labels for partially observed treatments.
+- ``M2VAE`` – a generative model based on the M2 variational autoencoder.
+- ``SS_CEVAE`` – a semi-supervised extension of the CEVAE framework.
+
+Each model exposes a ``loss`` method compatible with the trainer utilities
+described below.
+
 ### Training Utilities
 
 Trainer classes live in :mod:`xtylearner.training` and operate on any model with
