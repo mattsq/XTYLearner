@@ -72,19 +72,19 @@ this value.  When only ``(X, Y)`` pairs are provided, the trainer will
 internally set ``T`` to ``-1`` for every sample.
 
 Models such as ``CycleDual`` and ``MixtureOfFlows`` impute or marginalise over
-the missing labels, while generative trainers like ``M2VAETrainer`` and
-``CEVAETrainer`` optimise a semi-supervised objective using both labelled and
-unlabelled data.  A typical workflow is:
+the missing labels, while the ``GenerativeTrainer`` optimises a
+semi-supervised objective using both labelled and unlabelled data.  A typical
+workflow is:
 
 ```python
 from xtylearner.data import load_mixed_synthetic_dataset
-from xtylearner.training import M2VAETrainer
+from xtylearner.training import GenerativeTrainer
 
 dataset = load_mixed_synthetic_dataset(n_samples=100, label_ratio=0.3)
 loader = DataLoader(dataset, batch_size=32, shuffle=True)
 model = get_model("m2_vae", d_x=2, d_y=1, k=2)
 optimizer = torch.optim.Adam(model.parameters())
-trainer = M2VAETrainer(model, optimizer, loader)
+trainer = GenerativeTrainer(model, optimizer, loader)
 trainer.fit(5)
 ```
 

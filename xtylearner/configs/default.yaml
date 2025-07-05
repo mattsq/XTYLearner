@@ -22,7 +22,7 @@ model:
 # Training options
 training:
   # Trainer class to use from ``xtylearner.training``
-  trainer: M2VAETrainer
+  trainer: GenerativeTrainer
   batch_size: 32
   learning_rate: 0.001
   epochs: 5

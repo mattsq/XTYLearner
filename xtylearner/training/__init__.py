@@ -1,7 +1,7 @@
 """Training utilities and trainer implementations."""
 
 from .base_trainer import BaseTrainer
-from .generative import M2VAE, SS_CEVAE, M2VAETrainer, CEVAETrainer
+from .generative import GenerativeTrainer
 from .supervised import SupervisedTrainer
 from .metrics import (
     mse_loss,
@@ -13,10 +13,7 @@ from .metrics import (
 
 __all__ = [
     "BaseTrainer",
-    "M2VAE",
-    "SS_CEVAE",
-    "M2VAETrainer",
-    "CEVAETrainer",
+    "GenerativeTrainer",
     "SupervisedTrainer",
     "mse_loss",
     "mae_loss",
