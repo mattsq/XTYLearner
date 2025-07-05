@@ -76,3 +76,34 @@ def test_load_tabular_from_array():
     assert X.shape == (3, 2)
     assert Y.shape == (3, 1)
     assert T.shape == (3,)
+
+
+def test_load_tabular_multiple_outcomes_dataframe():
+    rng = np.random.default_rng(0)
+    df = pd.DataFrame(
+        {
+            "x1": rng.normal(size=5).astype(np.float32),
+            "x2": rng.normal(size=5).astype(np.float32),
+            "y1": rng.normal(size=5).astype(np.float32),
+            "y2": rng.normal(size=5).astype(np.float32),
+            "t": rng.integers(0, 2, size=5).astype(np.int64),
+        }
+    )
+    ds = load_tabular_dataset(df, outcome_col=["y1", "y2"], treatment_col="t")
+    X, Y, T = ds.tensors
+    assert X.shape == (5, 2)
+    assert Y.shape == (5, 2)
+    assert T.shape == (5,)
+
+
+def test_load_tabular_multiple_outcomes_array():
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(4, 2)).astype(np.float32)
+    Y = rng.normal(size=(4, 2)).astype(np.float32)
+    T = rng.integers(0, 2, size=(4, 1)).astype(np.int64)
+    arr = np.concatenate([X, Y, T], axis=1)
+    ds = load_tabular_dataset(arr, outcome_col=2)
+    X_t, Y_t, T_t = ds.tensors
+    assert X_t.shape == (4, 2)
+    assert Y_t.shape == (4, 2)
+    assert T_t.shape == (4,)
