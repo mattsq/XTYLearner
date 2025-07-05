@@ -8,10 +8,20 @@ from torch.nn.functional import one_hot, softmax, gumbel_softmax
 from torch.distributions import Normal
 
 from .base_trainer import BaseTrainer
-from ..models.m2_vae import EncoderZ as M2EncoderZ, ClassifierT as M2ClassifierT,
-    DecoderX as M2DecoderX, DecoderT as M2DecoderT, DecoderY as M2DecoderY
-from ..models.cevae_ss import EncoderZ as CEncoderZ, ClassifierT as CClassifierT,
-    DecoderX as CDecoderX, DecoderT as CDecoderT, DecoderY as CDecoderY
+from ..models.m2_vae import (
+    EncoderZ as M2EncoderZ,
+    ClassifierT as M2ClassifierT,
+    DecoderX as M2DecoderX,
+    DecoderT as M2DecoderT,
+    DecoderY as M2DecoderY,
+)
+from ..models.cevae_ss import (
+    EncoderZ as CEncoderZ,
+    ClassifierT as CClassifierT,
+    DecoderX as CDecoderX,
+    DecoderT as CDecoderT,
+    DecoderY as CDecoderY,
+)
 
 
 class M2VAE(nn.Module):

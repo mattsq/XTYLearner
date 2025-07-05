@@ -13,7 +13,8 @@ dependencies = [
     "torch",
     "scikit-learn",
     "numpy",
-    "nflows"
+    "nflows",
+    "pyyaml"
 ]
 
 [project.scripts]
