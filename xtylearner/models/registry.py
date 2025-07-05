@@ -20,9 +20,7 @@ def register_model(name: str) -> Callable[[Callable[..., Any]], Callable[..., An
 def get_model(name: str, **hparams: Any) -> Any:
     """Instantiate a model from the registry."""
     if name not in _MODEL_REGISTRY:
-        raise ValueError(
-            f"Unknown model '{name}'. Available: {list(_MODEL_REGISTRY)}"
-        )
+        raise ValueError(f"Unknown model '{name}'. Available: {list(_MODEL_REGISTRY)}")
     return _MODEL_REGISTRY[name](**hparams)
 
 

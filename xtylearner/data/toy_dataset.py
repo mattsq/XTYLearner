@@ -9,7 +9,6 @@ binary treatment label ``T`` of shape ``(n_samples,)``.
 
 from __future__ import annotations
 
-from typing import Tuple
 
 import numpy as np
 import torch
@@ -52,4 +51,3 @@ def load_toy_dataset(
 
 
 __all__ = ["load_toy_dataset"]
-

@@ -42,4 +42,3 @@ def load_synthetic_dataset(
 
 
 __all__ = ["load_synthetic_dataset"]
-

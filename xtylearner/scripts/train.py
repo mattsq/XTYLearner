@@ -20,8 +20,12 @@ def load_config(path: Path) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train an XTYLearner model")
-    parser.add_argument("--model", required=True, help="Model name registered in xtylearner.models")
-    parser.add_argument("--dataset", required=True, help="Dataset name from xtylearner.data")
+    parser.add_argument(
+        "--model", required=True, help="Model name registered in xtylearner.models"
+    )
+    parser.add_argument(
+        "--dataset", required=True, help="Dataset name from xtylearner.data"
+    )
     parser.add_argument("--config", type=str, help="Path to YAML config file")
     args = parser.parse_args()
 

@@ -11,7 +11,6 @@ covariates ``X`` of shape ``(N, d_x)``, outcomes ``Y`` of shape
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable
 
 import numpy as np
 import torch
@@ -42,4 +41,3 @@ def load_twins(data_dir: str = "~/.xtylearner/data") -> TensorDataset:
 
 
 __all__ = ["load_twins"]
-

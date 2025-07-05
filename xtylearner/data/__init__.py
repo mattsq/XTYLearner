@@ -41,6 +41,10 @@ def get_dataset(name: str, **kwargs):
     return _DATASETS[name](**kwargs)
 
 
-__all__ = ["get_dataset", "load_toy_dataset", "load_synthetic_dataset", "load_ihdp", "load_twins"]
-
-
+__all__ = [
+    "get_dataset",
+    "load_toy_dataset",
+    "load_synthetic_dataset",
+    "load_ihdp",
+    "load_twins",
+]

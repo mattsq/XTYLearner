@@ -37,8 +37,9 @@ class M2VAE(nn.Module):
         self.k = k
         self.tau = tau
 
-    def elbo(self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor) -> torch.Tensor:
-        B = x.size(0)
+    def elbo(
+        self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
+    ) -> torch.Tensor:
         labelled = t_obs >= 0
         unlabelled = ~labelled
 
@@ -50,7 +51,11 @@ class M2VAE(nn.Module):
         recon_x_L = Normal(self.dec_x(z_L), 1.0).log_prob(x[labelled]).sum(-1)
         logits_t_L = self.dec_t(x[labelled], z_L)
         logp_t_L = -nn.CrossEntropyLoss(reduction="none")(logits_t_L, t_lab)
-        recon_y_L = Normal(self.dec_y(x[labelled], t1h_L, z_L), 1.0).log_prob(y[labelled]).sum(-1)
+        recon_y_L = (
+            Normal(self.dec_y(x[labelled], t1h_L, z_L), 1.0)
+            .log_prob(y[labelled])
+            .sum(-1)
+        )
         kl_L = -0.5 * (1 + logv_L - mu_L.pow(2) - logv_L.exp()).sum(-1)
         elbo_L = (recon_x_L + logp_t_L + recon_y_L - kl_L).mean()
 
@@ -65,9 +70,15 @@ class M2VAE(nn.Module):
             recon_x_U = Normal(self.dec_x(z_U), 1.0).log_prob(x[unlabelled]).sum(-1)
             logits_t_U = self.dec_t(x[unlabelled], z_U)
             logp_t_U = -(q_t * logits_t_U.log_softmax(-1)).sum(-1)
-            recon_y_U = Normal(self.dec_y(x[unlabelled], t_soft, z_U), 1.0).log_prob(y[unlabelled]).sum(-1)
+            recon_y_U = (
+                Normal(self.dec_y(x[unlabelled], t_soft, z_U), 1.0)
+                .log_prob(y[unlabelled])
+                .sum(-1)
+            )
             kl_U = -0.5 * (1 + logv_U - mu_U.pow(2) - logv_U.exp()).sum(-1)
-            elbo_U = (recon_x_U + recon_y_U - kl_U + logp_t_U + (-(q_t * q_t.log()).sum(-1))).mean()
+            elbo_U = (
+                recon_x_U + recon_y_U - kl_U + logp_t_U + (-(q_t * q_t.log()).sum(-1))
+            ).mean()
 
         ce_sup = 0.0
         if labelled.any():
@@ -89,7 +100,9 @@ class SS_CEVAE(nn.Module):
         self.k = k
         self.tau = tau
 
-    def elbo(self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor) -> torch.Tensor:
+    def elbo(
+        self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
+    ) -> torch.Tensor:
         lab = t_obs >= 0
         unlab = ~lab
 
@@ -99,7 +112,9 @@ class SS_CEVAE(nn.Module):
         z_L, mu_L, logv_L = self.enc_z(x[lab], t1h_L, y[lab])
 
         log_px_L = Normal(self.dec_x(z_L), 1.0).log_prob(x[lab]).sum(-1)
-        log_pt_L = -nn.CrossEntropyLoss(reduction="none")(self.dec_t(z_L, x[lab]), t_lab)
+        log_pt_L = -nn.CrossEntropyLoss(reduction="none")(
+            self.dec_t(z_L, x[lab]), t_lab
+        )
         log_py_L = Normal(self.dec_y(z_L, x[lab], t1h_L), 1.0).log_prob(y[lab]).sum(-1)
         kl_L = -0.5 * (1 + logv_L - mu_L.pow(2) - logv_L.exp()).sum(-1)
         elbo_L = (log_px_L + log_pt_L + log_py_L - kl_L).mean()
@@ -115,7 +130,11 @@ class SS_CEVAE(nn.Module):
             log_px_U = Normal(self.dec_x(z_U), 1.0).log_prob(x[unlab]).sum(-1)
             logits_pT = self.dec_t(z_U, x[unlab])
             log_pt_U = -(q_t * logits_pT.log_softmax(-1)).sum(-1)
-            log_py_U = Normal(self.dec_y(z_U, x[unlab], t_soft), 1.0).log_prob(y[unlab]).sum(-1)
+            log_py_U = (
+                Normal(self.dec_y(z_U, x[unlab], t_soft), 1.0)
+                .log_prob(y[unlab])
+                .sum(-1)
+            )
             kl_U = -0.5 * (1 + logv_U - mu_U.pow(2) - logv_U.exp()).sum(-1)
             H_q = -(q_t * q_t.log()).sum(-1)
             elbo_U = (log_px_U + log_pt_U + log_py_U - kl_U + H_q).mean()
@@ -158,7 +177,9 @@ class GenerativeTrainer(BaseTrainer):
         with torch.no_grad():
             z_dim = self.model.enc_z.net_mu[-1].out_features
             z = torch.randn(x.size(0), z_dim, device=self.device)
-            t1h = one_hot(torch.full((x.size(0),), t_val, device=self.device), self.model.k).float()
+            t1h = one_hot(
+                torch.full((x.size(0),), t_val, device=self.device), self.model.k
+            ).float()
             if isinstance(self.model, M2VAE):
                 return self.model.dec_y(x.to(self.device), t1h, z)
             else:
