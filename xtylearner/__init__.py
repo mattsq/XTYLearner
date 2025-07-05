@@ -1,7 +1,7 @@
 """Core package for XTYLearner models and training utilities."""
 
 from .models import CycleDual, MixtureOfFlows, MultiTask, get_model
-from .training import M2VAE, SS_CEVAE, train_self_supervised
+from .training import M2VAE, SS_CEVAE
 
 __all__ = [
     "CycleDual",
@@ -10,5 +10,4 @@ __all__ = [
     "get_model",
     "M2VAE",
     "SS_CEVAE",
-    "train_self_supervised",
 ]

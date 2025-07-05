@@ -1,0 +1,28 @@
+# Default experiment configuration for XTYLearner
+
+# Dataset selection and options
+# Name corresponds to built-in loaders in ``xtylearner.data``
+dataset:
+  name: toy
+  params:
+    n_samples: 100
+    d_x: 2
+
+# Model hyper-parameters
+model:
+  # One of the architectures defined in ``xtylearner.training`` or ``xtylearner.models``
+  name: m2_vae
+  params:
+    d_x: 2
+    d_y: 1
+    k: 2
+    d_z: 16
+    tau: 0.5
+
+# Training options
+training:
+  # Trainer class to use from ``xtylearner.training``
+  trainer: M2VAETrainer
+  batch_size: 32
+  learning_rate: 0.001
+  epochs: 5
