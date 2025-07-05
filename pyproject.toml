@@ -14,7 +14,8 @@ dependencies = [
     "scikit-learn",
     "numpy",
     "nflows",
-    "pyyaml"
+    "pyyaml",
+    "pandas"
 ]
 
 [project.scripts]
