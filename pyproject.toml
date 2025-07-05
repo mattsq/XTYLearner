@@ -1,0 +1,27 @@
+[project]
+name = "xtylearner"
+version = "0.1.0"
+description = "Flexible implementations of various learners for joint learning or pre-treatment, treatment and post-treatment outcomes."
+readme = "README.md"
+requires-python = ">=3.8"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Matthew Simmons"}
+]
+
+dependencies = [
+    "torch",
+    "scikit-learn",
+    "numpy",
+    "nflows"
+]
+
+[project.scripts]
+xtylearner-train = "xtylearner.scripts.train:main"
+
+[tool.setuptools]
+packages = ["xtylearner"]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
