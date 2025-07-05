@@ -12,6 +12,10 @@ class SupervisedTrainer(BaseTrainer):
 
     def step(self, batch: Iterable[torch.Tensor]) -> torch.Tensor:
         inputs = [b.to(self.device) for b in batch]
+        if len(inputs) == 2:
+            x, y = inputs
+            t_obs = torch.full((x.size(0),), -1, dtype=torch.long, device=self.device)
+            inputs = [x, y, t_obs]
         if hasattr(self.model, "loss"):
             return self.model.loss(*inputs)
         # fall back to assuming the model itself returns a loss
