@@ -90,11 +90,16 @@ class JSBF(nn.Module):
         xt = x0 + sig_t * eps
         return xt, eps, sig_t
 
-    def _q_sample_discrete(self, t0: torch.Tensor, t_idx: torch.Tensor):
+    def _q_sample_discrete(
+        self, t0: torch.Tensor, t_idx: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Corrupt a binary label following the D3PM process."""
         gamma = (t_idx.float() / self.timesteps).view(-1)
         rand = torch.randint(0, 2, t0.shape, device=t0.device)
         keep = torch.bernoulli(1 - gamma).bool()
-        return torch.where(keep, t0, rand)
+        corrupted = torch.where(keep, t0, rand)
+        mask = keep.logical_not()
+        return corrupted, mask
 
     # ----- training objective -----
     def loss(self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor) -> torch.Tensor:
@@ -105,7 +110,7 @@ class JSBF(nn.Module):
 
         t_mask = t_obs != -1
         t_cln = t_obs.clamp_min(0)
-        t_corrupt = self._q_sample_discrete(t_cln, t_idx)
+        t_corrupt, _ = self._q_sample_discrete(t_cln, t_idx)
         tau = (t_idx.float() / self.timesteps).unsqueeze(-1)
 
         score_pred, logits_pred = self.net(xy_t, t_corrupt, tau)
