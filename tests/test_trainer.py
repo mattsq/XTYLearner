@@ -2,8 +2,8 @@ import torch
 from torch.utils.data import DataLoader
 from xtylearner.data import load_toy_dataset, load_mixed_synthetic_dataset
 from xtylearner.models import CycleDual, MixtureOfFlows, MultiTask
-from xtylearner.training import SupervisedTrainer, GenerativeTrainer
-from xtylearner.models import M2VAE, SS_CEVAE
+from xtylearner.training import SupervisedTrainer, GenerativeTrainer, DiffusionTrainer
+from xtylearner.models import M2VAE, SS_CEVAE, JSBF
 
 
 def test_supervised_trainer_runs():
@@ -78,6 +78,17 @@ def test_cevae_trainer_mixed_dataset():
     model = SS_CEVAE(d_x=2, d_y=1, k=2)
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
     trainer = GenerativeTrainer(model, opt, loader)
+    trainer.fit(1)
+    loss = trainer.evaluate(loader)
+    assert isinstance(loss, float)
+
+
+def test_jsbf_trainer_runs():
+    dataset = load_mixed_synthetic_dataset(n_samples=20, d_x=2, seed=7, label_ratio=0.5)
+    loader = DataLoader(dataset, batch_size=5)
+    model = JSBF(d_x=2, d_y=1)
+    opt = torch.optim.Adam(model.parameters(), lr=0.001)
+    trainer = DiffusionTrainer(model, opt, loader)
     trainer.fit(1)
     loss = trainer.evaluate(loader)
     assert isinstance(loss, float)

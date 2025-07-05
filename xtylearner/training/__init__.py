@@ -3,6 +3,7 @@
 from .base_trainer import BaseTrainer
 from .generative import GenerativeTrainer
 from .supervised import SupervisedTrainer
+from .diffusion import DiffusionTrainer
 from .metrics import (
     mse_loss,
     mae_loss,
@@ -15,6 +16,7 @@ __all__ = [
     "BaseTrainer",
     "GenerativeTrainer",
     "SupervisedTrainer",
+    "DiffusionTrainer",
     "mse_loss",
     "mae_loss",
     "rmse_loss",
