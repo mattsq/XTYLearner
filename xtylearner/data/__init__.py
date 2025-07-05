@@ -6,6 +6,7 @@ from typing import Callable, Dict
 
 from .toy_dataset import load_toy_dataset
 from .synthetic_dataset import load_synthetic_dataset
+from .mixed_synthetic_dataset import load_mixed_synthetic_dataset
 from .ihdp_dataset import load_ihdp
 from .twins_dataset import load_twins
 
@@ -13,6 +14,7 @@ from .twins_dataset import load_twins
 _DATASETS: Dict[str, Callable[..., object]] = {
     "toy": load_toy_dataset,
     "synthetic": load_synthetic_dataset,
+    "synthetic_mixed": load_mixed_synthetic_dataset,
     "ihdp": load_ihdp,
     "twins": load_twins,
 }
@@ -45,6 +47,7 @@ __all__ = [
     "get_dataset",
     "load_toy_dataset",
     "load_synthetic_dataset",
+    "load_mixed_synthetic_dataset",
     "load_ihdp",
     "load_twins",
 ]
