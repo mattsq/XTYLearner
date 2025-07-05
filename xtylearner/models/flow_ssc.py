@@ -14,6 +14,8 @@ from nflows.flows.base import Flow
 from nflows.transforms import CompositeTransform, ReversePermutation, AffineCouplingTransform
 from nflows.nn.nets import ResidualNet
 
+from .registry import register_model
+
 
 def make_conditional_flow(dim_xy: int, context_dim: int,
                           n_layers: int = 6, hidden: int = 128) -> Flow:
@@ -34,6 +36,7 @@ def make_conditional_flow(dim_xy: int, context_dim: int,
     return Flow(CompositeTransform(transforms), StandardNormal([dim_xy]))
 
 
+@register_model("flow_ssc")
 class MixtureOfFlows(nn.Module):
     """
     * one conditional flow  p_theta(x,y | t)  (context = one-hot(t))

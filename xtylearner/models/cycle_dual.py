@@ -8,6 +8,8 @@
 import torch, torch.nn as nn
 from torch.nn.functional import one_hot, cross_entropy
 
+from .registry import register_model
+
 # ---------- tiny helper MLP ---------------------------------------------
 def mlp(in_dim, out_dim, hidden=128):
     return nn.Sequential(
@@ -16,6 +18,7 @@ def mlp(in_dim, out_dim, hidden=128):
         nn.Linear(hidden, out_dim))
 
 # ---------- dual-network module -----------------------------------------
+@register_model("cycle_dual")
 class CycleDual(nn.Module):
     """
     G_Y : (X ⊕ onehot(T)) → Ŷ
