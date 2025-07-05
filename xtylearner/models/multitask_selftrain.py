@@ -57,6 +57,16 @@ class MultiTask(nn.Module):
         X_hat = self.head_X(torch.cat([Y, T_onehot], -1))
         return Y_hat, logits_T, X_hat
 
+    def loss(self, X, Y, T_obs):
+        """Simple supervised loss used for unit tests."""
+        T_1h = torch.nn.functional.one_hot(T_obs, self.k).float()
+        Y_hat, logits_T, X_hat = self.forward(X, Y, T_1h)
+        mse = nn.functional.mse_loss
+        L_y = mse(Y_hat, Y)
+        L_x = mse(X_hat, X)
+        L_t = nn.functional.cross_entropy(logits_T, T_obs)
+        return L_y + L_x + L_t
+
 
 class DataWrapper(torch.utils.data.Dataset):
     def __init__(self, X, Y, T):
