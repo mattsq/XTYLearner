@@ -8,13 +8,143 @@ from torch.nn.functional import one_hot, softmax, gumbel_softmax
 from torch.distributions import Normal
 
 from .registry import register_model
-from .cevae_ss import (
-    EncoderZ as CEncoderZ,
-    ClassifierT as CClassifierT,
-    DecoderX as CDecoderX,
-    DecoderT as CDecoderT,
-    DecoderY as CDecoderY,
-)
+from .layers import make_mlp
+
+
+class EncoderZ(nn.Module):  # q(z | x,t,y)
+    def __init__(
+        self,
+        d_x: int,
+        k: int,
+        d_y: int,
+        d_z: int,
+        *,
+        hidden_dims=(128, 128),
+        activation=nn.ReLU,
+        dropout=None,
+        norm_layer=None,
+    ) -> None:
+        super().__init__()
+        dims = [d_x + k + d_y, *hidden_dims, d_z]
+        self.mu = make_mlp(
+            dims,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+        self.log = make_mlp(
+            dims,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+
+    def forward(
+        self, x: torch.Tensor, t_onehot: torch.Tensor, y: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        h = torch.cat([x, t_onehot, y], -1)
+        mu = self.mu(h)
+        log = self.log(h).clamp(-8, 8)
+        z = mu + torch.randn_like(mu) * (0.5 * log).exp()
+        return z, mu, log
+
+
+class ClassifierT(nn.Module):  # q(t | x,y)
+    def __init__(
+        self,
+        d_x: int,
+        d_y: int,
+        k: int,
+        *,
+        hidden_dims=(128, 128),
+        activation=nn.ReLU,
+        dropout=None,
+        norm_layer=None,
+    ) -> None:
+        super().__init__()
+        self.net = make_mlp(
+            [d_x + d_y, *hidden_dims, k],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+
+    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        return self.net(torch.cat([x, y], -1))
+
+
+class DecoderX(nn.Module):  # p(x | z)
+    def __init__(
+        self,
+        d_z: int,
+        d_x: int,
+        *,
+        hidden_dims=(128, 128),
+        activation=nn.ReLU,
+        dropout=None,
+        norm_layer=None,
+    ) -> None:
+        super().__init__()
+        self.net = make_mlp(
+            [d_z, *hidden_dims, d_x],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+
+    def forward(self, z: torch.Tensor) -> torch.Tensor:
+        return self.net(z)
+
+
+class DecoderT(nn.Module):  # p(t | z,x)
+    def __init__(
+        self,
+        d_z: int,
+        d_x: int,
+        k: int,
+        *,
+        hidden_dims=(128, 128),
+        activation=nn.ReLU,
+        dropout=None,
+        norm_layer=None,
+    ) -> None:
+        super().__init__()
+        self.net = make_mlp(
+            [d_z + d_x, *hidden_dims, k],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+
+    def forward(self, z: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+        return self.net(torch.cat([z, x], -1))
+
+
+class DecoderY(nn.Module):  # p(y | z,x,t)
+    def __init__(
+        self,
+        d_z: int,
+        d_x: int,
+        k: int,
+        d_y: int,
+        *,
+        hidden_dims=(128, 128),
+        activation=nn.ReLU,
+        dropout=None,
+        norm_layer=None,
+    ) -> None:
+        super().__init__()
+        self.net = make_mlp(
+            [d_z + d_x + k, *hidden_dims, d_y],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+
+    def forward(
+        self, z: torch.Tensor, x: torch.Tensor, t_onehot: torch.Tensor
+    ) -> torch.Tensor:
+        return self.net(torch.cat([z, x, t_onehot], -1))
 
 
 @register_model("ss_cevae")
@@ -35,7 +165,7 @@ class SS_CEVAE(nn.Module):
         norm_layer=None,
     ) -> None:
         super().__init__()
-        self.enc_z = CEncoderZ(
+        self.enc_z = EncoderZ(
             d_x,
             k,
             d_y,
@@ -45,7 +175,7 @@ class SS_CEVAE(nn.Module):
             dropout=dropout,
             norm_layer=norm_layer,
         )
-        self.cls_t = CClassifierT(
+        self.cls_t = ClassifierT(
             d_x,
             d_y,
             k,
@@ -54,7 +184,7 @@ class SS_CEVAE(nn.Module):
             dropout=dropout,
             norm_layer=norm_layer,
         )
-        self.dec_x = CDecoderX(
+        self.dec_x = DecoderX(
             d_z,
             d_x,
             hidden_dims=hidden_dims,
@@ -62,7 +192,7 @@ class SS_CEVAE(nn.Module):
             dropout=dropout,
             norm_layer=norm_layer,
         )
-        self.dec_t = CDecoderT(
+        self.dec_t = DecoderT(
             d_z,
             d_x,
             k,
@@ -71,7 +201,7 @@ class SS_CEVAE(nn.Module):
             dropout=dropout,
             norm_layer=norm_layer,
         )
-        self.dec_y = CDecoderY(
+        self.dec_y = DecoderY(
             d_z,
             d_x,
             k,
@@ -96,7 +226,9 @@ class SS_CEVAE(nn.Module):
         z_L, mu_L, logv_L = self.enc_z(x[lab], t1h_L, y[lab])
 
         log_px_L = Normal(self.dec_x(z_L), 1.0).log_prob(x[lab]).sum(-1)
-        log_pt_L = -nn.CrossEntropyLoss(reduction="none")(self.dec_t(z_L, x[lab]), t_lab)
+        log_pt_L = -nn.CrossEntropyLoss(reduction="none")(
+            self.dec_t(z_L, x[lab]), t_lab
+        )
         log_py_L = Normal(self.dec_y(z_L, x[lab], t1h_L), 1.0).log_prob(y[lab]).sum(-1)
         kl_L = -0.5 * (1 + logv_L - mu_L.pow(2) - logv_L.exp()).sum(-1)
         elbo_L = (log_px_L + log_pt_L + log_py_L - kl_L).mean()
