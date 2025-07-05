@@ -1,5 +1,4 @@
 import pytest
-import torch
 from xtylearner.models import get_model, CycleDual
 
 

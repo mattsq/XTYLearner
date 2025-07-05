@@ -45,4 +45,3 @@ def load_ihdp(
 
 
 __all__ = ["load_ihdp"]
-
