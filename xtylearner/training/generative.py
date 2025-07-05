@@ -27,13 +27,65 @@ from ..models.cevae_ss import (
 class M2VAE(nn.Module):
     """Simplified implementation of the M2 model."""
 
-    def __init__(self, d_x: int, d_y: int, k: int, d_z: int = 16, tau: float = 0.5):
+    def __init__(
+        self,
+        d_x: int,
+        d_y: int,
+        k: int,
+        d_z: int = 16,
+        tau: float = 0.5,
+        *,
+        hidden_dims=(128, 128),
+        activation=nn.ReLU,
+        dropout=None,
+        norm_layer=None,
+    ):
         super().__init__()
-        self.enc_z = M2EncoderZ(d_x, k, d_z)
-        self.cls_t = M2ClassifierT(d_x, d_y, k)
-        self.dec_x = M2DecoderX(d_z, d_x)
-        self.dec_t = M2DecoderT(d_x, d_z, k)
-        self.dec_y = M2DecoderY(d_x, k, d_z, d_y)
+        self.enc_z = M2EncoderZ(
+            d_x,
+            k,
+            d_z,
+            hidden_dims=hidden_dims,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+        self.cls_t = M2ClassifierT(
+            d_x,
+            d_y,
+            k,
+            hidden_dims=hidden_dims,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+        self.dec_x = M2DecoderX(
+            d_z,
+            d_x,
+            hidden_dims=hidden_dims,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+        self.dec_t = M2DecoderT(
+            d_x,
+            d_z,
+            k,
+            hidden_dims=hidden_dims,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+        self.dec_y = M2DecoderY(
+            d_x,
+            k,
+            d_z,
+            d_y,
+            hidden_dims=hidden_dims,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
         self.k = k
         self.tau = tau
 
@@ -90,13 +142,66 @@ class M2VAE(nn.Module):
 class SS_CEVAE(nn.Module):
     """Semi-supervised variant of CEVAE."""
 
-    def __init__(self, d_x: int, d_y: int, k: int = 2, d_z: int = 16, tau: float = 0.5):
+    def __init__(
+        self,
+        d_x: int,
+        d_y: int,
+        k: int = 2,
+        d_z: int = 16,
+        tau: float = 0.5,
+        *,
+        hidden_dims=(128, 128),
+        activation=nn.ReLU,
+        dropout=None,
+        norm_layer=None,
+    ):
         super().__init__()
-        self.enc_z = CEncoderZ(d_x, k, d_y, d_z)
-        self.cls_t = CClassifierT(d_x, d_y, k)
-        self.dec_x = CDecoderX(d_z, d_x)
-        self.dec_t = CDecoderT(d_z, d_x, k)
-        self.dec_y = CDecoderY(d_z, d_x, k, d_y)
+        self.enc_z = CEncoderZ(
+            d_x,
+            k,
+            d_y,
+            d_z,
+            hidden_dims=hidden_dims,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+        self.cls_t = CClassifierT(
+            d_x,
+            d_y,
+            k,
+            hidden_dims=hidden_dims,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+        self.dec_x = CDecoderX(
+            d_z,
+            d_x,
+            hidden_dims=hidden_dims,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+        self.dec_t = CDecoderT(
+            d_z,
+            d_x,
+            k,
+            hidden_dims=hidden_dims,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+        self.dec_y = CDecoderY(
+            d_z,
+            d_x,
+            k,
+            d_y,
+            hidden_dims=hidden_dims,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
         self.k = k
         self.tau = tau
 

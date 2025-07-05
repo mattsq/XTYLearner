@@ -12,10 +12,32 @@ from .layers import make_mlp
 
 
 class EncoderZ(nn.Module):  # q(z | x,t,y)
-    def __init__(self, d_x, k, d_y, d_z):
+    def __init__(
+        self,
+        d_x,
+        k,
+        d_y,
+        d_z,
+        *,
+        hidden_dims=(128, 128),
+        activation=nn.ReLU,
+        dropout=None,
+        norm_layer=None,
+    ):
         super().__init__()
-        self.mu = make_mlp([d_x + k + d_y, 128, 128, d_z])
-        self.log = make_mlp([d_x + k + d_y, 128, 128, d_z])
+        dims = [d_x + k + d_y, *hidden_dims, d_z]
+        self.mu = make_mlp(
+            dims,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+        self.log = make_mlp(
+            dims,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
 
     def forward(self, x, t_1h, y):
         h = torch.cat([x, t_1h, y], -1)
@@ -26,36 +48,96 @@ class EncoderZ(nn.Module):  # q(z | x,t,y)
 
 
 class ClassifierT(nn.Module):  # q(t | x,y)
-    def __init__(self, d_x, d_y, k):
+    def __init__(
+        self,
+        d_x,
+        d_y,
+        k,
+        *,
+        hidden_dims=(128, 128),
+        activation=nn.ReLU,
+        dropout=None,
+        norm_layer=None,
+    ):
         super().__init__()
-        self.net = make_mlp([d_x + d_y, 128, 128, k])
+        self.net = make_mlp(
+            [d_x + d_y, *hidden_dims, k],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
 
     def forward(self, x, y):  # logits
         return self.net(torch.cat([x, y], -1))
 
 
 class DecoderX(nn.Module):  # p(x | z)
-    def __init__(self, d_z, d_x):
+    def __init__(
+        self,
+        d_z,
+        d_x,
+        *,
+        hidden_dims=(128, 128),
+        activation=nn.ReLU,
+        dropout=None,
+        norm_layer=None,
+    ):
         super().__init__()
-        self.net = make_mlp([d_z, 128, 128, d_x])
+        self.net = make_mlp(
+            [d_z, *hidden_dims, d_x],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
 
     def forward(self, z):  # Gaussian mean
         return self.net(z)
 
 
 class DecoderT(nn.Module):  # p(t | z,x)
-    def __init__(self, d_z, d_x, k):
+    def __init__(
+        self,
+        d_z,
+        d_x,
+        k,
+        *,
+        hidden_dims=(128, 128),
+        activation=nn.ReLU,
+        dropout=None,
+        norm_layer=None,
+    ):
         super().__init__()
-        self.net = make_mlp([d_z + d_x, 128, 128, k])
+        self.net = make_mlp(
+            [d_z + d_x, *hidden_dims, k],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
 
     def forward(self, z, x):  # logits
         return self.net(torch.cat([z, x], -1))
 
 
 class DecoderY(nn.Module):  # p(y | z,x,t)
-    def __init__(self, d_z, d_x, k, d_y):
+    def __init__(
+        self,
+        d_z,
+        d_x,
+        k,
+        d_y,
+        *,
+        hidden_dims=(128, 128),
+        activation=nn.ReLU,
+        dropout=None,
+        norm_layer=None,
+    ):
         super().__init__()
-        self.net = make_mlp([d_z + d_x + k, 128, 128, d_y])
+        self.net = make_mlp(
+            [d_z + d_x + k, *hidden_dims, d_y],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
 
     def forward(self, z, x, t_1h):  # mean
         return self.net(torch.cat([z, x, t_1h], -1))
