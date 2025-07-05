@@ -19,7 +19,7 @@ def test_get_model_with_mlp_args():
     )
     layers = list(model.G_Y)
     assert isinstance(layers[1], nn.ReLU)
-    assert any(isinstance(l, nn.Dropout) for l in layers)
+    assert any(isinstance(layer, nn.Dropout) for layer in layers)
     assert layers[0].out_features == 16
 
 

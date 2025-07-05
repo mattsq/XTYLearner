@@ -20,6 +20,7 @@ from nflows.transforms import (
 from nflows.nn.nets import ResidualNet
 
 from .registry import register_model
+from ..training.metrics import cross_entropy_loss
 
 
 def make_conditional_flow(
@@ -75,7 +76,7 @@ class MixtureOfFlows(nn.Module):
             xy_lab = torch.cat([X[t_lab_mask], Y[t_lab_mask]], dim=-1)
 
             ll_flow = self.flow.log_prob(xy_lab, context=ctx_lab)
-            ce_clf = nn.functional.cross_entropy(self.clf(X[t_lab_mask]), t_lab)
+            ce_clf = cross_entropy_loss(self.clf(X[t_lab_mask]), t_lab)
             loss_lab = -(ll_flow.mean() - ce_clf)  # maximise ll_flow
 
         # ---- un-labelled part -----------------------------------------

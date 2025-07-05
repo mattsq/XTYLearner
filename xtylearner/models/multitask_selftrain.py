@@ -17,8 +17,8 @@ import torch
 import torch.nn as nn
 
 from .layers import make_mlp
-
 from .registry import register_model
+from ..training.metrics import cross_entropy_loss, mse_loss
 
 
 # ------------------------------------------------------------
@@ -86,10 +86,9 @@ class MultiTask(nn.Module):
         """Simple supervised loss used for unit tests."""
         T_1h = torch.nn.functional.one_hot(T_obs, self.k).float()
         Y_hat, logits_T, X_hat = self.forward(X, Y, T_1h)
-        mse = nn.functional.mse_loss
-        L_y = mse(Y_hat, Y)
-        L_x = mse(X_hat, X)
-        L_t = nn.functional.cross_entropy(logits_T, T_obs)
+        L_y = mse_loss(Y_hat, Y)
+        L_x = mse_loss(X_hat, X)
+        L_t = cross_entropy_loss(logits_T, T_obs)
         return L_y + L_x + L_t
 
 
