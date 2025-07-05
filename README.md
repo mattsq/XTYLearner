@@ -59,6 +59,8 @@ XTYLearner includes a small collection of reference architectures:
   pseudo-labels for partially observed treatments.
 - ``M2VAE`` – a generative model based on the M2 variational autoencoder.
 - ``SS_CEVAE`` – a semi-supervised extension of the CEVAE framework.
+- ``JSBF`` – a score-based diffusion model of the full joint
+  distribution ``(X, T, Y)`` supporting missing treatment labels.
 
 Each model exposes a ``loss`` method compatible with the trainer utilities
 described below.
@@ -101,6 +103,18 @@ loader = DataLoader(dataset, batch_size=32, shuffle=True)
 model = get_model("m2_vae", d_x=2, d_y=1, k=2)
 optimizer = torch.optim.Adam(model.parameters())
 trainer = GenerativeTrainer(model, optimizer, loader)
+trainer.fit(5)
+```
+
+For score-based diffusion models like ``JSBF`` the :class:`~xtylearner.training.DiffusionTrainer`
+handles the optimisation:
+
+```python
+from xtylearner.models import JSBF
+from xtylearner.training import DiffusionTrainer
+
+model = JSBF(d_x=2, d_y=1)
+trainer = DiffusionTrainer(model, optimizer, loader)
 trainer.fit(5)
 ```
 
