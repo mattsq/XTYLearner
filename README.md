@@ -86,6 +86,8 @@ trainer = Trainer(model, optimizer, loader)
 trainer.fit(5)
 loss = trainer.evaluate(loader)
 ```
+An optional learning rate scheduler can be supplied via the ``scheduler``
+argument and is stepped after each epoch.
 
 ### Handling Missing Treatment Labels
 
