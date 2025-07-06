@@ -2,9 +2,7 @@
 
 from .base_trainer import BaseTrainer
 from .logger import TrainerLogger, ConsoleLogger
-from .generative import GenerativeTrainer
-from .supervised import SupervisedTrainer
-from .diffusion import DiffusionTrainer
+from .trainer import Trainer
 from .metrics import (
     mse_loss,
     mae_loss,
@@ -15,9 +13,7 @@ from .metrics import (
 
 __all__ = [
     "BaseTrainer",
-    "GenerativeTrainer",
-    "SupervisedTrainer",
-    "DiffusionTrainer",
+    "Trainer",
     "TrainerLogger",
     "ConsoleLogger",
     "mse_loss",
