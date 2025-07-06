@@ -48,3 +48,30 @@ class BaseTrainer(ABC):
         if isinstance(loss, Mapping):
             return {k: float(v) for k, v in loss.items()}
         return {"loss": float(loss)}
+
+    # --------------------------------------------------------------
+    def predict_treatment_proba(
+        self, x: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        """Return treatment class probabilities ``p(t|x,y)``."""
+
+        self.model.eval()
+        with torch.no_grad():
+            x = x.to(self.device)
+            y = y.to(self.device)
+
+            if hasattr(self.model, "predict_treatment_proba"):
+                return self.model.predict_treatment_proba(x, y)
+
+            logits = None
+            if hasattr(self.model, "cls_t"):
+                logits = self.model.cls_t(x, y)
+            elif hasattr(self.model, "head_T"):
+                logits = self.model.head_T(torch.cat([x, y], dim=-1))
+            elif hasattr(self.model, "C"):
+                logits = self.model.C(torch.cat([x, y], dim=-1))
+            if logits is None:
+                raise ValueError(
+                    "Model does not support treatment probability prediction"
+                )
+            return logits.softmax(dim=-1)
