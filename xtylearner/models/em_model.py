@@ -5,7 +5,7 @@
 # link.springer.com
 
 import numpy as np
-from sklearn.linear_model import LogisticRegression, LinearRegression
+from sklearn.linear_model import LinearRegression, LogisticRegression
 from scipy.stats import norm
 
 
@@ -16,12 +16,13 @@ def em_learn(
     n_treatments,
     max_iter=20,
     tol=1e-4,
-    C_logreg=1.0,  # regularisation for the logistic head
+    classifier_factory=None,
+    regressor_factory=None,
     verbose=False,
 ):
     """Return:
-    - clf_T      : LogisticRegression modelling  p(T | X)
-    - regs_Y[t]  : list of LinearRegression modelling E[Y | X, T=t]
+    - clf_T      : classifier modelling  p(T | X)
+    - regs_Y[t]  : list of regressors modelling E[Y | X, T=t]
     - sigma2[t]  : residual variance per treatment
     - T_imputed  : np.ndarray of shape (n,) with hard EM labels
     """
@@ -31,14 +32,22 @@ def em_learn(
     T = T_obs.copy()
 
     # ----- helpers --------------------------------------------------------
-    def fit_logreg(X_, T_):
-        lr = LogisticRegression(
-            multi_class="multinomial",
-            max_iter=200,
-            C=C_logreg,
-            solver="lbfgs",
-        ).fit(X_, T_)
-        return lr
+    if classifier_factory is None:
+
+        def classifier_factory() -> LogisticRegression:
+            return LogisticRegression(
+                multi_class="multinomial", solver="lbfgs", max_iter=200
+            )
+
+    if regressor_factory is None:
+
+        def regressor_factory() -> LinearRegression:
+            return LinearRegression()
+
+    def fit_classifier(X_, T_):
+        clf = classifier_factory()
+        clf.fit(X_, T_)
+        return clf
 
     def fit_regressions(X_, Y_, T_):
         regs, sig2 = [], []
@@ -46,44 +55,49 @@ def em_learn(
             mask = T_ == t
             # If a treatment is absent in current pseudo-labels, keep a dummy regressor
             if mask.sum() < 2:
-                regs.append(
-                    LinearRegression().fit(np.zeros((1, X_.shape[1])), [Y_.mean()])
-                )
+                dummy = regressor_factory()
+                dummy.fit(np.zeros((1, X_.shape[1])), [Y_.mean()])
+                regs.append(dummy)
                 sig2.append(Y_.var() + 1e-6)
                 continue
-            r = LinearRegression().fit(X_[mask], Y_[mask])
+            r = regressor_factory().fit(X_[mask], Y_[mask])
             resid = Y_[mask] - r.predict(X_[mask])
             regs.append(r)
             sig2.append(resid.var() + 1e-6)  # avoid zero variance
         return regs, np.array(sig2)
 
     # ----- initialisation: supervise only on labelled data ---------------
-    clf_T = fit_logreg(X[labelled], T[labelled])
+    clf_T = fit_classifier(X[labelled], T[labelled])
     regs_Y, s2 = fit_regressions(X[labelled], Y[labelled], T[labelled])
 
     last_ll = -np.inf
     for it in range(max_iter):
         # ===== E-step: impute missing T via MAP ===========================
-        log_post = np.zeros((unlabelled.sum(), n_treatments))
-        p_t_given_x = clf_T.predict_proba(X[unlabelled])  # shape (n_U, K)
-        y_u = Y[unlabelled]
+        if unlabelled.sum() > 0:
+            log_post = np.zeros((unlabelled.sum(), n_treatments))
+            p_t_given_x = clf_T.predict_proba(X[unlabelled])  # shape (n_U, K)
+            y_u = Y[unlabelled]
 
-        for t in range(n_treatments):
-            mu = regs_Y[t].predict(X[unlabelled])
-            log_lik = norm.logpdf(y_u, loc=mu, scale=np.sqrt(s2[t]))
-            log_post[:, t] = np.log(p_t_given_x[:, t] + 1e-12) + log_lik
+            for t in range(n_treatments):
+                mu = regs_Y[t].predict(X[unlabelled])
+                log_lik = norm.logpdf(y_u, loc=mu, scale=np.sqrt(s2[t]))
+                log_post[:, t] = np.log(p_t_given_x[:, t] + 1e-12) + log_lik
 
-        T_hat = log_post.argmax(axis=1)
-        T[unlabelled] = T_hat
+            T_hat = log_post.argmax(axis=1)
+            T[unlabelled] = T_hat
 
         # ===== M-step: refit heads on (labelled + pseudo-labelled) =======
-        clf_T = fit_logreg(X, T)
+        clf_T = fit_classifier(X, T)
         regs_Y, s2 = fit_regressions(X, Y, T)
 
         # ===== Convergence check: complete-data log-likelihood ===========
         ll = 0.0
         # p(T|X) term
-        ll += clf_T.predict_log_proba(X[np.arange(len(T)), T]).sum()
+        if hasattr(clf_T, "predict_log_proba"):
+            ll += clf_T.predict_log_proba(X)[np.arange(len(T)), T].sum()
+        else:
+            probs = clf_T.predict_proba(X)
+            ll += np.log(probs[np.arange(len(T)), T] + 1e-12).sum()
         # p(Y|X,T) term
         for t in range(n_treatments):
             mask = T == t
