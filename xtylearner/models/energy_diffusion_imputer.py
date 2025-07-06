@@ -104,10 +104,21 @@ class EnergyDiffusionImputer(nn.Module):
 
         loss_unobs = torch.tensor(0.0, device=device)
         if missing.any():
+            # compute corrupted labels for both candidate values so the score
+            # network sees the appropriate diffusion state for each label
+            flip_m = flip[missing]
+            tau_m = tau[missing]
+            t_noisy0 = torch.where(flip_m, torch.ones_like(flip_m, dtype=torch.long), torch.zeros_like(flip_m, dtype=torch.long))
+            t_noisy1 = torch.where(flip_m, torch.zeros_like(flip_m, dtype=torch.long), torch.ones_like(flip_m, dtype=torch.long))
+
+            logits0 = self.score_net(x[missing], y[missing], t_noisy0, tau_m)
+            logits1 = self.score_net(x[missing], y[missing], t_noisy1, tau_m)
+
+            ce0 = F.cross_entropy(logits0, torch.zeros_like(t_noisy0), reduction="none")
+            ce1 = F.cross_entropy(logits1, torch.ones_like(t_noisy1), reduction="none")
+
             E = self.energy_net(x[missing], y[missing])
             w = F.softmax(-E, dim=-1)
-            ce0 = F.cross_entropy(logits[missing], torch.zeros_like(t_obs[missing]), reduction="none")
-            ce1 = F.cross_entropy(logits[missing], torch.ones_like(t_obs[missing]), reduction="none")
             loss_unobs = (w[:, 0] * ce0 + w[:, 1] * ce1).mean()
 
         E_all = self.energy_net(x, y)
