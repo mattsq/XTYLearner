@@ -6,6 +6,7 @@ from .multitask_selftrain import MultiTask
 from .generative import M2VAE, SS_CEVAE, DiffusionCEVAE
 from .jsbf_model import JSBF
 from .bridge_diff import BridgeDiff
+from .lt_flow_diff import LTFlowDiff
 from .registry import get_model
 
 __all__ = [
@@ -17,5 +18,6 @@ __all__ = [
     "DiffusionCEVAE",
     "JSBF",
     "BridgeDiff",
+    "LTFlowDiff",
     "get_model",
 ]
