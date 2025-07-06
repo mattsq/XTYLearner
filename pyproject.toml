@@ -21,8 +21,8 @@ dependencies = [
 [project.scripts]
 xtylearner-train = "xtylearner.scripts.train:main"
 
-[tool.setuptools]
-packages = ["xtylearner"]
+[tool.setuptools.packages.find]
+include = ["xtylearner*"]
 
 [tool.pytest.ini_options]
 addopts = "-vv"
