@@ -11,6 +11,7 @@ from .bridge_diff import BridgeDiff
 from .lt_flow_diff import LTFlowDiff
 from .prob_circuit_model import ProbCircuitModel
 from .masked_tabular_transformer import MaskedTabularTransformer
+from .gflownet_treatment import GFlowNetTreatment
 from .registry import get_model
 
 __all__ = [
@@ -27,5 +28,6 @@ __all__ = [
     "JointEBM",
     "MaskedTabularTransformer",
     "ProbCircuitModel",
+    "GFlowNetTreatment",
     "get_model",
 ]
