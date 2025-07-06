@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from .registry import register_model
 
@@ -92,9 +93,11 @@ class Encoder(nn.Module):
 class ScoreNet(nn.Module):
     """Score network predicting ``\nabla_z log p(z|t)``."""
 
-    def __init__(self, d_z: int, hidden: int = 128, embed_dim: int = 64) -> None:
+    def __init__(
+        self, d_z: int, k: int, hidden: int = 128, embed_dim: int = 64
+    ) -> None:
         super().__init__()
-        self.t_emb = nn.Embedding(2, embed_dim)
+        self.t_emb = nn.Embedding(k, embed_dim)
         self.time = nn.Sequential(
             nn.Linear(1, embed_dim),
             nn.SiLU(),
@@ -127,18 +130,20 @@ class LTFlowDiff(nn.Module):
         timesteps: int = 1000,
         sigma_min: float = 0.002,
         sigma_max: float = 1.0,
+        k: int = 2,
     ) -> None:
         super().__init__()
         self.d_x = d_x
         self.d_y = d_y
         self.d_z = d_z
+        self.k = k
         self.timesteps = timesteps
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         dim_xy = d_x + d_y
         self.encoder = Encoder(dim_xy, d_z, hidden)
         self.flow = CondFlow(dim_xy, d_z, hidden)
-        self.score = ScoreNet(d_z, hidden)
+        self.score = ScoreNet(d_z, k, hidden)
 
     # ----- utilities -----
     def _sigma(self, tau: torch.Tensor) -> torch.Tensor:
@@ -167,18 +172,19 @@ class LTFlowDiff(nn.Module):
         noise = torch.randn_like(z)
         z_tau = z + sig * noise
 
-        s0 = self.score(z_tau, torch.zeros_like(t_obs), tau.unsqueeze(-1))
-        s1 = self.score(z_tau, torch.ones_like(t_obs), tau.unsqueeze(-1))
-        mse0 = ((s0 + noise / sig) ** 2).mean(dim=-1)
-        mse1 = ((s1 + noise / sig) ** 2).mean(dim=-1)
+        mse_all = []
+        for t_val in range(self.k):
+            s_t = self.score(z_tau, torch.full_like(t_obs, t_val), tau.unsqueeze(-1))
+            mse_all.append(((s_t + noise / sig) ** 2).mean(dim=-1))
+        mse_all = torch.stack(mse_all, dim=1)
 
         obs = t_obs != -1
         if obs.any():
-            w0 = (~obs).float() * 0.5 + obs.float() * (1 - t_obs.float())
-            w1 = (~obs).float() * 0.5 + obs.float() * t_obs.float()
+            w = torch.full_like(mse_all, 1 / self.k)
+            w[obs] = F.one_hot(t_obs[obs], self.k).float()
         else:
-            w0 = w1 = torch.full_like(mse0, 0.5)
-        score_loss = (w0 * mse0 + w1 * mse1).mean()
+            w = torch.full_like(mse_all, 1 / self.k)
+        score_loss = (w * mse_all).sum(dim=1).mean()
 
         recon = log_pxy.mean()
         kld = 0.5 * (mu.pow(2) + logv.exp() - 1 - logv).sum(-1).mean()
@@ -188,14 +194,15 @@ class LTFlowDiff(nn.Module):
     @torch.no_grad()
     def paired_sample(
         self, x: torch.Tensor, n_steps: int = 30
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, ...]:
         b = x.size(0)
         z = torch.randn(b, self.d_z, device=x.device)
-        u0 = torch.randn(b, self.d_x + self.d_y, device=x.device)
-        u1 = torch.randn_like(u0)
-        xy0 = self.flow.inverse(u0, z)
-        xy1 = self.flow.inverse(u1, z)
-        return xy0[:, -self.d_y :], xy1[:, -self.d_y :]
+        u = torch.randn(b, self.k, self.d_x + self.d_y, device=x.device)
+        y = []
+        for t_val in range(self.k):
+            xy = self.flow.inverse(u[:, t_val], z)
+            y.append(xy[:, -self.d_y :])
+        return tuple(y)
 
     # ----- posterior utility -----
     @torch.no_grad()
@@ -203,7 +210,7 @@ class LTFlowDiff(nn.Module):
         """Return a uniform prior ``p(t|x,y)`` as the model lacks a classifier."""
 
         b = x.size(0)
-        return torch.full((b, 2), 0.5, device=x.device)
+        return torch.full((b, self.k), 1.0 / self.k, device=x.device)
 
 
 __all__ = ["LTFlowDiff"]

@@ -12,14 +12,14 @@ from .registry import register_model
 class EnergyNet(nn.Module):
     """Simple energy network E(x, y) -> energies for each t."""
 
-    def __init__(self, d_x: int, d_y: int, hidden: int = 128) -> None:
+    def __init__(self, d_x: int, d_y: int, k: int, hidden: int = 128) -> None:
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(d_x + d_y, hidden),
             nn.ReLU(),
             nn.Linear(hidden, hidden),
             nn.ReLU(),
-            nn.Linear(hidden, 2),
+            nn.Linear(hidden, k),
         )
 
     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
@@ -34,14 +34,17 @@ class JointEBM(nn.Module):
     marginalised objective on unlabelled rows.
     """
 
-    def __init__(self, d_x: int, d_y: int, hidden: int = 128) -> None:
+    def __init__(self, d_x: int, d_y: int, k: int = 2, hidden: int = 128) -> None:
         super().__init__()
-        self.energy_net = EnergyNet(d_x, d_y, hidden)
+        self.k = k
+        self.energy_net = EnergyNet(d_x, d_y, k, hidden)
 
     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         return self.energy_net(x, y)
 
-    def loss(self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor) -> torch.Tensor:
+    def loss(
+        self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
+    ) -> torch.Tensor:
         energies = self.energy_net(x, y)  # (B,2)
         labelled = t_obs >= 0
         loss_lab = torch.tensor(0.0, device=x.device)
