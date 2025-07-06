@@ -1,4 +1,5 @@
 import torch
+import pytest
 from torch.utils.data import DataLoader
 from xtylearner.data import load_toy_dataset, load_mixed_synthetic_dataset
 from xtylearner.models import CycleDual, MixtureOfFlows, MultiTask
@@ -181,3 +182,14 @@ def test_predict_treatment_proba():
     probs = trainer.predict_treatment_proba(X, Y)
     assert probs.shape == (6, 2)
     assert torch.allclose(probs.sum(-1), torch.ones(6), atol=1e-5)
+
+
+def test_trainer_with_scheduler():
+    dataset = load_toy_dataset(n_samples=10, d_x=2, seed=14)
+    loader = DataLoader(dataset, batch_size=5)
+    model = CycleDual(d_x=2, d_y=1, k=2)
+    opt = torch.optim.SGD(model.parameters(), lr=0.1)
+    sched = torch.optim.lr_scheduler.StepLR(opt, step_size=1, gamma=0.1)
+    trainer = Trainer(model, opt, loader, scheduler=sched)
+    trainer.fit(2)
+    assert opt.param_groups[0]["lr"] == pytest.approx(0.001, rel=1e-6)

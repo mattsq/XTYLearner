@@ -23,6 +23,7 @@ class BaseTrainer(ABC):
         val_loader: Optional[Iterable] = None,
         device: str = "cpu",
         logger: Optional[TrainerLogger] = None,
+        scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
     ) -> None:
         self.model = model.to(device)
         self.optimizer = optimizer
@@ -30,6 +31,7 @@ class BaseTrainer(ABC):
         self.val_loader = val_loader
         self.device = device
         self.logger = logger
+        self.scheduler = scheduler
 
     @abstractmethod
     def fit(self, num_epochs: int) -> None:
