@@ -35,6 +35,15 @@ dataset = get_dataset("toy", n_samples=100, d_x=2)
 Individual loaders such as ``load_toy_dataset`` and ``load_synthetic_dataset``
 are also exported for direct use.
 
+``load_tabular_dataset`` converts generic tabular data into a
+``torch.utils.data.TensorDataset``.  The input may be a ``pandas.DataFrame``, a
+path to a CSV file or a ``numpy.ndarray`` with columns ``X``/``Y``/``T``.  For
+data frames and CSV files the names of the outcome and treatment columns can be
+specified via ``outcome_col`` and ``treatment_col`` (defaulting to ``"outcome"``
+and ``"treatment"``).  When a NumPy array is provided ``outcome_col`` indicates
+how many outcome columns appear immediately before the treatment column.  All
+remaining columns are treated as covariates.
+
 ### Creating Models
 
 Model architectures register themselves with the module
