@@ -1,6 +1,11 @@
 import pytest
 import torch.nn as nn
-from xtylearner.models import get_model, CycleDual, DiffusionCEVAE
+from xtylearner.models import (
+    get_model,
+    CycleDual,
+    DiffusionCEVAE,
+    EnergyDiffusionImputer,
+)
 
 
 def test_get_model_valid():
@@ -9,6 +14,9 @@ def test_get_model_valid():
 
     model2 = get_model("diffusion_cevae", d_x=2, d_y=1, k=2)
     assert isinstance(model2, DiffusionCEVAE)
+
+    model3 = get_model("eg_ddi", d_x=2, d_y=1)
+    assert isinstance(model3, EnergyDiffusionImputer)
 
 
 def test_get_model_with_mlp_args():
