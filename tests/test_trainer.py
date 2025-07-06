@@ -142,3 +142,16 @@ def test_eg_ddi_trainer_runs():
     trainer.fit(1)
     loss = trainer.evaluate(loader)
     assert isinstance(loss, float)
+
+
+def test_predict_treatment_proba():
+    dataset = load_toy_dataset(n_samples=6, d_x=2, seed=12)
+    loader = DataLoader(dataset, batch_size=6)
+    model = MultiTask(d_x=2, d_y=1, k=2)
+    opt = torch.optim.Adam(model.parameters(), lr=0.01)
+    trainer = SupervisedTrainer(model, opt, loader)
+    trainer.fit(1)
+    X, Y, _ = next(iter(loader))
+    probs = trainer.predict_treatment_proba(X, Y)
+    assert probs.shape == (6, 2)
+    assert torch.allclose(probs.sum(-1), torch.ones(6), atol=1e-5)
