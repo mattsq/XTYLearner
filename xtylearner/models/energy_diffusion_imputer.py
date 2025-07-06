@@ -16,23 +16,20 @@ class ScoreNet(nn.Module):
         super().__init__()
         self.x_proj = nn.Linear(d_x, hidden)
         self.y_proj = nn.Linear(d_y, hidden)
-        self.t_embed = nn.Embedding(2, hidden)
         self.time_fc = nn.Sequential(
             nn.Linear(1, hidden),
             nn.SiLU(),
             nn.Linear(hidden, hidden),
         )
         self.trunk = nn.Sequential(
-            nn.Linear(hidden * 4, hidden),
+            nn.Linear(hidden * 3, hidden),
             nn.SiLU(),
             nn.Linear(hidden, 2),
         )
 
-    def forward(
-        self, x: torch.Tensor, y: torch.Tensor, t_corrupt: torch.Tensor, tau: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, y: torch.Tensor, tau: torch.Tensor) -> torch.Tensor:
         h = torch.cat(
-            [self.x_proj(x), self.y_proj(y), self.t_embed(t_corrupt), self.time_fc(tau)],
+            [self.x_proj(x), self.y_proj(y), self.time_fc(tau)],
             dim=-1,
         )
         return self.trunk(h)
@@ -74,11 +71,6 @@ class EnergyDiffusionImputer(nn.Module):
         self.timesteps = timesteps
         self.score_net = ScoreNet(d_x, d_y, hidden)
         self.energy_net = EnergyNet(d_x, d_y, hidden)
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=lr)
-
-    # ----- utilities -----
-    def _gamma(self, k: torch.Tensor) -> torch.Tensor:
-        return k.float() / self.timesteps
 
     # ----- training objective -----
     def loss(self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor) -> torch.Tensor:
@@ -86,16 +78,9 @@ class EnergyDiffusionImputer(nn.Module):
         device = x.device
         k = torch.randint(1, self.timesteps + 1, (b,), device=device)
         tau = k.float().unsqueeze(-1) / self.timesteps
-        gam = self._gamma(k).unsqueeze(-1)
 
-        t_clean = t_obs.clone()
         missing = t_obs == -1
-        if missing.any():
-            t_clean[missing] = torch.randint(0, 2, (missing.sum(),), device=device)
-        flip = torch.bernoulli(gam).bool().squeeze(-1)
-        t_noisy = torch.where(flip, 1 - t_clean, t_clean)
-
-        logits = self.score_net(x, y, t_noisy, tau)
+        logits = self.score_net(x, y, tau)
 
         obs_mask = t_obs != -1
         loss_obs = torch.tensor(0.0, device=device)
@@ -104,18 +89,18 @@ class EnergyDiffusionImputer(nn.Module):
 
         loss_unobs = torch.tensor(0.0, device=device)
         if missing.any():
-            # compute corrupted labels for both candidate values so the score
-            # network sees the appropriate diffusion state for each label
-            flip_m = flip[missing]
             tau_m = tau[missing]
-            t_noisy0 = torch.where(flip_m, torch.ones_like(flip_m, dtype=torch.long), torch.zeros_like(flip_m, dtype=torch.long))
-            t_noisy1 = torch.where(flip_m, torch.zeros_like(flip_m, dtype=torch.long), torch.ones_like(flip_m, dtype=torch.long))
-
-            logits0 = self.score_net(x[missing], y[missing], t_noisy0, tau_m)
-            logits1 = self.score_net(x[missing], y[missing], t_noisy1, tau_m)
-
-            ce0 = F.cross_entropy(logits0, torch.zeros_like(t_noisy0), reduction="none")
-            ce1 = F.cross_entropy(logits1, torch.ones_like(t_noisy1), reduction="none")
+            logits_m = self.score_net(x[missing], y[missing], tau_m)
+            ce0 = F.cross_entropy(
+                logits_m,
+                torch.zeros_like(tau_m.squeeze(-1), dtype=torch.long),
+                reduction="none",
+            )
+            ce1 = F.cross_entropy(
+                logits_m,
+                torch.ones_like(tau_m.squeeze(-1), dtype=torch.long),
+                reduction="none",
+            )
 
             E = self.energy_net(x[missing], y[missing])
             w = F.softmax(-E, dim=-1)
@@ -128,14 +113,6 @@ class EnergyDiffusionImputer(nn.Module):
 
         return loss_obs + loss_unobs + cd_loss
 
-    # ----- optimizer helper -----
-    def step(self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor) -> torch.Tensor:
-        loss = self.loss(x, y, t_obs)
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-        return loss
-
     # ----- simple sampler -----
     @torch.no_grad()
     def sample_T(self, x: torch.Tensor, y: torch.Tensor, steps: int = 30):
@@ -143,7 +120,7 @@ class EnergyDiffusionImputer(nn.Module):
         t = torch.randint(0, 2, (b,), device=x.device)
         for k in reversed(range(1, steps + 1)):
             tau = torch.full((b, 1), k / steps, device=x.device)
-            logits = self.score_net(x, y, t, tau)
+            logits = self.score_net(x, y, tau)
             energy = self.energy_net(x, y)
             guided = logits - energy
             probs = F.softmax(guided, dim=-1)
