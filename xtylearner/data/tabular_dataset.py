@@ -36,6 +36,9 @@ def load_tabular_dataset(
     -------
     TensorDataset
         Dataset of ``(X, Y, T)`` tensors.
+        When ``T`` contains string categories, a ``treatment_mapping``
+        attribute on the returned dataset stores the category-to-index
+        mapping.
     """
 
     if isinstance(data, (str, Path)):
@@ -81,13 +84,26 @@ def load_tabular_dataset(
     ]
     X = df[covariate_cols].to_numpy(dtype=np.float32)
     Y = df[outcome_cols].to_numpy(dtype=np.float32)
-    T = df[treatment_col].to_numpy(dtype=np.int64)
 
-    return TensorDataset(
+    treatment_series = df[treatment_col]
+    treatment_mapping = None
+    if not np.issubdtype(treatment_series.dtype, np.number):
+        categories = sorted(treatment_series.unique())
+        treatment_mapping = {c: i for i, c in enumerate(categories)}
+        T = treatment_series.map(treatment_mapping).to_numpy(dtype=np.int64)
+    else:
+        T = treatment_series.to_numpy(dtype=np.int64)
+
+    dataset = TensorDataset(
         torch.from_numpy(X),
         torch.from_numpy(Y).reshape(-1, len(outcome_cols)),
         torch.from_numpy(T),
     )
+
+    if treatment_mapping is not None:
+        dataset.treatment_mapping = treatment_mapping
+
+    return dataset
 
 
 __all__ = ["load_tabular_dataset"]

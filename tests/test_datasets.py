@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import torch
 
 from xtylearner.data import (
     load_toy_dataset,
@@ -107,3 +108,21 @@ def test_load_tabular_multiple_outcomes_array():
     assert X_t.shape == (4, 2)
     assert Y_t.shape == (4, 2)
     assert T_t.shape == (4,)
+
+
+def test_load_tabular_with_string_treatments():
+    rng = np.random.default_rng(0)
+    df = pd.DataFrame(
+        {
+            "x1": rng.normal(size=4).astype(np.float32),
+            "x2": rng.normal(size=4).astype(np.float32),
+            "outcome": rng.normal(size=4).astype(np.float32),
+            "treatment": ["a", "b", "a", "b"],
+        }
+    )
+    ds = load_tabular_dataset(df)
+    X, Y, T = ds.tensors
+    assert X.shape == (4, 2)
+    assert Y.shape == (4, 1)
+    assert T.dtype == torch.int64
+    assert getattr(ds, "treatment_mapping") == {"a": 0, "b": 1}
