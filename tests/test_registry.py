@@ -5,6 +5,7 @@ from xtylearner.models import (
     CycleDual,
     DiffusionCEVAE,
     EnergyDiffusionImputer,
+    JointEBM,
 )
 
 
@@ -17,6 +18,9 @@ def test_get_model_valid():
 
     model3 = get_model("eg_ddi", d_x=2, d_y=1)
     assert isinstance(model3, EnergyDiffusionImputer)
+
+    model4 = get_model("joint_ebm", d_x=2, d_y=1)
+    assert isinstance(model4, JointEBM)
 
 
 def test_get_model_with_mlp_args():
