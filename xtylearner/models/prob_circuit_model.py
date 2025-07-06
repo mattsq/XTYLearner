@@ -158,5 +158,13 @@ class ProbCircuitModel:
             out[:] = self._lr.predict_proba(data)[:, 1]
         return out
 
+    # --------------------------------------------------------------
+    def predict_treatment_proba(self, X: np.ndarray, Y: np.ndarray) -> np.ndarray:
+        """Return ``p(t|x,y)`` as a two-column array."""
+
+        p1 = self.predict_t_posterior(X, Y)
+        p0 = 1.0 - p1
+        return np.stack([p0, p1], axis=1)
+
 
 __all__ = ["ProbCircuitModel"]

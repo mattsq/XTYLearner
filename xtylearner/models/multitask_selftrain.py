@@ -91,6 +91,14 @@ class MultiTask(nn.Module):
         L_t = cross_entropy_loss(logits_T, T_obs)
         return L_y + L_x + L_t
 
+    # --------------------------------------------------------
+    @torch.no_grad()
+    def predict_treatment_proba(self, X: torch.Tensor, Y: torch.Tensor) -> torch.Tensor:
+        """Return posterior ``p(t|x,y)`` from the classification head."""
+
+        logits = self.head_T(torch.cat([X, Y], dim=-1))
+        return logits.softmax(dim=-1)
+
 
 class DataWrapper(torch.utils.data.Dataset):
     def __init__(self, X, Y, T):
@@ -101,3 +109,6 @@ class DataWrapper(torch.utils.data.Dataset):
 
     def __getitem__(self, i):
         return self.X[i], self.Y[i], self.T[i]
+
+
+__all__ = ["MultiTask", "DataWrapper"]

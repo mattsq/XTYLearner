@@ -92,7 +92,9 @@ class MaskedTabularTransformer(nn.Module):
         return torch.cat(tokens, 0)
 
     # ------------------------------------------------------------------
-    def loss(self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor) -> torch.Tensor:
+    def loss(
+        self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
+    ) -> torch.Tensor:
         b = x.size(0)
         device = x.device
         y_disc = self._discretise_y(y.view(-1))
@@ -129,12 +131,16 @@ class MaskedTabularTransformer(nn.Module):
 
     # ------------------------------------------------------------------
     @torch.no_grad()
-    def predict_y(self, x_row: torch.Tensor, t_prompt: int, n_samples: int = 20) -> float:
+    def predict_y(
+        self, x_row: torch.Tensor, t_prompt: int, n_samples: int = 20
+    ) -> float:
         device = x_row.device
         idx = torch.arange(self.seq_len, device=device)
         y_probs = torch.zeros(self.y_bins, device=device)
         for _ in range(n_samples):
-            seq = self.row_to_tokens(x_row, torch.tensor(float("nan"), device=device), t_prompt)
+            seq = self.row_to_tokens(
+                x_row, torch.tensor(float("nan"), device=device), t_prompt
+            )
             seq[self.d_x + 4] = self.tok_Y(torch.tensor([self.y_bins], device=device))
             seq = seq + self.pos_emb(idx)
             out = self.encoder(seq.unsqueeze(1)).squeeze(1)
@@ -144,6 +150,14 @@ class MaskedTabularTransformer(nn.Module):
         pred_bin = y_probs.argmax().item()
         y_val = self.y_min + pred_bin / (self.y_bins - 1) * (self.y_max - self.y_min)
         return float(y_val)
+
+    # ------------------------------------------------------------------
+    @torch.no_grad()
+    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Return ``p(t|x,y)`` from the Transformer classification head."""
+
+        logits = self.head_T(torch.cat([x, y], dim=-1))
+        return logits.softmax(dim=-1)
 
 
 __all__ = ["MaskedTabularTransformer"]

@@ -102,7 +102,9 @@ class JSBF(nn.Module):
         return corrupted, mask
 
     # ----- training objective -----
-    def loss(self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor) -> torch.Tensor:
+    def loss(
+        self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
+    ) -> torch.Tensor:
         b = x.size(0)
         t_idx = torch.randint(1, self.timesteps + 1, (b,), device=x.device)
         xy0 = torch.cat([x, y], dim=-1)
@@ -125,7 +127,9 @@ class JSBF(nn.Module):
     # ----- simple sampler -----
     @torch.no_grad()
     def sample(self, n: int, extra_noise: float = 1.0):
-        xy = torch.randn(n, self.d_x + self.d_y, device=self.net.score_head.weight.device)
+        xy = torch.randn(
+            n, self.d_x + self.d_y, device=self.net.score_head.weight.device
+        )
         xy = xy * self.sigma_max * extra_noise
         t = torch.randint(0, 2, (n,), device=xy.device)
 
@@ -133,10 +137,12 @@ class JSBF(nn.Module):
             tau = torch.full((n, 1), t_idx / self.timesteps, device=xy.device)
             sig_t = self._sigma(tau)
             score, logits = self.net(xy, t, tau)
-            xy = xy + (sig_t ** 2) * score
+            xy = xy + (sig_t**2) * score
             if t_idx > 1:
                 prev = (t_idx - 1) / self.timesteps
-                noise_scale = (sig_t ** 2 - self._sigma(torch.tensor(prev, device=xy.device)) ** 2).sqrt()
+                noise_scale = (
+                    sig_t**2 - self._sigma(torch.tensor(prev, device=xy.device)) ** 2
+                ).sqrt()
                 xy = xy + noise_scale * torch.randn_like(xy)
             probs = F.softmax(logits, -1)
             t = torch.multinomial(probs, 1).squeeze(-1)
@@ -144,6 +150,17 @@ class JSBF(nn.Module):
         x = xy[:, : self.d_x]
         y = xy[:, self.d_x :]
         return x.cpu(), y.cpu(), t.cpu()
+
+    # ----- posterior utility -----
+    @torch.no_grad()
+    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Return posterior ``p(t|x,y)`` using the classification head."""
+
+        xy = torch.cat([x, y], dim=-1)
+        tau = torch.zeros(x.size(0), 1, device=x.device)
+        t_dummy = torch.zeros(x.size(0), dtype=torch.long, device=x.device)
+        _, logits = self.net(xy, t_dummy, tau)
+        return logits.softmax(dim=-1)
 
 
 __all__ = ["JSBF"]

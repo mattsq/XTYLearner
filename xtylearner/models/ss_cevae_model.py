@@ -259,5 +259,13 @@ class SS_CEVAE(nn.Module):
 
         return -(elbo_L + elbo_U) + ce_sup
 
+    # --------------------------------------------------------------
+    @torch.no_grad()
+    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Return posterior ``p(t|x,y)`` from the classifier ``cls_t``."""
+
+        logits = self.cls_t(x, y)
+        return logits.softmax(dim=-1)
+
 
 __all__ = ["SS_CEVAE"]

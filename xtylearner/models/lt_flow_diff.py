@@ -197,5 +197,13 @@ class LTFlowDiff(nn.Module):
         xy1 = self.flow.inverse(u1, z)
         return xy0[:, -self.d_y :], xy1[:, -self.d_y :]
 
+    # ----- posterior utility -----
+    @torch.no_grad()
+    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Return a uniform prior ``p(t|x,y)`` as the model lacks a classifier."""
+
+        b = x.size(0)
+        return torch.full((b, 2), 0.5, device=x.device)
+
 
 __all__ = ["LTFlowDiff"]
