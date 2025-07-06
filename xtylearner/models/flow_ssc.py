@@ -105,3 +105,14 @@ class MixtureOfFlows(nn.Module):
             loss_ulb = -lse.mean()  # maximise log-evidence
 
         return loss_lab + loss_ulb
+
+    # ------------------------------------------------------------------
+    @torch.no_grad()
+    def predict_treatment_proba(self, X: torch.Tensor, Y: torch.Tensor) -> torch.Tensor:
+        """Return posterior ``p(t|x,y)`` from the classifier ``clf``."""
+
+        logits = self.clf(X)
+        return logits.softmax(dim=-1)
+
+
+__all__ = ["MixtureOfFlows"]

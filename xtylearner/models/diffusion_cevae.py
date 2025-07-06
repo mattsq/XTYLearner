@@ -266,5 +266,16 @@ class DiffusionCEVAE(nn.Module):
     ) -> torch.Tensor:
         return self.loss(x, y, t_obs)
 
+    # --------------------------------------------------------------
+    @torch.no_grad()
+    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Approximate ``p(t|x,y)`` using the encoder and decoder."""
+
+        b = x.size(0)
+        t_dummy = torch.full((b,), -1, dtype=torch.long, device=x.device)
+        mu, _ = self.enc_u(x, t_dummy, y)
+        logits = self.dec_t(x, mu)
+        return logits.softmax(dim=-1)
+
 
 __all__ = ["DiffusionCEVAE"]

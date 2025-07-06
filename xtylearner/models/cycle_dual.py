@@ -115,3 +115,14 @@ class CycleDual(nn.Module):
             + λ_ent * L_ent
         )
         return L_total
+
+    # ------------------------------------------------------------------
+    @torch.no_grad()
+    def predict_treatment_proba(self, X: torch.Tensor, Y: torch.Tensor) -> torch.Tensor:
+        """Return posterior ``p(t|x,y)`` from the classifier ``C``."""
+
+        logits = self.C(torch.cat([X, Y], dim=-1))
+        return logits.softmax(dim=-1)
+
+
+__all__ = ["CycleDual"]
