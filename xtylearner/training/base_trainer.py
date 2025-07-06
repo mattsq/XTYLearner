@@ -4,6 +4,9 @@ from abc import ABC, abstractmethod
 from typing import Iterable, Optional, Mapping
 
 import torch
+import torch.nn.functional as F
+
+from .metrics import accuracy
 
 
 from .logger import TrainerLogger
@@ -50,9 +53,7 @@ class BaseTrainer(ABC):
         return {"loss": float(loss)}
 
     # --------------------------------------------------------------
-    def predict_treatment_proba(
-        self, x: torch.Tensor, y: torch.Tensor
-    ) -> torch.Tensor:
+    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Return treatment class probabilities ``p(t|x,y)``."""
 
         self.model.eval()
@@ -75,3 +76,41 @@ class BaseTrainer(ABC):
                     "Model does not support treatment probability prediction"
                 )
             return logits.softmax(dim=-1)
+
+    # --------------------------------------------------------------
+    def _extract_batch(
+        self, batch: Iterable[torch.Tensor]
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Return ``(X, Y, T_obs)`` tensors from ``batch``."""
+
+        inputs = [b.to(self.device) for b in batch]
+        if len(inputs) == 2:
+            x, y = inputs
+            t_obs = torch.full((x.size(0),), -1, dtype=torch.long, device=self.device)
+        else:
+            x, y, t_obs = inputs
+        return x, y, t_obs
+
+    def _treatment_metrics(
+        self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
+    ) -> Mapping[str, float]:
+        """Negative log-likelihood and accuracy for ``p(t|x,y)``."""
+
+        if not hasattr(self.model, "predict_treatment_proba") and not any(
+            hasattr(self.model, attr) for attr in ["cls_t", "head_T", "C"]
+        ):
+            return {}
+
+        mask = t_obs >= 0
+        if not mask.any():
+            return {}
+
+        try:
+            probs = self.predict_treatment_proba(x, y)
+        except Exception:
+            return {}
+
+        log_probs = probs.clamp_min(1e-12).log()
+        nll = F.nll_loss(log_probs[mask], t_obs[mask])
+        acc = accuracy(log_probs[mask], t_obs[mask])
+        return {"nll": float(nll.item()), "accuracy": float(acc.item())}

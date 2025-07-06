@@ -30,12 +30,14 @@ class GenerativeTrainer(BaseTrainer):
             if self.logger:
                 self.logger.start_epoch(epoch + 1, num_batches)
             for batch_idx, batch in enumerate(self.train_loader):
+                X, Y, T_obs = self._extract_batch(batch)
                 loss = self.step(batch)
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
                 if self.logger:
-                    metrics = self._metrics_from_loss(loss)
+                    metrics = dict(self._metrics_from_loss(loss))
+                    metrics.update(self._treatment_metrics(X, Y, T_obs))
                     self.logger.log_step(epoch + 1, batch_idx, num_batches, metrics)
             if self.logger:
                 self.logger.end_epoch(epoch + 1)
