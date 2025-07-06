@@ -6,6 +6,7 @@ from .jsbf_model import JSBF
 from .diffusion_cevae import DiffusionCEVAE
 from .bridge_diff import BridgeDiff
 from .lt_flow_diff import LTFlowDiff
+from .energy_diffusion_imputer import EnergyDiffusionImputer
 
 __all__ = [
     "M2VAE",
@@ -14,4 +15,5 @@ __all__ = [
     "JSBF",
     "BridgeDiff",
     "LTFlowDiff",
+    "EnergyDiffusionImputer",
 ]

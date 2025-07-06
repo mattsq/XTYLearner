@@ -5,6 +5,7 @@ from xtylearner.models import CycleDual, MixtureOfFlows, MultiTask
 from xtylearner.training import SupervisedTrainer, GenerativeTrainer, DiffusionTrainer
 from xtylearner.models import M2VAE, SS_CEVAE, JSBF, DiffusionCEVAE
 from xtylearner.models import BridgeDiff, LTFlowDiff
+from xtylearner.models import EnergyDiffusionImputer
 
 
 def test_supervised_trainer_runs():
@@ -125,6 +126,19 @@ def test_lt_flow_diff_trainer_runs():
     model = LTFlowDiff(d_x=2, d_y=1)
     opt = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = GenerativeTrainer(model, opt, loader)
+    trainer.fit(1)
+    loss = trainer.evaluate(loader)
+    assert isinstance(loss, float)
+
+
+def test_eg_ddi_trainer_runs():
+    dataset = load_mixed_synthetic_dataset(
+        n_samples=20, d_x=2, seed=11, label_ratio=0.5
+    )
+    loader = DataLoader(dataset, batch_size=5)
+    model = EnergyDiffusionImputer(d_x=2, d_y=1)
+    opt = torch.optim.Adam(model.parameters(), lr=0.001)
+    trainer = DiffusionTrainer(model, opt, loader)
     trainer.fit(1)
     loss = trainer.evaluate(loader)
     assert isinstance(loss, float)
