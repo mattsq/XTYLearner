@@ -61,6 +61,8 @@ XTYLearner includes a small collection of reference architectures:
 - ``SS_CEVAE`` – a semi-supervised extension of the CEVAE framework.
 - ``JSBF`` – a score-based diffusion model of the full joint
   distribution ``(X, T, Y)`` supporting missing treatment labels.
+- ``BridgeDiff`` – a bridge-based conditional diffusion model that
+  generates paired counterfactual outcomes.
 
 Each model exposes a ``loss`` method compatible with the trainer utilities
 described below.
@@ -106,8 +108,8 @@ trainer = GenerativeTrainer(model, optimizer, loader)
 trainer.fit(5)
 ```
 
-For score-based diffusion models like ``JSBF`` the :class:`~xtylearner.training.DiffusionTrainer`
-handles the optimisation:
+For score-based diffusion models like ``JSBF`` or ``BridgeDiff`` the
+:class:`~xtylearner.training.DiffusionTrainer` handles the optimisation:
 
 ```python
 from xtylearner.models import JSBF

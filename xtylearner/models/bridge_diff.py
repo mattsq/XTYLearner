@@ -10,7 +10,9 @@ from .registry import register_model
 class ScoreBridge(nn.Module):
     """Score network predicting ``\nabla_y log q(y_\tau | x,t)``."""
 
-    def __init__(self, d_x: int, d_y: int, hidden: int = 256, embed_dim: int = 64) -> None:
+    def __init__(
+        self, d_x: int, d_y: int, hidden: int = 256, embed_dim: int = 64
+    ) -> None:
         super().__init__()
         self.t_embed = nn.Embedding(2, embed_dim)
         self.time_mlp = nn.Sequential(
@@ -27,7 +29,9 @@ class ScoreBridge(nn.Module):
         )
         self.score_head = nn.Linear(hidden, d_y)
 
-    def forward(self, y_noisy: torch.Tensor, x: torch.Tensor, t: torch.Tensor, tau: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, y_noisy: torch.Tensor, x: torch.Tensor, t: torch.Tensor, tau: torch.Tensor
+    ) -> torch.Tensor:
         t_emb = self.t_embed(t)
         tau_emb = self.time_mlp(tau)
         h = torch.cat([y_noisy, self.x_proj(x), t_emb, tau_emb], dim=-1)
@@ -77,7 +81,9 @@ class BridgeDiff(nn.Module):
         return self.sigma_min * (self.sigma_max / self.sigma_min) ** t
 
     # ----- training objective -----
-    def loss(self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor) -> torch.Tensor:
+    def loss(
+        self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
+    ) -> torch.Tensor:
         b = x.size(0)
         device = x.device
         t_idx = torch.randint(1, self.timesteps + 1, (b,), device=device)
@@ -131,7 +137,9 @@ class BridgeDiff(nn.Module):
 
     # ----- sampler -----
     @torch.no_grad()
-    def paired_sample(self, x: torch.Tensor, n_steps: int = 50) -> tuple[torch.Tensor, torch.Tensor]:
+    def paired_sample(
+        self, x: torch.Tensor, n_steps: int = 50
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Generate one coupled draw ``(y0, y1)`` for each row in ``x``."""
         b = x.size(0)
         device = x.device
@@ -153,11 +161,11 @@ class BridgeDiff(nn.Module):
                 torch.ones(b, dtype=torch.long, device=device),
                 tau,
             )
-            y0 = y0 + (sig ** 2) * score0
-            y1 = y1 + (sig ** 2) * score1
+            y0 = y0 + (sig**2) * score0
+            y1 = y1 + (sig**2) * score1
             if k > 1:
                 prev = tau - 1 / n_steps
-                noise_scale = (sig ** 2 - self._sigma(prev).pow(2)).sqrt()
+                noise_scale = (sig**2 - self._sigma(prev).pow(2)).sqrt()
                 noise = torch.randn_like(y0)
                 y0 = y0 + noise_scale * noise
                 y1 = y1 + noise_scale * noise
@@ -165,4 +173,3 @@ class BridgeDiff(nn.Module):
 
 
 __all__ = ["BridgeDiff"]
-
