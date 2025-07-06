@@ -5,6 +5,7 @@ from .flow_ssc import MixtureOfFlows
 from .multitask_selftrain import MultiTask
 from .generative import M2VAE, SS_CEVAE, DiffusionCEVAE
 from .jsbf_model import JSBF
+from .bridge_diff import BridgeDiff
 from .registry import get_model
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "SS_CEVAE",
     "DiffusionCEVAE",
     "JSBF",
+    "BridgeDiff",
     "get_model",
 ]
