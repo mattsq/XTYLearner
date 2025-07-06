@@ -74,16 +74,15 @@ described below.
 
 ### Training Utilities
 
-Trainer classes live in :mod:`xtylearner.training` and operate on any model with
-a suitable ``loss`` method.  A typical workflow uses ``SupervisedTrainer``:
+Training utilities live in :mod:`xtylearner.training`.  The high level `Trainer` class automatically selects the appropriate implementation (supervised, generative or diffusion) based on the supplied model.  A typical workflow is:
 
 ```python
 from torch.utils.data import DataLoader
-from xtylearner.training import SupervisedTrainer
+from xtylearner.training import Trainer
 
 loader = DataLoader(dataset, batch_size=32, shuffle=True)
 optimizer = torch.optim.Adam(model.parameters())
-trainer = SupervisedTrainer(model, optimizer, loader)
+trainer = Trainer(model, optimizer, loader)
 trainer.fit(5)
 loss = trainer.evaluate(loader)
 ```
@@ -97,31 +96,31 @@ this value.  When only ``(X, Y)`` pairs are provided, the trainer will
 internally set ``T`` to ``-1`` for every sample.
 
 Models such as ``CycleDual`` and ``MixtureOfFlows`` impute or marginalise over
-the missing labels, while the ``GenerativeTrainer`` optimises a
+the missing labels, while generative models use a
 semi-supervised objective using both labelled and unlabelled data.  A typical
 workflow is:
 
 ```python
 from xtylearner.data import load_mixed_synthetic_dataset
-from xtylearner.training import GenerativeTrainer
+from xtylearner.training import Trainer
 
 dataset = load_mixed_synthetic_dataset(n_samples=100, label_ratio=0.3)
 loader = DataLoader(dataset, batch_size=32, shuffle=True)
 model = get_model("m2_vae", d_x=2, d_y=1, k=2)
 optimizer = torch.optim.Adam(model.parameters())
-trainer = GenerativeTrainer(model, optimizer, loader)
+trainer = Trainer(model, optimizer, loader)
 trainer.fit(5)
 ```
 
-For score-based diffusion models like ``JSBF`` the :class:`~xtylearner.training.DiffusionTrainer`
+For score-based diffusion models like ``JSBF`` the `Trainer`
 handles the optimisation:
 
 ```python
 from xtylearner.models import JSBF
-from xtylearner.training import DiffusionTrainer
+from xtylearner.training import Trainer
 
 model = JSBF(d_x=2, d_y=1)
-trainer = DiffusionTrainer(model, optimizer, loader)
+trainer = Trainer(model, optimizer, loader)
 trainer.fit(5)
 ```
 
