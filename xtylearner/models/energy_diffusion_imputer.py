@@ -137,9 +137,14 @@ class EnergyDiffusionImputer(nn.Module):
 
     # ----- simple sampler -----
     @torch.no_grad()
-    def sample_T(self, x: torch.Tensor, y: torch.Tensor, steps: int = 30):
+    def sample_T(
+        self, x: torch.Tensor, y: torch.Tensor, steps: int = 30
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Draw labels ``t`` and return their final probabilities."""
+
         b = x.size(0)
         t = torch.randint(0, 2, (b,), device=x.device)
+        probs = None
         for k in reversed(range(1, steps + 1)):
             tau = torch.full((b, 1), k / steps, device=x.device)
             logits = self.score_net(x, y, t, tau)
@@ -147,7 +152,16 @@ class EnergyDiffusionImputer(nn.Module):
             guided = logits - energy
             probs = F.softmax(guided, dim=-1)
             t = torch.multinomial(probs, 1).squeeze(-1)
-        return t
+        return t, probs
+
+    @torch.no_grad()
+    def predict_treatment_proba(
+        self, x: torch.Tensor, y: torch.Tensor, steps: int = 30
+    ) -> torch.Tensor:
+        """Posterior ``p(t|x,y)`` estimated by the sampler."""
+
+        _, probs = self.sample_T(x, y, steps)
+        return probs
 
 
 __all__ = ["EnergyDiffusionImputer"]
