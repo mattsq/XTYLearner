@@ -66,6 +66,8 @@ XTYLearner includes a small collection of reference architectures:
   are missing.
 - ``LTFlowDiff`` – combines a conditional normalising flow with a
   treatment-conditioned latent diffusion prior.
+- ``EnergyDiffusionImputer`` – an energy-guided discrete diffusion model
+  for imputing missing treatments.
 
 Each model exposes a ``loss`` method compatible with the trainer utilities
 described below.
