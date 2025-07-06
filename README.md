@@ -64,6 +64,8 @@ XTYLearner includes a small collection of reference architectures:
 - ``BridgeDiff`` – a diffusion bridge architecture that couples
   counterfactual draws ``Y(0)`` and ``Y(1)`` even when treatment labels
   are missing.
+- ``LTFlowDiff`` – combines a conditional normalising flow with a
+  treatment-conditioned latent diffusion prior.
 
 Each model exposes a ``loss`` method compatible with the trainer utilities
 described below.
