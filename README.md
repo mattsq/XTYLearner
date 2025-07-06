@@ -61,6 +61,9 @@ XTYLearner includes a small collection of reference architectures:
 - ``SS_CEVAE`` – a semi-supervised extension of the CEVAE framework.
 - ``JSBF`` – a score-based diffusion model of the full joint
   distribution ``(X, T, Y)`` supporting missing treatment labels.
+- ``BridgeDiff`` – a diffusion bridge architecture that couples
+  counterfactual draws ``Y(0)`` and ``Y(1)`` even when treatment labels
+  are missing.
 
 Each model exposes a ``loss`` method compatible with the trainer utilities
 described below.
