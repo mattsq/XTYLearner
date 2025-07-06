@@ -9,6 +9,7 @@ from .models import (
     SS_CEVAE,
     BridgeDiff,
     LTFlowDiff,
+    ProbCircuitModel,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "SS_CEVAE",
     "BridgeDiff",
     "LTFlowDiff",
+    "ProbCircuitModel",
 ]

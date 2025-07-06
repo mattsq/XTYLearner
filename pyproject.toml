@@ -15,7 +15,7 @@ dependencies = [
     "numpy",
     "nflows",
     "pyyaml",
-    "pandas"
+    "pandas",
 ]
 
 [project.scripts]
