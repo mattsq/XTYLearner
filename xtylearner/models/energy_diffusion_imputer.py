@@ -14,6 +14,7 @@ class ScoreNet(nn.Module):
 
     def __init__(self, d_x: int, d_y: int, hidden: int = 128) -> None:
         super().__init__()
+        self.t_embed = nn.Embedding(2, hidden)
         self.x_proj = nn.Linear(d_x, hidden)
         self.y_proj = nn.Linear(d_y, hidden)
         self.time_fc = nn.Sequential(
@@ -22,14 +23,25 @@ class ScoreNet(nn.Module):
             nn.Linear(hidden, hidden),
         )
         self.trunk = nn.Sequential(
-            nn.Linear(hidden * 3, hidden),
+            nn.Linear(hidden * 4, hidden),
             nn.SiLU(),
             nn.Linear(hidden, 2),
         )
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor, tau: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        x: torch.Tensor,
+        y: torch.Tensor,
+        t_corrupt: torch.Tensor,
+        tau: torch.Tensor,
+    ) -> torch.Tensor:
         h = torch.cat(
-            [self.x_proj(x), self.y_proj(y), self.time_fc(tau)],
+            [
+                self.x_proj(x),
+                self.y_proj(y),
+                self.t_embed(t_corrupt),
+                self.time_fc(tau),
+            ],
             dim=-1,
         )
         return self.trunk(h)
@@ -72,15 +84,32 @@ class EnergyDiffusionImputer(nn.Module):
         self.score_net = ScoreNet(d_x, d_y, hidden)
         self.energy_net = EnergyNet(d_x, d_y, hidden)
 
+    # ----- diffusion utilities -----
+    def _gamma(self, k: torch.Tensor) -> torch.Tensor:
+        return k.float() / self.timesteps
+
+    def _q_sample(self, t0: torch.Tensor, k: torch.Tensor) -> torch.Tensor:
+        """Corrupt ``t0`` at step ``k`` by randomly flipping."""
+        gam = self._gamma(k)
+        flip = torch.bernoulli(gam).to(torch.bool)
+        return torch.where(flip, 1 - t0, t0)
+
     # ----- training objective -----
-    def loss(self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor) -> torch.Tensor:
+    def loss(
+        self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
+    ) -> torch.Tensor:
         b = x.size(0)
         device = x.device
         k = torch.randint(1, self.timesteps + 1, (b,), device=device)
         tau = k.float().unsqueeze(-1) / self.timesteps
 
+        t_clean = t_obs.clone()
         missing = t_obs == -1
-        logits = self.score_net(x, y, tau)
+        if missing.any():
+            t_clean[missing] = torch.randint(0, 2, (missing.sum(),), device=device)
+        t_corrupt = self._q_sample(t_clean, k)
+
+        logits = self.score_net(x, y, t_corrupt, tau)
 
         obs_mask = t_obs != -1
         loss_obs = torch.tensor(0.0, device=device)
@@ -89,18 +118,11 @@ class EnergyDiffusionImputer(nn.Module):
 
         loss_unobs = torch.tensor(0.0, device=device)
         if missing.any():
-            tau_m = tau[missing]
-            logits_m = self.score_net(x[missing], y[missing], tau_m)
-            ce0 = F.cross_entropy(
-                logits_m,
-                torch.zeros_like(tau_m.squeeze(-1), dtype=torch.long),
-                reduction="none",
-            )
-            ce1 = F.cross_entropy(
-                logits_m,
-                torch.ones_like(tau_m.squeeze(-1), dtype=torch.long),
-                reduction="none",
-            )
+            logits_m = logits[missing]
+            targets0 = torch.zeros_like(t_clean[missing])
+            targets1 = torch.ones_like(t_clean[missing])
+            ce0 = F.cross_entropy(logits_m, targets0, reduction="none")
+            ce1 = F.cross_entropy(logits_m, targets1, reduction="none")
 
             E = self.energy_net(x[missing], y[missing])
             w = F.softmax(-E, dim=-1)
@@ -120,7 +142,7 @@ class EnergyDiffusionImputer(nn.Module):
         t = torch.randint(0, 2, (b,), device=x.device)
         for k in reversed(range(1, steps + 1)):
             tau = torch.full((b, 1), k / steps, device=x.device)
-            logits = self.score_net(x, y, tau)
+            logits = self.score_net(x, y, t, tau)
             energy = self.energy_net(x, y)
             guided = logits - energy
             probs = F.softmax(guided, dim=-1)
