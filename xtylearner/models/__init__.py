@@ -9,6 +9,7 @@ from .joint_ebm import JointEBM
 from .jsbf_model import JSBF
 from .bridge_diff import BridgeDiff
 from .lt_flow_diff import LTFlowDiff
+from .masked_tabular_transformer import MaskedTabularTransformer
 from .registry import get_model
 
 __all__ = [
@@ -23,5 +24,6 @@ __all__ = [
     "LTFlowDiff",
     "EnergyDiffusionImputer",
     "JointEBM",
+    "MaskedTabularTransformer",
     "get_model",
 ]
