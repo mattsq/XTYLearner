@@ -16,19 +16,25 @@ class ScoreNet(nn.Module):
         super().__init__()
         self.x_proj = nn.Linear(d_x, hidden)
         self.y_proj = nn.Linear(d_y, hidden)
+        self.t_embed = nn.Embedding(2, hidden)
         self.time_fc = nn.Sequential(
             nn.Linear(1, hidden),
             nn.SiLU(),
             nn.Linear(hidden, hidden),
         )
         self.trunk = nn.Sequential(
-            nn.Linear(hidden * 3, hidden),
+            nn.Linear(hidden * 4, hidden),
             nn.SiLU(),
             nn.Linear(hidden, 2),
         )
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor, tau: torch.Tensor) -> torch.Tensor:
-        h = torch.cat([self.x_proj(x), self.y_proj(y), self.time_fc(tau)], dim=-1)
+    def forward(
+        self, x: torch.Tensor, y: torch.Tensor, t_corrupt: torch.Tensor, tau: torch.Tensor
+    ) -> torch.Tensor:
+        h = torch.cat(
+            [self.x_proj(x), self.y_proj(y), self.t_embed(t_corrupt), self.time_fc(tau)],
+            dim=-1,
+        )
         return self.trunk(h)
 
 
@@ -89,7 +95,7 @@ class EnergyDiffusionImputer(nn.Module):
         flip = torch.bernoulli(gam).bool().squeeze(-1)
         t_noisy = torch.where(flip, 1 - t_clean, t_clean)
 
-        logits = self.score_net(x, y, tau)
+        logits = self.score_net(x, y, t_noisy, tau)
 
         obs_mask = t_obs != -1
         loss_obs = torch.tensor(0.0, device=device)
@@ -126,7 +132,7 @@ class EnergyDiffusionImputer(nn.Module):
         t = torch.randint(0, 2, (b,), device=x.device)
         for k in reversed(range(1, steps + 1)):
             tau = torch.full((b, 1), k / steps, device=x.device)
-            logits = self.score_net(x, y, tau)
+            logits = self.score_net(x, y, t, tau)
             energy = self.energy_net(x, y)
             guided = logits - energy
             probs = F.softmax(guided, dim=-1)
