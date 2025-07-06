@@ -33,13 +33,19 @@ def main() -> None:
     cfg = load_config(cfg_path)
 
     dataset_cfg = cfg.get("dataset", {})
-    dataset_name = args.dataset or dataset_cfg.get("name", "toy")
-    dataset_params = dataset_cfg.get("params", {})
+    dataset_name = args.dataset if args.dataset else dataset_cfg.get("name", "toy")
+    if dataset_name == dataset_cfg.get("name"):
+        dataset_params = dataset_cfg.get("params", {})
+    else:
+        dataset_params = {}
     dataset = get_dataset(dataset_name, **dataset_params)
 
     model_cfg = cfg.get("model", {})
-    model_name = args.model or model_cfg.get("name")
-    model_params = model_cfg.get("params", {})
+    model_name = args.model if args.model else model_cfg.get("name")
+    if model_name == model_cfg.get("name"):
+        model_params = model_cfg.get("params", {})
+    else:
+        model_params = {}
     model = get_model(model_name, **model_params)
 
     train_cfg = cfg.get("training", {})
