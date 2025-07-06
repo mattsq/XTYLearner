@@ -14,9 +14,9 @@ from .registry import register_model
 class ScoreNet(nn.Module):
     """Simple score network predicting continuous and discrete scores."""
 
-    def __init__(self, d_x: int, d_y: int, hidden: int) -> None:
+    def __init__(self, d_x: int, d_y: int, k: int, hidden: int) -> None:
         super().__init__()
-        self.t_embed = nn.Embedding(2, hidden)
+        self.t_embed = nn.Embedding(k, hidden)
         self.time_mlp = nn.Sequential(
             nn.Linear(1, hidden),
             nn.SiLU(),
@@ -29,7 +29,7 @@ class ScoreNet(nn.Module):
             nn.SiLU(),
         )
         self.score_head = nn.Linear(hidden, d_x + d_y)
-        self.class_head = nn.Linear(hidden, 2)
+        self.class_head = nn.Linear(hidden, k)
 
     def forward(
         self, xy: torch.Tensor, t_corrupt: torch.Tensor, tau: torch.Tensor
@@ -70,15 +70,17 @@ class JSBF(nn.Module):
         timesteps: int = 1000,
         sigma_min: float = 0.002,
         sigma_max: float = 1.0,
+        k: int = 2,
     ) -> None:
         super().__init__()
         self.d_x = d_x
         self.d_y = d_y
         self.hidden = hidden
+        self.k = k
         self.timesteps = timesteps
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
-        self.net = ScoreNet(d_x, d_y, hidden)
+        self.net = ScoreNet(d_x, d_y, k, hidden)
 
     # ----- diffusion utilities -----
     def _sigma(self, t: torch.Tensor) -> torch.Tensor:
@@ -93,9 +95,9 @@ class JSBF(nn.Module):
     def _q_sample_discrete(
         self, t0: torch.Tensor, t_idx: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Corrupt a binary label following the D3PM process."""
+        """Corrupt a label following the D3PM process."""
         gamma = (t_idx.float() / self.timesteps).view(-1)
-        rand = torch.randint(0, 2, t0.shape, device=t0.device)
+        rand = torch.randint(0, self.k, t0.shape, device=t0.device)
         keep = torch.bernoulli(1 - gamma).bool()
         corrupted = torch.where(keep, t0, rand)
         mask = keep.logical_not()
@@ -131,7 +133,7 @@ class JSBF(nn.Module):
             n, self.d_x + self.d_y, device=self.net.score_head.weight.device
         )
         xy = xy * self.sigma_max * extra_noise
-        t = torch.randint(0, 2, (n,), device=xy.device)
+        t = torch.randint(0, self.k, (n,), device=xy.device)
 
         for t_idx in reversed(range(1, self.timesteps + 1)):
             tau = torch.full((n, 1), t_idx / self.timesteps, device=xy.device)

@@ -12,9 +12,9 @@ from .registry import register_model
 class ScoreNet(nn.Module):
     """Score network predicting logits for the reverse diffusion."""
 
-    def __init__(self, d_x: int, d_y: int, hidden: int = 128) -> None:
+    def __init__(self, d_x: int, d_y: int, k: int, hidden: int = 128) -> None:
         super().__init__()
-        self.t_embed = nn.Embedding(2, hidden)
+        self.t_embed = nn.Embedding(k, hidden)
         self.x_proj = nn.Linear(d_x, hidden)
         self.y_proj = nn.Linear(d_y, hidden)
         self.time_fc = nn.Sequential(
@@ -25,7 +25,7 @@ class ScoreNet(nn.Module):
         self.trunk = nn.Sequential(
             nn.Linear(hidden * 4, hidden),
             nn.SiLU(),
-            nn.Linear(hidden, 2),
+            nn.Linear(hidden, k),
         )
 
     def forward(
@@ -50,14 +50,14 @@ class ScoreNet(nn.Module):
 class EnergyNet(nn.Module):
     """Simple energy model over ``(x,y,t)``."""
 
-    def __init__(self, d_x: int, d_y: int, hidden: int = 128) -> None:
+    def __init__(self, d_x: int, d_y: int, k: int, hidden: int = 128) -> None:
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(d_x + d_y, hidden),
             nn.ReLU(),
             nn.Linear(hidden, hidden),
             nn.ReLU(),
-            nn.Linear(hidden, 2),
+            nn.Linear(hidden, k),
         )
 
     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
@@ -76,23 +76,26 @@ class EnergyDiffusionImputer(nn.Module):
         timesteps: int = 1000,
         hidden: int = 128,
         lr: float = 2e-4,
+        k: int = 2,
     ) -> None:
         super().__init__()
         self.d_x = d_x
         self.d_y = d_y
+        self.k = k
         self.timesteps = timesteps
-        self.score_net = ScoreNet(d_x, d_y, hidden)
-        self.energy_net = EnergyNet(d_x, d_y, hidden)
+        self.score_net = ScoreNet(d_x, d_y, k, hidden)
+        self.energy_net = EnergyNet(d_x, d_y, k, hidden)
 
     # ----- diffusion utilities -----
     def _gamma(self, k: torch.Tensor) -> torch.Tensor:
         return k.float() / self.timesteps
 
     def _q_sample(self, t0: torch.Tensor, k: torch.Tensor) -> torch.Tensor:
-        """Corrupt ``t0`` at step ``k`` by randomly flipping."""
+        """Corrupt ``t0`` at step ``k`` by randomly replacing with random labels."""
         gam = self._gamma(k)
         flip = torch.bernoulli(gam).to(torch.bool)
-        return torch.where(flip, 1 - t0, t0)
+        rand = torch.randint(0, self.k, t0.shape, device=t0.device)
+        return torch.where(flip, rand, t0)
 
     # ----- training objective -----
     def loss(
@@ -106,7 +109,7 @@ class EnergyDiffusionImputer(nn.Module):
         t_clean = t_obs.clone()
         missing = t_obs == -1
         if missing.any():
-            t_clean[missing] = torch.randint(0, 2, (missing.sum(),), device=device)
+            t_clean[missing] = torch.randint(0, self.k, (missing.sum(),), device=device)
         t_corrupt = self._q_sample(t_clean, k)
 
         logits = self.score_net(x, y, t_corrupt, tau)
@@ -119,14 +122,10 @@ class EnergyDiffusionImputer(nn.Module):
         loss_unobs = torch.tensor(0.0, device=device)
         if missing.any():
             logits_m = logits[missing]
-            targets0 = torch.zeros_like(t_clean[missing])
-            targets1 = torch.ones_like(t_clean[missing])
-            ce0 = F.cross_entropy(logits_m, targets0, reduction="none")
-            ce1 = F.cross_entropy(logits_m, targets1, reduction="none")
-
+            log_probs = F.log_softmax(logits_m, dim=-1)
             E = self.energy_net(x[missing], y[missing])
             w = F.softmax(-E, dim=-1)
-            loss_unobs = (w[:, 0] * ce0 + w[:, 1] * ce1).mean()
+            loss_unobs = (w * (-log_probs)).sum(dim=-1).mean()
 
         E_all = self.energy_net(x, y)
         t_pos = torch.where(obs_mask, t_obs, logits.argmax(dim=-1))
@@ -143,7 +142,7 @@ class EnergyDiffusionImputer(nn.Module):
         """Draw labels ``t`` and return their final probabilities."""
 
         b = x.size(0)
-        t = torch.randint(0, 2, (b,), device=x.device)
+        t = torch.randint(0, self.k, (b,), device=x.device)
         probs = None
         for k in reversed(range(1, steps + 1)):
             tau = torch.full((b, 1), k / steps, device=x.device)
