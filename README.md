@@ -87,6 +87,17 @@ XTYLearner includes a small collection of reference architectures:
   treatment-conditioned latent diffusion prior.
 - ``EnergyDiffusionImputer`` – an energy-guided discrete diffusion model
   for imputing missing treatments.
+- ``DiffusionCEVAE`` – a diffusion-based variant of CEVAE trained via latent
+  score matching.
+- ``JointEBM`` – an energy-based model of the joint distribution ``(X, T, Y)``
+  optimised with a contrastive objective.
+- ``MaskedTabularTransformer`` – a transformer encoder for tabular data using a
+  masked-token training objective.
+- ``ProbCircuitModel`` – a probabilistic circuit baseline leveraging SPFlow
+  sum-product networks.
+- ``GFlowNetTreatment`` – a Generative Flow Network that samples treatments in
+  proportion to outcome likelihood.
+- ``EMModel`` – a lightweight EM algorithm implementation for linear models.
 
 Each model exposes a ``loss`` method compatible with the trainer utilities
 described below.
