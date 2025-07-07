@@ -56,18 +56,37 @@ class ProbCircuitModel:
         self._t_idx: int = -1
 
     # ------------------------------------------------------------------
-    def fit(self, df: pd.DataFrame) -> "ProbCircuitModel":
-        """Learn the circuit structure and parameters from ``df``.
+    def fit(
+        self,
+        df_or_x: pd.DataFrame | np.ndarray,
+        y: np.ndarray | None = None,
+        t: np.ndarray | None = None,
+    ) -> "ProbCircuitModel":
+        """Learn the circuit structure and parameters.
 
-        Parameters
-        ----------
-        df:
-            DataFrame containing covariates ``X*``, a treatment column ``T``
-            and an outcome column ``Y``.  Treatment may contain ``NaN`` which
-            will be treated as latent during learning.
+        The model can be trained directly from a :class:`pandas.DataFrame`
+        containing covariates ``X*`` together with a treatment column ``T``
+        and an outcome column ``Y``.  Alternatively, ``(X, Y, T)`` arrays can
+        be provided.
+        Treatment values equal to ``-1`` are interpreted as missing and will be
+        treated as latent during learning.
         """
 
         global _HAS_SPFLOW
+        if isinstance(df_or_x, pd.DataFrame):
+            df = df_or_x.copy()
+        else:
+            if y is None or t is None:
+                raise TypeError(
+                    "y and t must be provided when fitting from array inputs"
+                )
+            X = df_or_x
+            y_arr = y.reshape(-1)
+            df = pd.DataFrame(X, columns=[f"x{i}" for i in range(X.shape[1])])
+            df["Y"] = y_arr
+            df["T"] = t
+            df.loc[df["T"] == -1, "T"] = np.nan
+
         cols = list(df.columns)
         if "T" not in cols or "Y" not in cols:
             raise ValueError("DataFrame must contain columns 'T' and 'Y'")
