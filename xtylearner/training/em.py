@@ -28,25 +28,32 @@ class EMTrainer(BaseTrainer):
     def fit(self, num_epochs: int) -> None:
         X, Y, T_obs = self._collect_arrays(self.train_loader)
         num_batches = len(self.train_loader)
-        for epoch in range(num_epochs):
-            if self.logger:
-                self.logger.start_epoch(epoch + 1, num_batches)
-            self.model.fit(X, Y, T_obs)
-            if self.logger:
-                metrics = self._treatment_metrics(
-                    torch.from_numpy(X),
-                    torch.from_numpy(Y).unsqueeze(-1),
-                    torch.from_numpy(T_obs),
-                )
-                self.logger.log_step(epoch + 1, num_batches - 1, num_batches, metrics)
-                self.logger.end_epoch(epoch + 1)
+        if self.logger:
+            self.logger.start_epoch(1, num_batches)
+        self.model.fit(X, Y, T_obs)
+        if self.logger:
+            metrics = self._treatment_metrics(
+                torch.from_numpy(X),
+                torch.from_numpy(Y).unsqueeze(-1),
+                torch.from_numpy(T_obs),
+            )
+            self.logger.log_step(1, num_batches - 1, num_batches, metrics)
+            self.logger.end_epoch(1)
+
+    def _treatment_metrics(
+        self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
+    ) -> dict[str, float]:
+        if self.model.log_likelihood is None:
+            return {}
+        return {"cd_ll": float(self.model.log_likelihood)}
 
     def evaluate(self, data_loader: Iterable) -> float:
         X, Y, T_obs = self._collect_arrays(data_loader)
         mask = T_obs != -1
         if mask.sum() == 0:
             return 0.0
-        probs = self.model.predict_treatment_proba(X[mask])
+        Z = np.concatenate([X[mask], Y[mask, None]], axis=1)
+        probs = self.model.predict_treatment_proba(Z)
         nll = -np.log(probs[np.arange(mask.sum()), T_obs[mask]] + 1e-12).mean()
         return float(nll)
 
@@ -56,7 +63,9 @@ class EMTrainer(BaseTrainer):
 
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         X_np = x.cpu().numpy()
-        probs = self.model.predict_treatment_proba(X_np)
+        y_np = y.squeeze(-1).cpu().numpy()
+        Z = np.concatenate([X_np, y_np[:, None]], axis=1)
+        probs = self.model.predict_treatment_proba(Z)
         return torch.from_numpy(probs)
 
 

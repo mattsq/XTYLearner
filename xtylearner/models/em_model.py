@@ -27,6 +27,7 @@ def em_learn(
     - regs_Y[t]  : list of regressors modelling E[Y | X, T=t]
     - sigma2[t]  : residual variance per treatment
     - T_imputed  : np.ndarray of shape (n,) with hard EM labels
+    - ll         : complete-data log-likelihood at convergence
     """
     # ----- split labelled vs unlabelled ----------------------------------
     labelled = T_obs != -1
@@ -48,9 +49,10 @@ def em_learn(
         def regressor_factory() -> LinearRegression:
             return LinearRegression()
 
-    def fit_classifier(X_, T_):
+    def fit_classifier(X_, Y_, T_):
+        Z = np.concatenate([X_, Y_[:, None]], axis=1)
         clf = classifier_factory()
-        clf.fit(X_, T_)
+        clf.fit(Z, T_)
         return clf
 
     def fit_regressions(X_, Y_, T_):
@@ -71,7 +73,7 @@ def em_learn(
         return regs, np.array(sig2)
 
     # ----- initialisation: supervise only on labelled data ---------------
-    clf_T = fit_classifier(X[labelled], T[labelled])
+    clf_T = fit_classifier(X[labelled], Y[labelled], T[labelled])
     regs_Y, s2 = fit_regressions(X[labelled], Y[labelled], T[labelled])
 
     last_ll = -np.inf
@@ -79,7 +81,8 @@ def em_learn(
         # ===== E-step: impute missing T via MAP ===========================
         if unlabelled.sum() > 0:
             log_post = np.zeros((unlabelled.sum(), k))
-            p_t_given_x = clf_T.predict_proba(X[unlabelled])  # shape (n_U, K)
+            Z_u = np.concatenate([X[unlabelled], Y[unlabelled][:, None]], axis=1)
+            p_t_given_x = clf_T.predict_proba(Z_u)  # shape (n_U, K)
             y_u = Y[unlabelled]
 
             for t in range(k):
@@ -91,16 +94,17 @@ def em_learn(
             T[unlabelled] = T_hat
 
         # ===== M-step: refit heads on (labelled + pseudo-labelled) =======
-        clf_T = fit_classifier(X, T)
+        clf_T = fit_classifier(X, Y, T)
         regs_Y, s2 = fit_regressions(X, Y, T)
 
         # ===== Convergence check: complete-data log-likelihood ===========
         ll = 0.0
         # p(T|X) term
+        Z_all = np.concatenate([X, Y[:, None]], axis=1)
         if hasattr(clf_T, "predict_log_proba"):
-            ll += clf_T.predict_log_proba(X)[np.arange(len(T)), T].sum()
+            ll += clf_T.predict_log_proba(Z_all)[np.arange(len(T)), T].sum()
         else:
-            probs = clf_T.predict_proba(X)
+            probs = clf_T.predict_proba(Z_all)
             ll += np.log(probs[np.arange(len(T)), T] + 1e-12).sum()
         # p(Y|X,T) term
         for t in range(k):
@@ -114,7 +118,7 @@ def em_learn(
             break
         last_ll = ll
 
-    return clf_T, regs_Y, s2, T
+    return clf_T, regs_Y, s2, T, last_ll
 
 
 @register_model("em")
@@ -141,6 +145,7 @@ class EMModel:
         self.regs_Y = None
         self.sigma2 = None
         self.T_imputed = None
+        self.log_likelihood = None
 
     # ------------------------------------------------------------------
     def fit(self, X: np.ndarray, Y: np.ndarray, T_obs: np.ndarray) -> "EMModel":
@@ -151,6 +156,7 @@ class EMModel:
             self.regs_Y,
             self.sigma2,
             self.T_imputed,
+            self.log_likelihood,
         ) = em_learn(
             X,
             Y,
@@ -165,12 +171,12 @@ class EMModel:
         return self
 
     # ------------------------------------------------------------------
-    def predict_treatment_proba(self, X: np.ndarray) -> np.ndarray:
-        """Return ``p(T | X)`` using the learned classifier."""
+    def predict_treatment_proba(self, Z: np.ndarray) -> np.ndarray:
+        """Return ``p(T | X,Y)`` using the learned classifier."""
 
         if self.clf_T is None:
             raise ValueError("Model is not fitted")
-        return self.clf_T.predict_proba(X)
+        return self.clf_T.predict_proba(Z)
 
     # ------------------------------------------------------------------
     def predict_outcome(self, X: np.ndarray, t: int) -> np.ndarray:
