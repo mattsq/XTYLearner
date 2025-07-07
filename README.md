@@ -86,17 +86,20 @@ described below.
 Training utilities live in :mod:`xtylearner.training`.  The high level `Trainer` class automatically selects the appropriate implementation (supervised, generative or diffusion) based on the supplied model.  A typical workflow is:
 
 ```python
+import torch
 from torch.utils.data import DataLoader
-from xtylearner.training import Trainer
+from xtylearner.training import Trainer, ConsoleLogger
 
 loader = DataLoader(dataset, batch_size=32, shuffle=True)
 optimizer = torch.optim.Adam(model.parameters())
-trainer = Trainer(model, optimizer, loader)
+trainer = Trainer(model, optimizer, loader, logger=ConsoleLogger())
 trainer.fit(5)
 loss = trainer.evaluate(loader)
 ```
 An optional learning rate scheduler can be supplied via the ``scheduler``
 argument and is stepped after each epoch.
+Training progress can be logged by passing a ``TrainerLogger`` instance such as
+``ConsoleLogger`` when constructing the trainer.
 
 ### Handling Missing Treatment Labels
 
@@ -112,12 +115,15 @@ semi-supervised objective using both labelled and unlabelled data.  A typical
 workflow is:
 
 ```python
+import torch
+from torch.utils.data import DataLoader
 from xtylearner.data import load_mixed_synthetic_dataset
+from xtylearner.models import get_model
 from xtylearner.training import Trainer
 
-dataset = load_mixed_synthetic_dataset(n_samples=100, label_ratio=0.3)
+dataset = load_mixed_synthetic_dataset(n_samples=100, d_x=5, label_ratio=0.3)
 loader = DataLoader(dataset, batch_size=32, shuffle=True)
-model = get_model("m2_vae", d_x=2, d_y=1, k=2)
+model = get_model("m2_vae", d_x=5, d_y=1, k=2)
 optimizer = torch.optim.Adam(model.parameters())
 trainer = Trainer(model, optimizer, loader)
 trainer.fit(5)
