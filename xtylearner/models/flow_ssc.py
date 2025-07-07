@@ -50,16 +50,16 @@ class MixtureOfFlows(nn.Module):
     * one classifier        p_psi(t | x)
     """
 
-    def __init__(self, dim_x, dim_y, n_treat):
+    def __init__(self, d_x: int, d_y: int, k: int) -> None:
         super().__init__()
-        self.n_treat = n_treat
-        self.flow = make_conditional_flow(dim_x + dim_y, n_treat)
+        self.k = k
+        self.flow = make_conditional_flow(d_x + d_y, k)
         self.clf = nn.Sequential(
-            nn.Linear(dim_x, 128),
+            nn.Linear(d_x, 128),
             nn.ReLU(),
             nn.Linear(128, 128),
             nn.ReLU(),
-            nn.Linear(128, n_treat),
+            nn.Linear(128, k),
         )
 
     # ---------- log-likelihood for a minibatch --------------------------
@@ -72,7 +72,7 @@ class MixtureOfFlows(nn.Module):
         loss_lab = torch.tensor(0.0, device=X.device)
         if t_lab_mask.any():
             t_lab = T_obs[t_lab_mask]
-            ctx_lab = torch.nn.functional.one_hot(t_lab, self.n_treat).float()
+            ctx_lab = torch.nn.functional.one_hot(t_lab, self.k).float()
             xy_lab = torch.cat([X[t_lab_mask], Y[t_lab_mask]], dim=-1)
 
             ll_flow = self.flow.log_prob(xy_lab, context=ctx_lab)
@@ -89,15 +89,15 @@ class MixtureOfFlows(nn.Module):
             # flow likelihood under each treatment (batch, K)
             xy_u = torch.cat([X_u, Y_u], dim=-1).unsqueeze(1)  # (B_u,1,D)
             ctx = (
-                torch.eye(self.n_treat, device=X.device)
+                torch.eye(self.k, device=X.device)
                 .unsqueeze(0)
                 .repeat(X_u.size(0), 1, 1)
             )  # (B_u,K,K)
             ll = self.flow.log_prob(
-                xy_u.expand(-1, self.n_treat, -1).reshape(-1, xy_u.size(-1)),
-                context=ctx.reshape(-1, self.n_treat),
+                xy_u.expand(-1, self.k, -1).reshape(-1, xy_u.size(-1)),
+                context=ctx.reshape(-1, self.k),
             ).view(
-                X_u.size(0), self.n_treat
+                X_u.size(0), self.k
             )  # (B_u,K)
 
             # log p(x,y) = logsumexp_t [ log p(t|x) + log p(x,y|t) ]

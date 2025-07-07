@@ -15,7 +15,7 @@ def em_learn(
     X,
     Y,
     T_obs,  # arrays of shape (n, d), (n,), (n,) -- T_obs may have -1 for "missing"
-    n_treatments,
+    k,
     max_iter=20,
     tol=1e-4,
     classifier_factory=None,
@@ -53,7 +53,7 @@ def em_learn(
 
     def fit_regressions(X_, Y_, T_):
         regs, sig2 = [], []
-        for t in range(n_treatments):
+        for t in range(k):
             mask = T_ == t
             # If a treatment is absent in current pseudo-labels, keep a dummy regressor
             if mask.sum() < 2:
@@ -76,11 +76,11 @@ def em_learn(
     for it in range(max_iter):
         # ===== E-step: impute missing T via MAP ===========================
         if unlabelled.sum() > 0:
-            log_post = np.zeros((unlabelled.sum(), n_treatments))
+            log_post = np.zeros((unlabelled.sum(), k))
             p_t_given_x = clf_T.predict_proba(X[unlabelled])  # shape (n_U, K)
             y_u = Y[unlabelled]
 
-            for t in range(n_treatments):
+            for t in range(k):
                 mu = regs_Y[t].predict(X[unlabelled])
                 log_lik = norm.logpdf(y_u, loc=mu, scale=np.sqrt(s2[t]))
                 log_post[:, t] = np.log(p_t_given_x[:, t] + 1e-12) + log_lik
@@ -101,7 +101,7 @@ def em_learn(
             probs = clf_T.predict_proba(X)
             ll += np.log(probs[np.arange(len(T)), T] + 1e-12).sum()
         # p(Y|X,T) term
-        for t in range(n_treatments):
+        for t in range(k):
             mask = T == t
             mu = regs_Y[t].predict(X[mask])
             ll += norm.logpdf(Y[mask], loc=mu, scale=np.sqrt(s2[t])).sum()
@@ -121,7 +121,7 @@ class EMModel:
 
     def __init__(
         self,
-        n_treatments: int,
+        k: int,
         *,
         max_iter: int = 20,
         tol: float = 1e-4,
@@ -129,7 +129,7 @@ class EMModel:
         regressor_factory=None,
         verbose: bool = False,
     ) -> None:
-        self.n_treatments = n_treatments
+        self.k = k
         self.max_iter = max_iter
         self.tol = tol
         self.classifier_factory = classifier_factory
@@ -153,7 +153,7 @@ class EMModel:
             X,
             Y,
             T_obs,
-            self.n_treatments,
+            self.k,
             max_iter=self.max_iter,
             tol=self.tol,
             classifier_factory=self.classifier_factory,
