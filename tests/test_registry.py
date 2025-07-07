@@ -2,6 +2,7 @@ import pytest
 import torch.nn as nn
 from xtylearner.models import (
     get_model,
+    get_model_args,
     BridgeDiff,
     CycleDual,
     DiffusionCEVAE,
@@ -63,3 +64,13 @@ def test_get_model_with_mlp_args():
 def test_get_model_invalid():
     with pytest.raises(ValueError):
         get_model("unknown_model")
+
+
+def test_get_model_args():
+    args = get_model_args("cycle_dual")
+    assert "d_x" in args and "d_y" in args and "k" in args
+
+
+def test_get_model_args_invalid():
+    with pytest.raises(ValueError):
+        get_model_args("unknown_model")
