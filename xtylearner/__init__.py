@@ -11,6 +11,7 @@ from .models import (
     LTFlowDiff,
     ProbCircuitModel,
 )
+from .data import load_tabular_dataset
 
 __all__ = [
     "CycleDual",
@@ -22,4 +23,5 @@ __all__ = [
     "BridgeDiff",
     "LTFlowDiff",
     "ProbCircuitModel",
+    "load_tabular_dataset",
 ]
