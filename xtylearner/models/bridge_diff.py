@@ -140,8 +140,8 @@ class BridgeDiff(nn.Module):
         device = x.device
         y = torch.randn(b, self.k, self.d_y, device=device) * self.sigma_max
 
-        for k in reversed(range(1, n_steps + 1)):
-            tau = torch.full((b, 1), k / n_steps, device=device)
+        for step_idx in reversed(range(1, n_steps + 1)):
+            tau = torch.full((b, 1), step_idx / n_steps, device=device)
             sig = self._sigma(tau)
             for t_val in range(self.k):
                 score = self.score_net(
@@ -151,7 +151,7 @@ class BridgeDiff(nn.Module):
                     tau,
                 )
                 y[:, t_val] = y[:, t_val] + (sig**2) * score
-            if k > 1:
+            if step_idx > 1:
                 prev = tau - 1 / n_steps
                 noise_scale = (sig**2 - self._sigma(prev).pow(2)).sqrt()
                 noise = torch.randn_like(y[:, 0])
