@@ -131,7 +131,8 @@ class FixMatch:
 
     def predict_proba(self, X):
         import torch, torch.nn.functional as F
-        X = torch.tensor(X, dtype=torch.float32).cuda()
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        X = torch.tensor(X, dtype=torch.float32).to(device)
         with torch.no_grad():
             return F.softmax(self.net(X), 1).cpu().numpy()
 

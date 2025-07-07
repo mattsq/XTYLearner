@@ -15,6 +15,7 @@ class FixMatch:
     def __init__(self, tau: float = 0.95, lambda_u: float = 1.0, mu: int = 7) -> None:
         self.cfg = {"tau": tau, "lambda_u": lambda_u, "mu": mu}
         self.net: torch.nn.Module | None = None
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # --------------------------------------------------------------
     def fit(self, X_lab, y_lab, X_unlab):
@@ -23,7 +24,7 @@ class FixMatch:
         Xu = torch.as_tensor(X_unlab, dtype=torch.float32)
 
         n_class = int(yl.max()) + 1
-        self.net = make_mlp([Xl.size(1), 128, n_class]).to("cuda")
+        self.net = make_mlp([Xl.size(1), 128, n_class]).to(self.device)
         lab_loader = torch.utils.data.DataLoader(
             torch.utils.data.TensorDataset(Xl, yl), batch_size=64, shuffle=True
         )
@@ -39,13 +40,14 @@ class FixMatch:
             unlab_loader,
             tau=self.cfg["tau"],
             lambda_u=self.cfg["lambda_u"],
+            device=self.device,
         )
         self.net.eval()
         return self
 
     # --------------------------------------------------------------
     def predict_proba(self, X):
-        X = torch.as_tensor(X, dtype=torch.float32).cuda()
+        X = torch.as_tensor(X, dtype=torch.float32).to(self.device)
         with torch.no_grad():
             out = self.net(X)
             return F.softmax(out, dim=1).cpu().numpy()
@@ -53,5 +55,3 @@ class FixMatch:
     # --------------------------------------------------------------
     def predict(self, X):
         return self.predict_proba(X).argmax(1)
-
-

@@ -47,9 +47,12 @@ def train_fixmatch(
     tau: float = 0.95,
     lambda_u: float = 1.0,
     lr: float = 3e-4,
-    device: str = "cuda",
+    device: str | None = None,
 ) -> None:
     """Train ``model`` with FixMatch."""
+
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
 
     opt = torch.optim.AdamW(model.parameters(), lr)
     it_unlab = iter(loader_unlab)
@@ -74,5 +77,3 @@ def train_fixmatch(
             opt.zero_grad()
             loss.backward()
             opt.step()
-
-
