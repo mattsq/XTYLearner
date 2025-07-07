@@ -225,7 +225,7 @@ class SS_CEVAE(nn.Module):
         t1h_L = one_hot(t_lab, self.k).float()
         z_L, mu_L, logv_L = self.enc_z(x[lab], t1h_L, y[lab])
 
-        log_px_L = Normal(self.dec_x(z_L), 1.0).log_prob(x[lab]).sum(-1)
+        log_px_L = Normal(self.dec_x(z_L), 2.0).log_prob(x[lab]).sum(-1)
         log_pt_L = -nn.CrossEntropyLoss(reduction="none")(
             self.dec_t(z_L, x[lab]), t_lab
         )
@@ -241,9 +241,9 @@ class SS_CEVAE(nn.Module):
             t_soft = gumbel_softmax(logits_q, tau=self.tau, hard=False)
             z_U, mu_U, logv_U = self.enc_z(x[unlab], t_soft, y[unlab])
 
-            log_px_U = Normal(self.dec_x(z_U), 1.0).log_prob(x[unlab]).sum(-1)
+            log_px_U = Normal(self.dec_x(z_U), 2.0).log_prob(x[unlab]).sum(-1)
             logits_pT = self.dec_t(z_U, x[unlab])
-            log_pt_U = -(q_t * logits_pT.log_softmax(-1)).sum(-1)
+            log_pt_U = (q_t * logits_pT.log_softmax(-1)).sum(-1)
             log_py_U = (
                 Normal(self.dec_y(z_U, x[unlab], t_soft), 1.0)
                 .log_prob(y[unlab])
@@ -255,7 +255,7 @@ class SS_CEVAE(nn.Module):
 
         ce_sup = 0.0
         if lab.any():
-            ce_sup = nn.CrossEntropyLoss()(self.cls_t(x[lab], y[lab]), t_lab)
+            ce_sup = 100.0 * nn.CrossEntropyLoss()(self.cls_t(x[lab], y[lab]), t_lab)
 
         return -(elbo_L + elbo_U) + ce_sup
 
