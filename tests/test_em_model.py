@@ -18,7 +18,7 @@ def _generate_data(n=20, k=3, seed=0):
 
 def test_em_learn_default_runs():
     X, Y, T = _generate_data(n=15, k=2, seed=1)
-    clf, regs, s2, T_hat = em_learn(X, Y, T, n_treatments=2, max_iter=2)
+    clf, regs, s2, T_hat = em_learn(X, Y, T, k=2, max_iter=2)
     assert len(regs) == 2
     assert T_hat.shape == (15,)
     assert hasattr(clf, "predict_proba")
@@ -37,7 +37,7 @@ def test_em_learn_custom_models():
         X,
         Y,
         T,
-        n_treatments=3,
+        k=3,
         classifier_factory=clf_factory,
         regressor_factory=reg_factory,
         max_iter=2,

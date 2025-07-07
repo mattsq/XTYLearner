@@ -24,7 +24,7 @@ def test_supervised_trainer_runs():
 def test_flow_model_runs():
     dataset = load_toy_dataset(n_samples=20, d_x=2, seed=1)
     loader = DataLoader(dataset, batch_size=5)
-    model = MixtureOfFlows(dim_x=2, dim_y=1, n_treat=2)
+    model = MixtureOfFlows(d_x=2, d_y=1, k=2)
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)

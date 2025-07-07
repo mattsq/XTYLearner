@@ -27,7 +27,7 @@ def test_get_model_valid():
     model5 = get_model("gflownet_treatment", d_x=2, d_y=1)
     assert isinstance(model5, GFlowNetTreatment)
 
-    model6 = get_model("em", n_treatments=2)
+    model6 = get_model("em", k=2)
     assert isinstance(model6, EMModel)
 
 
