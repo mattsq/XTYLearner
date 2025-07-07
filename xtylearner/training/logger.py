@@ -61,4 +61,9 @@ class ConsoleLogger(TrainerLogger):
         self.update(metrics)
         if self._count % self.print_every == 0 or batch_idx == num_batches - 1:
             metric_str = ", ".join(f"{k}={v:.4f}" for k, v in metrics.items())
-            print(f"Epoch {epoch} [{batch_idx + 1}/{num_batches}] {metric_str}")
+            end = "\n" if batch_idx == num_batches - 1 else "\r"
+            print(
+                f"Epoch {epoch} [{batch_idx + 1}/{num_batches}] {metric_str}",
+                end=end,
+                flush=True,
+            )
