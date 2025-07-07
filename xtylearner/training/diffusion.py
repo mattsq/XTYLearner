@@ -30,6 +30,7 @@ class DiffusionTrainer(BaseTrainer):
                 if self.logger:
                     metrics = dict(self._metrics_from_loss(loss))
                     metrics.update(self._treatment_metrics(X, Y, T_obs))
+                    metrics.update(self._outcome_metrics(X, Y, T_obs))
                     self.logger.log_step(epoch + 1, batch_idx, num_batches, metrics)
             if self.scheduler is not None:
                 self.scheduler.step()
