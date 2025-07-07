@@ -7,6 +7,7 @@ from xtylearner.training import Trainer
 from xtylearner.models import M2VAE, SS_CEVAE, JSBF, DiffusionCEVAE
 from xtylearner.models import BridgeDiff, LTFlowDiff
 from xtylearner.models import EnergyDiffusionImputer, JointEBM, GFlowNetTreatment
+from xtylearner.models import ProbCircuitModel
 
 
 def test_supervised_trainer_runs():
@@ -193,3 +194,12 @@ def test_trainer_with_scheduler():
     trainer = Trainer(model, opt, loader, scheduler=sched)
     trainer.fit(2)
     assert opt.param_groups[0]["lr"] == pytest.approx(0.001, rel=1e-6)
+
+
+def test_trainer_handles_model_without_to():
+    dataset = load_toy_dataset(n_samples=2, d_x=2, seed=15)
+    loader = DataLoader(dataset, batch_size=1)
+    model = ProbCircuitModel(min_instances_slice=5)
+    opt = torch.optim.SGD([torch.zeros(1, requires_grad=True)], lr=0.1)
+    trainer = Trainer(model, opt, loader)
+    assert trainer.model is model

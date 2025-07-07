@@ -25,7 +25,13 @@ class BaseTrainer(ABC):
         logger: Optional[TrainerLogger] = None,
         scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
     ) -> None:
-        self.model = model.to(device)
+        # Some simple models (e.g. probabilistic circuits) do not inherit from
+        # ``torch.nn.Module`` and therefore lack a ``to`` method.  In that case
+        # we simply keep the model instance as-is.
+        if hasattr(model, "to"):
+            self.model = model.to(device)
+        else:
+            self.model = model
         self.optimizer = optimizer
         self.train_loader = train_loader
         self.val_loader = val_loader
