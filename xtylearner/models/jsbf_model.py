@@ -128,19 +128,10 @@ class JSBF(nn.Module):
 
         score_loss = ((score_pred + eps / sig_t) ** 2).mean()
 
-        target = t_cln.clone()
-        target[t_corrupt != t_cln] = self.k
-        ce_mask = t_mask
-        cls_loss = torch.tensor(0.0, device=x.device)
-        if ce_mask.any():
-            cls_loss = F.cross_entropy(logits_pred[ce_mask], target[ce_mask])
+        cls_per_row = F.cross_entropy(logits_pred, t_cln, reduction="none")
+        cls_loss = (cls_per_row * t_mask.float()).mean()
 
-        lse = torch.tensor(0.0, device=x.device)
-        if (~t_mask).any():
-            u_logits = logits_pred[~t_mask]
-            lse = torch.logsumexp(u_logits, dim=-1).mean()
-
-        return score_loss + 100 * (cls_loss + lse)
+        return score_loss + 1000.0 * cls_loss
 
     # ----- simple sampler -----
     @torch.no_grad()
