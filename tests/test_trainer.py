@@ -7,7 +7,7 @@ from xtylearner.training import Trainer
 from xtylearner.models import M2VAE, SS_CEVAE, JSBF, DiffusionCEVAE
 from xtylearner.models import BridgeDiff, LTFlowDiff
 from xtylearner.models import EnergyDiffusionImputer, JointEBM, GFlowNetTreatment
-from xtylearner.models import ProbCircuitModel
+from xtylearner.models import ProbCircuitModel, LP_KNN
 
 
 def test_supervised_trainer_runs():
@@ -203,3 +203,14 @@ def test_trainer_handles_model_without_to():
     opt = torch.optim.SGD([torch.zeros(1, requires_grad=True)], lr=0.1)
     trainer = Trainer(model, opt, loader)
     assert trainer.model is model
+
+
+def test_labelprop_trainer_runs():
+    dataset = load_toy_dataset(n_samples=20, d_x=2, seed=16)
+    loader = DataLoader(dataset, batch_size=5)
+    model = LP_KNN(n_neighbors=3)
+    opt = torch.optim.SGD([torch.zeros(1, requires_grad=True)], lr=0.1)
+    trainer = Trainer(model, opt, loader)
+    trainer.fit(1)
+    acc = trainer.evaluate(loader)
+    assert isinstance(acc, float)

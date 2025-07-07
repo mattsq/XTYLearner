@@ -18,6 +18,7 @@ from xtylearner.models import (
     M2VAE,
     MultiTask,
     ProbCircuitModel,
+    LP_KNN,
     SS_CEVAE,
 )
 
@@ -40,6 +41,7 @@ from xtylearner.models import (
         ("jsbf", JSBF, {"d_x": 2, "d_y": 1}),
         ("masked_tabular_transformer", MaskedTabularTransformer, {"d_x": 2}),
         ("prob_circuit", ProbCircuitModel, {}),
+        ("lp_knn", LP_KNN, {}),
     ],
 )
 def test_get_model_valid(name, cls, kwargs):

@@ -8,8 +8,15 @@ import torch
 from .base_trainer import BaseTrainer
 
 
-class EMTrainer(BaseTrainer):
-    """Trainer for :class:`~xtylearner.models.em_model.EMModel`."""
+class ArrayTrainer(BaseTrainer):
+    """Trainer for array-based models with a ``fit`` method.
+
+    This generalises the previous :class:`EMTrainer` used for the EM baseline
+    so that any model exposing a ``fit`` method operating on NumPy arrays can be
+    trained.  It works with datasets providing ``(X, Y)`` pairs as well as
+    ``(X, Y, T)`` triples – the latter will be passed to the model only if its
+    ``fit`` signature accepts a treatment argument.
+    """
 
     def _collect_arrays(
         self, loader: Iterable
@@ -30,7 +37,14 @@ class EMTrainer(BaseTrainer):
         num_batches = len(self.train_loader)
         if self.logger:
             self.logger.start_epoch(1, num_batches)
-        self.model.fit(X, Y, T_obs)
+        import inspect
+
+        fit_sig = inspect.signature(self.model.fit)
+        params = [p.name for p in fit_sig.parameters.values() if p.name != "self"]
+        if len(params) >= 3:
+            self.model.fit(X, Y, T_obs)
+        else:
+            self.model.fit(X, Y)
         if self.logger:
             metrics = self._treatment_metrics(
                 torch.from_numpy(X),
@@ -49,17 +63,22 @@ class EMTrainer(BaseTrainer):
 
     def evaluate(self, data_loader: Iterable) -> float:
         X, Y, T_obs = self._collect_arrays(data_loader)
-        mask = T_obs != -1
-        if mask.sum() == 0:
-            return 0.0
-        Z = np.concatenate([X[mask], Y[mask, None]], axis=1)
-        probs = self.model.predict_treatment_proba(Z)
-        nll = -np.log(probs[np.arange(mask.sum()), T_obs[mask]] + 1e-12).mean()
-        return float(nll)
+        if hasattr(self.model, "predict_treatment_proba"):
+            mask = T_obs != -1
+            if mask.sum() == 0:
+                return 0.0
+            Z = np.concatenate([X[mask], Y[mask, None]], axis=1)
+            probs = self.model.predict_treatment_proba(Z)
+            nll = -np.log(probs[np.arange(mask.sum()), T_obs[mask]] + 1e-12).mean()
+            return float(nll)
+        preds = self.model.predict(X)
+        return float((preds == Y).mean())
 
-    def predict(self, x: torch.Tensor, t_val: int):
+    def predict(self, x: torch.Tensor, t_val: int | None = None):
         X_np = x.cpu().numpy()
-        return self.model.predict_outcome(X_np, t_val)
+        if t_val is not None and hasattr(self.model, "predict_outcome"):
+            return self.model.predict_outcome(X_np, t_val)
+        return self.model.predict(X_np)
 
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         X_np = x.cpu().numpy()
@@ -69,4 +88,6 @@ class EMTrainer(BaseTrainer):
         return torch.from_numpy(probs)
 
 
-__all__ = ["EMTrainer"]
+EMTrainer = ArrayTrainer
+
+__all__ = ["ArrayTrainer", "EMTrainer"]
