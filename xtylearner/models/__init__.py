@@ -13,7 +13,7 @@ from .prob_circuit_model import ProbCircuitModel
 from .masked_tabular_transformer import MaskedTabularTransformer
 from .gflownet_treatment import GFlowNetTreatment
 from .em_model import EMModel
-from .registry import get_model
+from .registry import get_model, get_model_names
 
 __all__ = [
     "CycleDual",
@@ -32,4 +32,5 @@ __all__ = [
     "GFlowNetTreatment",
     "EMModel",
     "get_model",
+    "get_model_names",
 ]

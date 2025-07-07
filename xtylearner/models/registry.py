@@ -24,4 +24,10 @@ def get_model(name: str, **hparams: Any) -> Any:
     return _MODEL_REGISTRY[name](**hparams)
 
 
-__all__ = ["register_model", "get_model"]
+def get_model_names() -> list[str]:
+    """Return a sorted list of registered model names."""
+
+    return sorted(_MODEL_REGISTRY)
+
+
+__all__ = ["register_model", "get_model", "get_model_names"]
