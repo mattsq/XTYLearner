@@ -7,6 +7,7 @@ from xtylearner.models import (
     EnergyDiffusionImputer,
     JointEBM,
     GFlowNetTreatment,
+    EMModel,
 )
 
 
@@ -25,6 +26,9 @@ def test_get_model_valid():
 
     model5 = get_model("gflownet_treatment", d_x=2, d_y=1)
     assert isinstance(model5, GFlowNetTreatment)
+
+    model6 = get_model("em", n_treatments=2)
+    assert isinstance(model6, EMModel)
 
 
 def test_get_model_with_mlp_args():

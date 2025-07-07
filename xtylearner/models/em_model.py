@@ -8,6 +8,8 @@ import numpy as np
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from scipy.stats import norm
 
+from .registry import register_model
+
 
 def em_learn(
     X,
@@ -111,3 +113,70 @@ def em_learn(
         last_ll = ll
 
     return clf_T, regs_Y, s2, T
+
+
+@register_model("em")
+class EMModel:
+    """Wrapper around :func:`em_learn` for the model registry."""
+
+    def __init__(
+        self,
+        n_treatments: int,
+        *,
+        max_iter: int = 20,
+        tol: float = 1e-4,
+        classifier_factory=None,
+        regressor_factory=None,
+        verbose: bool = False,
+    ) -> None:
+        self.n_treatments = n_treatments
+        self.max_iter = max_iter
+        self.tol = tol
+        self.classifier_factory = classifier_factory
+        self.regressor_factory = regressor_factory
+        self.verbose = verbose
+        self.clf_T = None
+        self.regs_Y = None
+        self.sigma2 = None
+        self.T_imputed = None
+
+    # ------------------------------------------------------------------
+    def fit(self, X: np.ndarray, Y: np.ndarray, T_obs: np.ndarray) -> "EMModel":
+        """Fit the EM model on the provided data."""
+
+        (
+            self.clf_T,
+            self.regs_Y,
+            self.sigma2,
+            self.T_imputed,
+        ) = em_learn(
+            X,
+            Y,
+            T_obs,
+            self.n_treatments,
+            max_iter=self.max_iter,
+            tol=self.tol,
+            classifier_factory=self.classifier_factory,
+            regressor_factory=self.regressor_factory,
+            verbose=self.verbose,
+        )
+        return self
+
+    # ------------------------------------------------------------------
+    def predict_treatment_proba(self, X: np.ndarray) -> np.ndarray:
+        """Return ``p(T | X)`` using the learned classifier."""
+
+        if self.clf_T is None:
+            raise ValueError("Model is not fitted")
+        return self.clf_T.predict_proba(X)
+
+    # ------------------------------------------------------------------
+    def predict_outcome(self, X: np.ndarray, t: int) -> np.ndarray:
+        """Predict the outcome for treatment ``t``."""
+
+        if self.regs_Y is None:
+            raise ValueError("Model is not fitted")
+        return self.regs_Y[t].predict(X)
+
+
+__all__ = ["em_learn", "EMModel"]
