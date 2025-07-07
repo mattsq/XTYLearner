@@ -37,9 +37,11 @@ def em_learn(
     if classifier_factory is None:
 
         def classifier_factory() -> LogisticRegression:
-            return LogisticRegression(
-                multi_class="multinomial", solver="lbfgs", max_iter=200
-            )
+            if k > 2:
+                return LogisticRegression(
+                    multi_class="multinomial", solver="lbfgs", max_iter=200
+                )
+            return LogisticRegression(max_iter=200)
 
     if regressor_factory is None:
 
