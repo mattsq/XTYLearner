@@ -2,33 +2,47 @@ import pytest
 import torch.nn as nn
 from xtylearner.models import (
     get_model,
+    BridgeDiff,
     CycleDual,
     DiffusionCEVAE,
-    EnergyDiffusionImputer,
-    JointEBM,
-    GFlowNetTreatment,
     EMModel,
+    EnergyDiffusionImputer,
+    GFlowNetTreatment,
+    JSBF,
+    JointEBM,
+    LTFlowDiff,
+    MaskedTabularTransformer,
+    MixtureOfFlows,
+    M2VAE,
+    MultiTask,
+    ProbCircuitModel,
+    SS_CEVAE,
 )
 
 
-def test_get_model_valid():
-    model = get_model("cycle_dual", d_x=2, d_y=1, k=2)
-    assert isinstance(model, CycleDual)
-
-    model2 = get_model("diffusion_cevae", d_x=2, d_y=1, k=2)
-    assert isinstance(model2, DiffusionCEVAE)
-
-    model3 = get_model("eg_ddi", d_x=2, d_y=1)
-    assert isinstance(model3, EnergyDiffusionImputer)
-
-    model4 = get_model("joint_ebm", d_x=2, d_y=1)
-    assert isinstance(model4, JointEBM)
-
-    model5 = get_model("gflownet_treatment", d_x=2, d_y=1)
-    assert isinstance(model5, GFlowNetTreatment)
-
-    model6 = get_model("em", k=2)
-    assert isinstance(model6, EMModel)
+@pytest.mark.parametrize(
+    "name,cls,kwargs",
+    [
+        ("cycle_dual", CycleDual, {"d_x": 2, "d_y": 1, "k": 2}),
+        ("diffusion_cevae", DiffusionCEVAE, {"d_x": 2, "d_y": 1, "k": 2}),
+        ("eg_ddi", EnergyDiffusionImputer, {"d_x": 2, "d_y": 1}),
+        ("joint_ebm", JointEBM, {"d_x": 2, "d_y": 1}),
+        ("gflownet_treatment", GFlowNetTreatment, {"d_x": 2, "d_y": 1}),
+        ("em", EMModel, {"k": 2}),
+        ("flow_ssc", MixtureOfFlows, {"d_x": 2, "d_y": 1, "k": 2}),
+        ("multitask", MultiTask, {"d_x": 2, "d_y": 1, "k": 2}),
+        ("m2_vae", M2VAE, {"d_x": 2, "d_y": 1, "k": 2}),
+        ("ss_cevae", SS_CEVAE, {"d_x": 2, "d_y": 1, "k": 2}),
+        ("bridge_diff", BridgeDiff, {"d_x": 2, "d_y": 1}),
+        ("lt_flow_diff", LTFlowDiff, {"d_x": 2, "d_y": 1}),
+        ("jsbf", JSBF, {"d_x": 2, "d_y": 1}),
+        ("masked_tabular_transformer", MaskedTabularTransformer, {"d_x": 2}),
+        ("prob_circuit", ProbCircuitModel, {}),
+    ],
+)
+def test_get_model_valid(name, cls, kwargs):
+    model = get_model(name, **kwargs)
+    assert isinstance(model, cls)
 
 
 def test_get_model_with_mlp_args():
