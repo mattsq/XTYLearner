@@ -2,6 +2,7 @@ import pytest
 import torch.nn as nn
 from xtylearner.models import (
     get_model,
+    get_model_names,
     BridgeDiff,
     CycleDual,
     DiffusionCEVAE,
@@ -63,3 +64,9 @@ def test_get_model_with_mlp_args():
 def test_get_model_invalid():
     with pytest.raises(ValueError):
         get_model("unknown_model")
+
+
+def test_get_model_names():
+    names = get_model_names()
+    assert "cycle_dual" in names
+    assert "em" in names
