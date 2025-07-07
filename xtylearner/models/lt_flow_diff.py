@@ -116,6 +116,20 @@ class ScoreNet(nn.Module):
         return self.trunk(h)
 
 
+class Classifier(nn.Module):
+    """Classifier head estimating ``p(t|x,y)``."""
+
+    def __init__(self, d_x: int, d_y: int, k: int, hidden: int = 128) -> None:
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(d_x + d_y, hidden),
+            nn.ReLU(),
+            nn.Linear(hidden, k),
+        )
+
+    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        return self.net(torch.cat([x, y], dim=-1))
+
 @register_model("lt_flow_diff")
 class LTFlowDiff(nn.Module):
     """Latent-Treatment Flow Diffusion model."""
@@ -144,6 +158,7 @@ class LTFlowDiff(nn.Module):
         self.encoder = Encoder(dim_xy, d_z, hidden)
         self.flow = CondFlow(dim_xy, d_z, hidden)
         self.score = ScoreNet(d_z, k, hidden)
+        self.classifier = Classifier(d_x, d_y, k, hidden)
 
     # ----- utilities -----
     def _sigma(self, tau: torch.Tensor) -> torch.Tensor:
@@ -186,9 +201,14 @@ class LTFlowDiff(nn.Module):
             w = torch.full_like(mse_all, 1 / self.k)
         score_loss = (w * mse_all).sum(dim=1).mean()
 
+        ce_loss = torch.tensor(0.0, device=device)
+        if obs.any():
+            logits = self.classifier(x, y)
+            ce_loss = F.cross_entropy(logits[obs], t_obs[obs].clamp_min(0))
+
         recon = log_pxy.mean()
         kld = 0.5 * (mu.pow(2) + logv.exp() - 1 - logv).sum(-1).mean()
-        return -(recon - kld) + score_loss
+        return -(recon - kld) + score_loss + ce_loss
 
     # ----- sampler -----
     @torch.no_grad()
@@ -207,10 +227,10 @@ class LTFlowDiff(nn.Module):
     # ----- posterior utility -----
     @torch.no_grad()
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Return a uniform prior ``p(t|x,y)`` as the model lacks a classifier."""
+        """Return posterior ``p(t|x,y)`` estimated by the classifier."""
 
-        b = x.size(0)
-        return torch.full((b, self.k), 1.0 / self.k, device=x.device)
+        logits = self.classifier(x, y)
+        return logits.softmax(dim=-1)
 
 
 __all__ = ["LTFlowDiff"]
