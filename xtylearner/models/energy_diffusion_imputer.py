@@ -75,7 +75,6 @@ class EnergyDiffusionImputer(nn.Module):
         *,
         timesteps: int = 1000,
         hidden: int = 128,
-        lr: float = 2e-4,
         k: int = 2,
     ) -> None:
         super().__init__()
