@@ -130,6 +130,7 @@ class Classifier(nn.Module):
     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         return self.net(torch.cat([x, y], dim=-1))
 
+
 @register_model("lt_flow_diff")
 class LTFlowDiff(nn.Module):
     """Latent-Treatment Flow Diffusion model."""
@@ -181,8 +182,8 @@ class LTFlowDiff(nn.Module):
         )
 
         b = x.size(0)
-        k = torch.randint(1, self.timesteps + 1, (b,), device=device)
-        tau = k.float() / self.timesteps
+        t_idx = torch.randint(1, self.timesteps + 1, (b,), device=device)
+        tau = t_idx.float() / self.timesteps
         sig = self._sigma(tau).unsqueeze(-1)
         noise = torch.randn_like(z)
         z_tau = z + sig * noise

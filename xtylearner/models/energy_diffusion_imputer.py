@@ -102,14 +102,14 @@ class EnergyDiffusionImputer(nn.Module):
     ) -> torch.Tensor:
         b = x.size(0)
         device = x.device
-        k = torch.randint(1, self.timesteps + 1, (b,), device=device)
-        tau = k.float().unsqueeze(-1) / self.timesteps
+        t_idx = torch.randint(1, self.timesteps + 1, (b,), device=device)
+        tau = t_idx.float().unsqueeze(-1) / self.timesteps
 
         t_clean = t_obs.clone()
         missing = t_obs == -1
         if missing.any():
             t_clean[missing] = torch.randint(0, self.k, (missing.sum(),), device=device)
-        t_corrupt = self._q_sample(t_clean, k)
+        t_corrupt = self._q_sample(t_clean, t_idx)
 
         logits = self.score_net(x, y, t_corrupt, tau)
 
@@ -143,8 +143,8 @@ class EnergyDiffusionImputer(nn.Module):
         b = x.size(0)
         t = torch.randint(0, self.k, (b,), device=x.device)
         probs = None
-        for k in reversed(range(1, steps + 1)):
-            tau = torch.full((b, 1), k / steps, device=x.device)
+        for step_idx in reversed(range(1, steps + 1)):
+            tau = torch.full((b, 1), step_idx / steps, device=x.device)
             logits = self.score_net(x, y, t, tau)
             energy = self.energy_net(x, y)
             guided = logits - energy
