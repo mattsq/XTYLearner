@@ -21,6 +21,7 @@ from xtylearner.models import (
     LP_KNN,
     MeanTeacher,
     VAT_Model,
+    FixMatch,
     SS_CEVAE,
 )
 
@@ -50,6 +51,7 @@ from xtylearner.models import (
             {"base_net_fn": lambda n: nn.Linear(3, n), "num_classes": 2},
         ),
         ("vat", VAT_Model, {}),
+        ("fixmatch", FixMatch, {}),
     ],
 )
 def test_get_model_valid(name, cls, kwargs):
