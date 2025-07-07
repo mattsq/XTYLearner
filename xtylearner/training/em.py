@@ -27,7 +27,19 @@ class EMTrainer(BaseTrainer):
 
     def fit(self, num_epochs: int) -> None:
         X, Y, T_obs = self._collect_arrays(self.train_loader)
-        self.model.fit(X, Y, T_obs)
+        num_batches = len(self.train_loader)
+        for epoch in range(num_epochs):
+            if self.logger:
+                self.logger.start_epoch(epoch + 1, num_batches)
+            self.model.fit(X, Y, T_obs)
+            if self.logger:
+                metrics = self._treatment_metrics(
+                    torch.from_numpy(X),
+                    torch.from_numpy(Y).unsqueeze(-1),
+                    torch.from_numpy(T_obs),
+                )
+                self.logger.log_step(epoch + 1, num_batches - 1, num_batches, metrics)
+                self.logger.end_epoch(epoch + 1)
 
     def evaluate(self, data_loader: Iterable) -> float:
         X, Y, T_obs = self._collect_arrays(data_loader)
