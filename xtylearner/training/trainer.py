@@ -8,6 +8,7 @@ from .base_trainer import BaseTrainer
 from .supervised import SupervisedTrainer
 from .generative import GenerativeTrainer
 from .diffusion import DiffusionTrainer
+from .em import EMTrainer
 from .logger import TrainerLogger
 
 
@@ -43,6 +44,8 @@ class Trainer:
             return GenerativeTrainer
         if hasattr(model, "sample") or hasattr(model, "paired_sample"):
             return DiffusionTrainer
+        if hasattr(model, "predict_outcome") and not hasattr(model, "train"):
+            return EMTrainer
         return SupervisedTrainer
 
     # ------------------------------------------------------------------

@@ -6,6 +6,7 @@ from .trainer import Trainer
 from .supervised import SupervisedTrainer
 from .generative import GenerativeTrainer
 from .diffusion import DiffusionTrainer
+from .em import EMTrainer
 from .metrics import (
     mse_loss,
     mae_loss,
@@ -19,6 +20,7 @@ __all__ = [
     "SupervisedTrainer",
     "GenerativeTrainer",
     "DiffusionTrainer",
+    "EMTrainer",
     "Trainer",
     "TrainerLogger",
     "ConsoleLogger",
