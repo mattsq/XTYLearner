@@ -24,6 +24,9 @@ xtylearner-train = "xtylearner.scripts.train:main"
 [tool.setuptools.packages.find]
 include = ["xtylearner*"]
 
+[tool.setuptools.package-data]
+xtylearner = ["configs/*.yaml"]
+
 [tool.pytest.ini_options]
 addopts = "-vv"
 testpaths = ["tests"]
