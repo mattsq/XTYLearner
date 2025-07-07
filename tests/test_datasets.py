@@ -6,8 +6,8 @@ from xtylearner.data import (
     load_toy_dataset,
     load_synthetic_dataset,
     load_mixed_synthetic_dataset,
-    load_tabular_dataset,
 )
+from xtylearner import load_tabular_dataset
 
 
 def test_load_toy_dataset_shapes():
