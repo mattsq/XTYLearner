@@ -154,9 +154,19 @@ class MaskedTabularTransformer(nn.Module):
     # ------------------------------------------------------------------
     @torch.no_grad()
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Return ``p(t|x,y)`` from the Transformer classification head."""
+        """Return ``p(t|x,y)`` by running the input through the encoder."""
 
-        logits = self.head_T(torch.cat([x, y], dim=-1))
+        b = x.size(0)
+        device = x.device
+        y_disc = self._discretise_y(y.view(-1))
+        seqs = []
+        for i in range(b):
+            row = self.row_to_tokens(x[i], y_disc[i], torch.tensor(-1, device=device))
+            seqs.append(row)
+        tok_matrix = torch.stack(seqs)
+        idx = torch.arange(self.seq_len, device=device)
+        out = self.encoder((tok_matrix + self.pos_emb(idx)).transpose(0, 1)).transpose(0, 1)
+        logits = self.head_T(out[:, self.d_x + 2])
         return logits.softmax(dim=-1)
 
 
