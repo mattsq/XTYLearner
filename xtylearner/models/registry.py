@@ -1,6 +1,7 @@
 """Simple registry for constructing model classes by name."""
 
-from typing import Callable, Dict, Any
+from typing import Callable, Dict, Any, List
+import inspect
 
 # Mapping from model names to their constructors.  Model files register
 # themselves here via the :func:`register_model` decorator below.
@@ -30,4 +31,16 @@ def get_model_names() -> list[str]:
     return sorted(_MODEL_REGISTRY)
 
 
-__all__ = ["register_model", "get_model", "get_model_names"]
+def get_model_args(name: str) -> List[str]:
+    """Return the constructor argument names for a registered model."""
+
+    if name not in _MODEL_REGISTRY:
+        raise ValueError(
+            f"Unknown model '{name}'. Available: {list(_MODEL_REGISTRY)}"
+        )
+    cls = _MODEL_REGISTRY[name]
+    sig = inspect.signature(cls)
+    return [p.name for p in sig.parameters.values() if p.name != "self"]
+
+
+__all__ = ["register_model", "get_model", "get_model_names", "get_model_args"]
