@@ -53,6 +53,13 @@ class ArrayTrainer(BaseTrainer):
                 torch.from_numpy(Y).unsqueeze(-1),
                 torch.from_numpy(T_obs),
             )
+            metrics.update(
+                self._outcome_metrics(
+                    torch.from_numpy(X),
+                    torch.from_numpy(Y).unsqueeze(-1),
+                    torch.from_numpy(T_obs),
+                )
+            )
             self.logger.log_step(1, num_batches - 1, num_batches, metrics)
             self.logger.end_epoch(1)
 

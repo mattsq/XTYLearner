@@ -6,7 +6,9 @@ from typing import Iterable, Optional, Mapping
 import torch
 import torch.nn.functional as F
 
-from .metrics import accuracy
+import numpy as np
+
+from .metrics import accuracy, rmse_loss
 
 
 from .logger import TrainerLogger
@@ -124,6 +126,76 @@ class BaseTrainer(ABC):
         nll = F.nll_loss(log_probs[mask], t_obs[mask])
         acc = accuracy(log_probs[mask], t_obs[mask])
         return {"nll": float(nll.item()), "accuracy": float(acc.item())}
+
+    # --------------------------------------------------------------
+    def _predict_outcome(
+        self, x: torch.Tensor, t: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor | None:
+        """Best-effort outcome prediction for RMSE logging."""
+
+        if hasattr(self.model, "predict_outcome"):
+            try:
+                out = self.model.predict_outcome(x.cpu().numpy(), t.cpu().numpy())
+                if isinstance(out, np.ndarray):
+                    return torch.from_numpy(out).to(self.device)
+                return out.to(self.device)
+            except Exception:
+                return None
+
+        if hasattr(self.model, "head_Y"):
+            try:
+                k = getattr(self.model, "k", None)
+                if k is None:
+                    return None
+                t1h = torch.nn.functional.one_hot(t.to(torch.long), k).float()
+                if hasattr(self.model, "h"):
+                    h = self.model.h(x)
+                    return self.model.head_Y(torch.cat([h, t1h], dim=-1))
+                return self.model.head_Y(torch.cat([x, t1h], dim=-1))
+            except Exception:
+                return None
+
+        if hasattr(self.model, "G_Y"):
+            try:
+                k = getattr(self.model, "k", None)
+                if k is None:
+                    return None
+                t1h = torch.nn.functional.one_hot(t.to(torch.long), k).float()
+                return self.model.G_Y(torch.cat([x, t1h], dim=-1))
+            except Exception:
+                return None
+
+        if hasattr(self, "predict"):
+            try:
+                # handle vector t by batching unique values
+                if t.dim() == 0 or t.numel() == 1:
+                    return self.predict(x, int(t.item()))
+                preds = torch.zeros(x.size(0), y.size(-1), device=self.device)
+                for val in t.unique():
+                    idx = t == val
+                    preds[idx] = self.predict(x[idx], int(val.item()))
+                return preds
+            except Exception:
+                return None
+
+        return None
+
+    def _outcome_metrics(
+        self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
+    ) -> Mapping[str, float]:
+        """RMSE for predicted outcomes when supported."""
+
+        mask = t_obs >= 0
+        if not mask.any():
+            return {}
+
+        with torch.no_grad():
+            preds = self._predict_outcome(x[mask], t_obs[mask], y[mask])
+        if preds is None:
+            return {}
+
+        rmse = rmse_loss(preds, y[mask])
+        return {"rmse": float(rmse.item())}
 
     # --------------------------------------------------------------
     def _clip_grads(self) -> None:
