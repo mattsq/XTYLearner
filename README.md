@@ -44,6 +44,16 @@ and ``"treatment"``).  When a NumPy array is provided ``outcome_col`` indicates
 how many outcome columns appear immediately before the treatment column.  All
 remaining columns are treated as covariates.
 
+Example usage with a ``DataLoader``:
+
+```python
+from xtylearner import load_tabular_dataset
+from torch.utils.data import DataLoader
+
+dataset = load_tabular_dataset("data.csv")
+loader = DataLoader(dataset, batch_size=32, shuffle=True)
+```
+
 ### Creating Models
 
 Model architectures register themselves with the module
