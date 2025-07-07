@@ -113,18 +113,24 @@ class JSBF(nn.Module):
         xy_t, eps, sig_t = self._q_sample_continuous(xy0, t_idx)
 
         t_mask = t_obs != -1
-        t_cln = t_obs.clamp_min(0)
+        t_cln = t_obs.clone()
+        if (~t_mask).any():
+            rand_fill = torch.randint(0, self.k, (t_mask.logical_not().sum(),), device=x.device)
+            t_cln[~t_mask] = rand_fill
+        t_cln = t_cln.clamp_min(0)
         t_corrupt, _ = self._q_sample_discrete(t_cln, t_idx)
         tau = (t_idx.float() / self.timesteps).unsqueeze(-1)
 
         score_pred, logits_pred = self.net(xy_t, t_corrupt, tau)
 
         score_loss = ((score_pred + eps / sig_t) ** 2).mean()
-        if t_mask.any():
-            cls_loss = F.cross_entropy(logits_pred[t_mask], t_cln[t_mask])
-        else:
-            cls_loss = torch.tensor(0.0, device=x.device)
-        return score_loss + cls_loss
+        cls_loss = F.cross_entropy(logits_pred, t_cln)
+
+        lse = torch.tensor(0.0, device=x.device)
+        if (~t_mask).any():
+            u_logits = logits_pred[~t_mask]
+            lse = torch.logsumexp(-u_logits, dim=-1).mean()
+        return score_loss + cls_loss + lse
 
     # ----- simple sampler -----
     @torch.no_grad()
