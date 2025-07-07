@@ -29,7 +29,8 @@ class ScoreNet(nn.Module):
             nn.SiLU(),
         )
         self.score_head = nn.Linear(hidden, d_x + d_y)
-        self.class_head = nn.Linear(hidden, k)
+        # Extra "other" class for denoising target
+        self.class_head = nn.Linear(hidden, k + 1)
 
     def forward(
         self, xy: torch.Tensor, t_corrupt: torch.Tensor, tau: torch.Tensor
@@ -115,7 +116,9 @@ class JSBF(nn.Module):
         t_mask = t_obs != -1
         t_cln = t_obs.clone()
         if (~t_mask).any():
-            rand_fill = torch.randint(0, self.k, (t_mask.logical_not().sum(),), device=x.device)
+            rand_fill = torch.randint(
+                0, self.k, (t_mask.logical_not().sum(),), device=x.device
+            )
             t_cln[~t_mask] = rand_fill
         t_cln = t_cln.clamp_min(0)
         t_corrupt, _ = self._q_sample_discrete(t_cln, t_idx)
@@ -124,13 +127,20 @@ class JSBF(nn.Module):
         score_pred, logits_pred = self.net(xy_t, t_corrupt, tau)
 
         score_loss = ((score_pred + eps / sig_t) ** 2).mean()
-        cls_loss = F.cross_entropy(logits_pred, t_cln)
+
+        target = t_cln.clone()
+        target[t_corrupt != t_cln] = self.k
+        ce_mask = t_mask
+        cls_loss = torch.tensor(0.0, device=x.device)
+        if ce_mask.any():
+            cls_loss = F.cross_entropy(logits_pred[ce_mask], target[ce_mask])
 
         lse = torch.tensor(0.0, device=x.device)
         if (~t_mask).any():
             u_logits = logits_pred[~t_mask]
-            lse = torch.logsumexp(-u_logits, dim=-1).mean()
-        return score_loss + cls_loss + lse
+            lse = torch.logsumexp(u_logits, dim=-1).mean()
+
+        return score_loss + 100 * (cls_loss + lse)
 
     # ----- simple sampler -----
     @torch.no_grad()
@@ -152,7 +162,7 @@ class JSBF(nn.Module):
                     sig_t**2 - self._sigma(torch.tensor(prev, device=xy.device)) ** 2
                 ).sqrt()
                 xy = xy + noise_scale * torch.randn_like(xy)
-            probs = F.softmax(logits, -1)
+            probs = F.softmax(logits[:, : self.k], -1)
             t = torch.multinomial(probs, 1).squeeze(-1)
 
         x = xy[:, : self.d_x]
@@ -168,7 +178,7 @@ class JSBF(nn.Module):
         tau = torch.zeros(x.size(0), 1, device=x.device)
         t_dummy = torch.zeros(x.size(0), dtype=torch.long, device=x.device)
         _, logits = self.net(xy, t_dummy, tau)
-        return logits.softmax(dim=-1)
+        return logits[:, : self.k].softmax(dim=-1)
 
 
 __all__ = ["JSBF"]
