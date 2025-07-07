@@ -16,6 +16,7 @@ from .em_model import EMModel
 from .labelprop import LP_KNN
 from .mean_teacher import MeanTeacher
 from .vime import VIME_Model
+from .vat import VAT_Model
 from .registry import get_model, get_model_names, get_model_args
 
 __all__ = [
@@ -37,6 +38,7 @@ __all__ = [
     "LP_KNN",
     "MeanTeacher",
     "VIME_Model",
+    "VAT_Model",
     "get_model",
     "get_model_names",
     "get_model_args",

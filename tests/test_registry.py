@@ -20,6 +20,7 @@ from xtylearner.models import (
     ProbCircuitModel,
     LP_KNN,
     MeanTeacher,
+    VAT_Model,
     SS_CEVAE,
 )
 
@@ -48,6 +49,7 @@ from xtylearner.models import (
             MeanTeacher,
             {"base_net_fn": lambda n: nn.Linear(3, n), "num_classes": 2},
         ),
+        ("vat", VAT_Model, {}),
     ],
 )
 def test_get_model_valid(name, cls, kwargs):
