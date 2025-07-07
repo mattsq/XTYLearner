@@ -3,6 +3,7 @@ import torch.nn as nn
 from xtylearner.models import (
     get_model,
     get_model_names,
+    get_model_args,
     BridgeDiff,
     CycleDual,
     DiffusionCEVAE,
@@ -70,3 +71,14 @@ def test_get_model_names():
     names = get_model_names()
     assert "cycle_dual" in names
     assert "em" in names
+
+
+def test_get_model_args_valid():
+    args = get_model_args("cycle_dual")
+    assert "d_x" in args
+    assert "hidden_dims" in args
+
+
+def test_get_model_args_invalid():
+    with pytest.raises(ValueError):
+        get_model_args("unknown_model")
