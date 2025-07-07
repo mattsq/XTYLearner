@@ -19,6 +19,7 @@ from xtylearner.models import (
     MultiTask,
     ProbCircuitModel,
     LP_KNN,
+    MeanTeacher,
     SS_CEVAE,
 )
 
@@ -42,6 +43,11 @@ from xtylearner.models import (
         ("masked_tabular_transformer", MaskedTabularTransformer, {"d_x": 2}),
         ("prob_circuit", ProbCircuitModel, {}),
         ("lp_knn", LP_KNN, {}),
+        (
+            "mean_teacher",
+            MeanTeacher,
+            {"base_net_fn": lambda n: nn.Linear(3, n), "num_classes": 2},
+        ),
     ],
 )
 def test_get_model_valid(name, cls, kwargs):

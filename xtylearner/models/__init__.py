@@ -14,6 +14,7 @@ from .masked_tabular_transformer import MaskedTabularTransformer
 from .gflownet_treatment import GFlowNetTreatment
 from .em_model import EMModel
 from .labelprop import LP_KNN
+from .mean_teacher import MeanTeacher
 from .registry import get_model, get_model_names, get_model_args
 
 __all__ = [
@@ -33,6 +34,7 @@ __all__ = [
     "GFlowNetTreatment",
     "EMModel",
     "LP_KNN",
+    "MeanTeacher",
     "get_model",
     "get_model_names",
     "get_model_args",
