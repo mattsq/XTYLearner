@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+import math
 import torch
 import torch.nn as nn
 
@@ -33,7 +34,7 @@ class MeanTeacher(nn.Module):
     # --------------------------------------------------------------
     def _consistency_weight(self, epoch: int) -> torch.Tensor:
         t = min(epoch / self.ramp_up, 1.0)
-        return self.cons_max * torch.exp(-5 * (1 - t) ** 2)
+        return self.cons_max * math.exp(-5 * (1 - t) ** 2)
 
     # --------------------------------------------------------------
     def forward(self, x: torch.Tensor, teacher: bool = False) -> torch.Tensor:
