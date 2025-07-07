@@ -24,6 +24,7 @@ class BaseTrainer(ABC):
         device: str = "cpu",
         logger: Optional[TrainerLogger] = None,
         scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+        grad_clip_norm: float | None = None,
     ) -> None:
         # Some simple models (e.g. probabilistic circuits) do not inherit from
         # ``torch.nn.Module`` and therefore lack a ``to`` method.  In that case
@@ -38,6 +39,7 @@ class BaseTrainer(ABC):
         self.device = device
         self.logger = logger
         self.scheduler = scheduler
+        self.grad_clip_norm = grad_clip_norm
 
     @abstractmethod
     def fit(self, num_epochs: int) -> None:
@@ -122,3 +124,10 @@ class BaseTrainer(ABC):
         nll = F.nll_loss(log_probs[mask], t_obs[mask])
         acc = accuracy(log_probs[mask], t_obs[mask])
         return {"nll": float(nll.item()), "accuracy": float(acc.item())}
+
+    # --------------------------------------------------------------
+    def _clip_grads(self) -> None:
+        """Clip gradients to avoid exploding values."""
+
+        if self.grad_clip_norm is not None:
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip_norm)

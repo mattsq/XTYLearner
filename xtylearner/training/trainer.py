@@ -23,10 +23,18 @@ class Trainer:
         device: str = "cpu",
         logger: Optional[TrainerLogger] = None,
         scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+        grad_clip_norm: float | None = None,
     ) -> None:
         trainer_cls = self._select_trainer(model)
         self._trainer: BaseTrainer = trainer_cls(
-            model, optimizer, train_loader, val_loader, device, logger, scheduler
+            model,
+            optimizer,
+            train_loader,
+            val_loader,
+            device,
+            logger,
+            scheduler,
+            grad_clip_norm,
         )
 
     # ------------------------------------------------------------------

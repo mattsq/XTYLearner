@@ -25,6 +25,7 @@ class DiffusionTrainer(BaseTrainer):
                 loss = self.step(batch)
                 self.optimizer.zero_grad()
                 loss.backward()
+                self._clip_grads()
                 self.optimizer.step()
                 if self.logger:
                     metrics = dict(self._metrics_from_loss(loss))
