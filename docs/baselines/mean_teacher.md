@@ -85,6 +85,7 @@ Use different noise for student and teacher views; that is what gives the consis
 ```python
 # xtylearner/models/mean_teacher.py
 from copy import deepcopy
+import math
 import torch, torch.nn as nn
 from .registry import register_model
 
@@ -104,7 +105,7 @@ class MeanTeacher(nn.Module):
 
     def _consistency_weight(self, epoch):
         t = min(epoch / self.ramp_up, 1.0)
-        return self.cons_max * torch.exp(-5 * (1 - t) ** 2)
+        return self.cons_max * math.exp(-5 * (1 - t) ** 2)
 
     def forward(self, x, teacher=False):
         net = self.teacher if teacher else self.student
