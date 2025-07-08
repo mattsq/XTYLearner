@@ -15,7 +15,7 @@ from .gflownet_treatment import GFlowNetTreatment
 from .em_model import EMModel
 from .labelprop import LP_KNN
 from .mean_teacher import MeanTeacher
-from .vime import VIME_Model
+from .vime import VIME
 from .vat import VAT_Model
 from .fixmatch import FixMatch
 from .registry import get_model, get_model_names, get_model_args
@@ -38,7 +38,7 @@ __all__ = [
     "EMModel",
     "LP_KNN",
     "MeanTeacher",
-    "VIME_Model",
+    "VIME",
     "VAT_Model",
     "FixMatch",
     "get_model",
