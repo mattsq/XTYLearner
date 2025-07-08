@@ -61,6 +61,21 @@ class ArrayTrainer(BaseTrainer):
                 )
             )
             self.logger.log_step(1, num_batches - 1, num_batches, metrics)
+            if self.val_loader is not None:
+                Xv, Yv, Tv = self._collect_arrays(self.val_loader)
+                val_metrics = self._treatment_metrics(
+                    torch.from_numpy(Xv),
+                    torch.from_numpy(Yv).unsqueeze(-1),
+                    torch.from_numpy(Tv),
+                )
+                val_metrics.update(
+                    self._outcome_metrics(
+                        torch.from_numpy(Xv),
+                        torch.from_numpy(Yv).unsqueeze(-1),
+                        torch.from_numpy(Tv),
+                    )
+                )
+                self.logger.log_validation(1, val_metrics)
             self.logger.end_epoch(1)
 
     def _treatment_metrics(

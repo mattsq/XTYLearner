@@ -40,6 +40,10 @@ class TrainerLogger(ABC):
     ) -> None:
         """Log metrics for a single step."""
 
+    @abstractmethod
+    def log_validation(self, epoch: int, metrics: Mapping[str, float]) -> None:
+        """Log validation metrics at the end of an epoch."""
+
     def end_epoch(self, epoch: int) -> None:
         """Log average metrics at the end of an epoch."""
 
@@ -67,3 +71,7 @@ class ConsoleLogger(TrainerLogger):
                 end=end,
                 flush=True,
             )
+
+    def log_validation(self, epoch: int, metrics: Mapping[str, float]) -> None:
+        metric_str = ", ".join(f"{k}={v:.4f}" for k, v in metrics.items())
+        print(f"Epoch {epoch} validation: {metric_str}")
