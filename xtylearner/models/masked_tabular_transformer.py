@@ -73,6 +73,24 @@ class MaskedTabularTransformer(nn.Module):
         return (y_norm * (self.y_bins - 1)).round().long().clamp(0, self.y_bins - 1)
 
     # ------------------------------------------------------------------
+    def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Return outcome logits ``p(y|x,t)`` from the encoder."""
+
+        b = x.size(0)
+        device = x.device
+        seqs = []
+        for i in range(b):
+            row = self.row_to_tokens(
+                x[i], torch.tensor(float("nan"), device=device), t[i]
+            )
+            seqs.append(row)
+        tok_matrix = torch.stack(seqs)
+        idx = torch.arange(self.seq_len, device=device)
+        out = self.encoder((tok_matrix + self.pos_emb(idx)).transpose(0, 1)).transpose(0, 1)
+        logits = self.head_Y(out[:, self.d_x + 4])
+        return logits
+
+    # ------------------------------------------------------------------
     def row_to_tokens(
         self, x_row: torch.Tensor, y_disc: torch.Tensor, t_val: torch.Tensor
     ) -> torch.Tensor:

@@ -119,6 +119,12 @@ class GFlowNetTreatment(nn.Module):
         return tb_loss + outcome_loss
 
     # --------------------------------------------------------------
+    def forward(self, x: torch.Tensor, t: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return outcome parameters ``p(y|x,t)``."""
+
+        return self.outcome(x, t)
+
+    # --------------------------------------------------------------
     @torch.no_grad()
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Return posterior ``p(t|x,y)`` from the policy network."""
