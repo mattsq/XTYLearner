@@ -75,12 +75,20 @@ class MultiTask(nn.Module):
         )  # reconstruct X
 
     # --------------------------------------------------------
-    def forward(self, X, Y, T_onehot):
+    def _forward_all(self, X, Y, T_onehot):
         h_x = self.h(X)
         Y_hat = self.head_Y(torch.cat([h_x, T_onehot], -1))
         logits_T = self.head_T(torch.cat([X, Y], -1))
         X_hat = self.head_X(torch.cat([Y, T_onehot], -1))
         return Y_hat, logits_T, X_hat
+
+    # --------------------------------------------------------
+    def forward(self, X: torch.Tensor, T: torch.Tensor) -> torch.Tensor:
+        """Predict outcome given covariates and treatment."""
+
+        T_1h = torch.nn.functional.one_hot(T.to(torch.long), self.k).float()
+        h_x = self.h(X)
+        return self.head_Y(torch.cat([h_x, T_1h], dim=-1))
 
     def loss(self, X, Y, T_obs):
         """Supervised loss that ignores missing treatment labels."""
@@ -91,7 +99,7 @@ class MultiTask(nn.Module):
         T_use = torch.where(labelled, T_obs, torch.zeros_like(T_obs))
         T_1h = torch.nn.functional.one_hot(T_use, self.k).float()
 
-        Y_hat, logits_T, X_hat = self.forward(X, Y, T_1h)
+        Y_hat, logits_T, X_hat = self._forward_all(X, Y, T_1h)
 
         loss = torch.tensor(0.0, device=X.device)
         if labelled.any():
