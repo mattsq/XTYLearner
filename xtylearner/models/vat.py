@@ -46,13 +46,21 @@ class VAT_Model:
     # --------------------------------------------------------------
     def fit(self, X_lab, y_lab, X_unlab, epochs: int = 200, bs: int = 256):
         Xl = torch.as_tensor(X_lab, dtype=torch.float32)
-        yl = torch.as_tensor(y_lab, dtype=torch.long)
+        yl = torch.as_tensor(y_lab)
         Xu = torch.as_tensor(X_unlab, dtype=torch.float32)
 
-        n_class = int(yl.max()) + 1
+        self.multilabel = yl.ndim > 1 and yl.size(-1) > 1
+        if self.multilabel:
+            n_class = yl.size(-1)
+            ce = nn.BCEWithLogitsLoss()
+            yl = yl.to(torch.float32)
+        else:
+            yl = yl.view(-1).to(torch.long)
+            n_class = int(yl.max()) + 1
+            ce = nn.CrossEntropyLoss()
+
         self.net = make_mlp([Xl.size(1), 128, n_class])
         opt = torch.optim.AdamW(self.net.parameters(), 3e-4)
-        ce = nn.CrossEntropyLoss()
 
         for epoch in range(epochs):
             idx_l = torch.randint(0, len(Xl), (bs,))
@@ -76,11 +84,18 @@ class VAT_Model:
         X = torch.as_tensor(X, dtype=torch.float32)
         with torch.no_grad():
             out = self.net(X)
-            return F.softmax(out, dim=1).cpu().numpy()
+            if getattr(self, "multilabel", False):
+                probs = torch.sigmoid(out)
+            else:
+                probs = F.softmax(out, dim=1)
+            return probs.cpu().numpy()
 
     # --------------------------------------------------------------
     def predict(self, X):
-        return self.predict_proba(X).argmax(1)
+        probs = self.predict_proba(X)
+        if getattr(self, "multilabel", False):
+            return (probs >= 0.5).astype(int)
+        return probs.argmax(1)
 
 
 __all__ = ["VAT_Model", "vat_loss"]
