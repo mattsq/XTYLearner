@@ -57,6 +57,13 @@ class CycleDual(nn.Module):
         )
 
     # ------------------------------------------------------------------
+    def forward(self, X: torch.Tensor, T: torch.Tensor) -> torch.Tensor:
+        """Predict outcome ``Y`` from covariates ``X`` and treatment ``T``."""
+
+        T_1h = one_hot(T.to(torch.long), self.k).float()
+        return self.G_Y(torch.cat([X, T_1h], dim=-1))
+
+    # ------------------------------------------------------------------
     def loss(self, X, Y, T_obs, λ_sup=1.0, λ_cyc=1.0, λ_ent=0.1):
         """
         X : (B, d_x)     Y : (B, d_y)
