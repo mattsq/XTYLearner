@@ -4,8 +4,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .registry import register_model
+from ..training.metrics import cross_entropy_loss, mse_loss
 from .layers import make_mlp
+from .registry import register_model
 from .utils import ramp_up_sigmoid
 
 
@@ -16,8 +17,15 @@ def _l2_normalise(d: torch.Tensor) -> torch.Tensor:
     return d / norm.view(-1, *([1] * (d.dim() - 1)))
 
 
-def vat_loss(model: nn.Module, x: torch.Tensor, xi: float = 1e-6, eps: float = 2.5, n_power: int = 1) -> torch.Tensor:
+def vat_loss(
+    model: nn.Module,
+    x: torch.Tensor,
+    xi: float = 1e-6,
+    eps: float = 2.5,
+    n_power: int = 1,
+) -> torch.Tensor:
     """Virtual adversarial loss for a batch of inputs."""
+
     with torch.no_grad():
         pred = F.softmax(model(x), dim=1)
 
@@ -35,67 +43,85 @@ def vat_loss(model: nn.Module, x: torch.Tensor, xi: float = 1e-6, eps: float = 2
     loss = F.kl_div(F.log_softmax(pred_hat, dim=1), pred, reduction="batchmean")
     return loss
 
+
 @register_model("vat")
-class VAT_Model:
-    """Lightweight VAT wrapper for semi-supervised classification."""
+class VAT_Model(nn.Module):
+    """Outcome model with VAT-regularised treatment classifier."""
 
-    def __init__(self, eps: float = 2.5, xi: float = 1e-6, n_power: int = 1, lambda_max: float = 1.0, ramp: int = 30) -> None:
-        self.cfg = {"eps": eps, "xi": xi, "n_power": n_power, "lambda_max": lambda_max, "ramp": ramp}
-        self.net: nn.Module | None = None
+    def __init__(
+        self,
+        d_x: int,
+        d_y: int,
+        k: int = 2,
+        *,
+        hidden_dims: tuple[int, ...] | list[int] = (128, 128),
+        activation: type[nn.Module] = nn.ReLU,
+        dropout: float | None = None,
+        norm_layer: callable | None = None,
+        eps: float = 2.5,
+        xi: float = 1e-6,
+        n_power: int = 1,
+        lambda_max: float = 1.0,
+        ramp: int = 30,
+    ) -> None:
+        super().__init__()
+        self.k = k
+        self.eps = eps
+        self.xi = xi
+        self.n_power = n_power
+        self.lambda_max = lambda_max
+        self.ramp = ramp
+        self.step = 0
 
-    # --------------------------------------------------------------
-    def fit(self, X_lab, y_lab, X_unlab, epochs: int = 200, bs: int = 256):
-        Xl = torch.as_tensor(X_lab, dtype=torch.float32)
-        yl = torch.as_tensor(y_lab)
-        Xu = torch.as_tensor(X_unlab, dtype=torch.float32)
-
-        self.multilabel = yl.ndim > 1 and yl.size(-1) > 1
-        if self.multilabel:
-            n_class = yl.size(-1)
-            ce = nn.BCEWithLogitsLoss()
-            yl = yl.to(torch.float32)
-        else:
-            yl = yl.view(-1).to(torch.long)
-            n_class = int(yl.max()) + 1
-            ce = nn.CrossEntropyLoss()
-
-        self.net = make_mlp([Xl.size(1), 128, n_class])
-        opt = torch.optim.AdamW(self.net.parameters(), 3e-4)
-
-        for epoch in range(epochs):
-            idx_l = torch.randint(0, len(Xl), (bs,))
-            idx_u = torch.randint(0, len(Xu), (bs * 3,))
-            x_l, y_l = Xl[idx_l], yl[idx_l]
-            x_u = Xu[idx_u]
-
-            logits = self.net(x_l)
-            L_sup = ce(logits, y_l)
-            L_vat = vat_loss(self.net, torch.cat([x_l, x_u]), xi=self.cfg["xi"], eps=self.cfg["eps"], n_power=self.cfg["n_power"])
-            lam = ramp_up_sigmoid(epoch, self.cfg["ramp"], self.cfg["lambda_max"])
-            loss = L_sup + lam * L_vat
-
-            opt.zero_grad()
-            loss.backward()
-            opt.step()
-        return self
+        self.outcome = make_mlp(
+            [d_x + k, *hidden_dims, d_y],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+        self.classifier = make_mlp(
+            [d_x + d_y, *hidden_dims, k],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
 
     # --------------------------------------------------------------
-    def predict_proba(self, X):
-        X = torch.as_tensor(X, dtype=torch.float32)
-        with torch.no_grad():
-            out = self.net(X)
-            if getattr(self, "multilabel", False):
-                probs = torch.sigmoid(out)
-            else:
-                probs = F.softmax(out, dim=1)
-            return probs.cpu().numpy()
+    def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        t_onehot = F.one_hot(t.to(torch.long), self.k).float()
+        return self.outcome(torch.cat([x, t_onehot], dim=-1))
 
     # --------------------------------------------------------------
-    def predict(self, X):
-        probs = self.predict_proba(X)
-        if getattr(self, "multilabel", False):
-            return (probs >= 0.5).astype(int)
-        return probs.argmax(1)
+    def loss(
+        self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
+    ) -> torch.Tensor:
+        t_use = t_obs.clamp_min(0)
+        t_onehot = F.one_hot(t_use.to(torch.long), self.k).float()
+
+        y_hat = self.outcome(torch.cat([x, t_onehot], dim=-1))
+        logits_t = self.classifier(torch.cat([x, y], dim=-1))
+
+        mask = t_obs >= 0
+        loss = torch.tensor(0.0, device=x.device)
+        if mask.any():
+            loss = mse_loss(y_hat[mask], y[mask]) + cross_entropy_loss(
+                logits_t[mask], t_use[mask]
+            )
+
+        vat_inp = torch.cat([x, y], dim=-1)
+        L_vat = vat_loss(
+            self.classifier, vat_inp, xi=self.xi, eps=self.eps, n_power=self.n_power
+        )
+        lam = ramp_up_sigmoid(self.step, self.ramp, self.lambda_max)
+        self.step += 1
+        loss = loss + lam * L_vat
+        return loss
+
+    # --------------------------------------------------------------
+    @torch.no_grad()
+    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        logits = self.classifier(torch.cat([x, y], dim=-1))
+        return logits.softmax(dim=-1)
 
 
 __all__ = ["VAT_Model", "vat_loss"]
