@@ -52,6 +52,8 @@ class MixtureOfFlows(nn.Module):
 
     def __init__(self, d_x: int, d_y: int, k: int) -> None:
         super().__init__()
+        self.d_x = d_x
+        self.d_y = d_y
         self.k = k
         self.flow = make_conditional_flow(d_x + d_y, k)
         self.clf = nn.Sequential(
@@ -61,6 +63,14 @@ class MixtureOfFlows(nn.Module):
             nn.ReLU(),
             nn.Linear(128, k),
         )
+
+    # --------------------------------------------------------
+    def forward(self, X: torch.Tensor, T: torch.Tensor) -> torch.Tensor:
+        """Draw a sample of ``Y`` from ``p(y|x,t)``."""
+
+        ctx = torch.nn.functional.one_hot(T.to(torch.long), self.k).float()
+        xy = self.flow.sample(X.size(0), context=ctx)
+        return xy[:, self.d_x :]
 
 
     # ---------- log-likelihood for a minibatch --------------------------
