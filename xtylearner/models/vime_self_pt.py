@@ -4,31 +4,63 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
+from typing import Callable
+
+from .layers import make_mlp
 
 
 class Encoder(nn.Module):
-    """Simple 2-layer MLP encoder used for VIME pre-training."""
+    """MLP encoder used for VIME pre-training."""
 
-    def __init__(self, d: int, h: int = 128) -> None:
+    def __init__(
+        self,
+        d: int,
+        *,
+        hidden_dims: tuple[int, ...] | list[int] = (128, 128),
+        activation: type[nn.Module] = nn.ReLU,
+        dropout: float | None = None,
+        norm_layer: Callable[[int], nn.Module] | None = None,
+    ) -> None:
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(d, h),
-            nn.ReLU(),
-            nn.Linear(h, h),
-            nn.ReLU(),
+        self.net = make_mlp(
+            [d, *hidden_dims],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
         )
+        self.out_dim = hidden_dims[-1]
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.net(x)
 
 
 class Decoder(nn.Module):
-    """Shared head decoding both the mask and feature reconstruction."""
+    """Head decoding the mask and feature reconstruction."""
 
-    def __init__(self, d: int, h: int = 128) -> None:
+    def __init__(
+        self,
+        d: int,
+        rep_dim: int,
+        *,
+        hidden_dims: tuple[int, ...] | list[int] = (),
+        activation: type[nn.Module] = nn.ReLU,
+        dropout: float | None = None,
+        norm_layer: Callable[[int], nn.Module] | None = None,
+    ) -> None:
         super().__init__()
-        self.mask = nn.Linear(h, d)
-        self.recon = nn.Linear(h, d)
+        dims = [rep_dim, *hidden_dims, d]
+        self.mask = make_mlp(
+            dims,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+        self.recon = make_mlp(
+            dims,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
 
     def forward(self, h: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         return torch.sigmoid(self.mask(h)), self.recon(h)
@@ -51,17 +83,36 @@ def mask_corrupt(X: torch.Tensor, p_m: float) -> tuple[torch.Tensor, torch.Tenso
 
 def train_vime_s(
     X_unlab: torch.Tensor | list,
+    *,
     p_m: float = 0.3,
     alpha: float = 2.0,
     epochs: int = 50,
     bs: int = 256,
+    hidden_dims: tuple[int, ...] | list[int] = (128, 128),
+    activation: type[nn.Module] = nn.ReLU,
+    dropout: float | None = None,
+    norm_layer: Callable[[int], nn.Module] | None = None,
+    lr: float = 3e-4,
 ) -> Encoder:
     """Self-supervised pre-training stage for VIME."""
 
     X_unlab = torch.as_tensor(X_unlab, dtype=torch.float32)
-    enc = Encoder(X_unlab.shape[1])
-    dec = Decoder(X_unlab.shape[1])
-    opt = optim.Adam(list(enc.parameters()) + list(dec.parameters()), 3e-4)
+    enc = Encoder(
+        X_unlab.shape[1],
+        hidden_dims=hidden_dims,
+        activation=activation,
+        dropout=dropout,
+        norm_layer=norm_layer,
+    )
+    dec = Decoder(
+        X_unlab.shape[1],
+        enc.out_dim,
+        hidden_dims=(),
+        activation=activation,
+        dropout=dropout,
+        norm_layer=norm_layer,
+    )
+    opt = optim.Adam(list(enc.parameters()) + list(dec.parameters()), lr)
     loader = DataLoader(TensorDataset(X_unlab), bs, shuffle=True)
     bce, mse = nn.BCELoss(), nn.MSELoss()
     for _ in range(epochs):
