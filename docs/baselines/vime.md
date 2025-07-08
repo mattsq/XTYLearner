@@ -148,25 +148,34 @@ from .vime_self_pt import train_vime_s
 from .vime_semi_pt import train_vime_sl      # code above
 
 @register_model("vime")
-class VIME_Model:
-    def __init__(self, p_m=0.3, alpha=2.0, K=3, beta=10.0):
-        self.cfg = dict(p_m=p_m, alpha=alpha, K=K, beta=beta)
+class VIME(nn.Module):
+    def __init__(self, d_x, out_dim, p_m=0.3, alpha=2.0, K=3, beta=10.0):
+        super().__init__()
+        self.encoder = Encoder(d_x)
+        self.decoder = Decoder(d_x, self.encoder.out_dim)
+        self.classifier = make_mlp([self.encoder.out_dim, 128, out_dim])
+        self.p_m, self.alpha, self.K, self.beta = p_m, alpha, K, beta
 
-    def fit(self, X_lab, y_lab, X_unlab):
-        enc = train_vime_s(X_unlab, p_m=self.cfg["p_m"],
-                           α=self.cfg["alpha"])
-        self.clf = train_vime_sl(enc, X_lab, y_lab, X_unlab,
-                                 K=self.cfg["K"], beta=self.cfg["beta"])
-        return self
+    def forward(self, x):
+        return self.classifier(self.encoder(x))
 
-    def predict_proba(self, X):
-        import torch
-        X = torch.as_tensor(X, dtype=torch.float32)
-        with torch.no_grad():
-            return torch.softmax(self.clf(X), -1).cpu().numpy()
+    def loss(self, x, y):
+        m, xt = mask_corrupt(x, self.p_m)
+        h_pt = self.encoder(xt)
+        m_hat, x_hat = self.decoder(h_pt)
+        pre = F.binary_cross_entropy(m_hat, m) + self.alpha * F.mse_loss(x_hat, x)
 
-    def predict(self, X):
-        return self.predict_proba(X).argmax(1)
+        logits = self.forward(x)
+        labelled = y >= 0
+        sup = F.cross_entropy(logits[labelled], y[labelled]) if labelled.any() else 0.0
+        if (~labelled).any():
+            x_u = x[~labelled]
+            x_u_k = torch.stack([mask_corrupt(x_u, self.p_m)[1] for _ in range(self.K)])
+            logits_u = self.forward(x_u_k.view(-1, x_u.size(1))).view(self.K, x_u.size(0), -1)
+            unsup = F.mse_loss(logits_u.mean(0), logits_u)
+        else:
+            unsup = 0.0
+        return pre + sup + self.beta * unsup
 ```
 
 Add "vime" to the model registry and you get models.build_model("vime").fit(...) for free.
