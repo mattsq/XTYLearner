@@ -10,6 +10,7 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from nflows.distributions import StandardNormal
 from nflows.flows.base import Flow
 from nflows.transforms import (
@@ -65,13 +66,20 @@ class MixtureOfFlows(nn.Module):
         )
 
     # --------------------------------------------------------
-    def forward(self, X: torch.Tensor, T: torch.Tensor) -> torch.Tensor:
-        """Draw a sample of ``Y`` from ``p(y|x,t)``."""
+    def forward(
+        self, X: torch.Tensor, T: torch.Tensor, *, steps: int = 20, lr: float = 0.1
+    ) -> torch.Tensor:
+        """Approximate ``p(y|x,t)`` via gradient-based MAP estimation."""
 
-        ctx = torch.nn.functional.one_hot(T.to(torch.long), self.k).float()
-        xy = self.flow.sample(X.size(0), context=ctx)
-        return xy[:, self.d_x :]
-
+        ctx = F.one_hot(T.to(torch.long), self.k).float()
+        Y = torch.zeros(X.size(0), self.d_y, device=X.device, requires_grad=True)
+        with torch.enable_grad():
+            for _ in range(steps):
+                xy = torch.cat([X, Y], dim=-1)
+                ll = self.flow.log_prob(xy, context=ctx)
+                grad = torch.autograd.grad(ll.sum(), Y, create_graph=False)[0]
+                Y = (Y + lr * grad).detach().requires_grad_(True)
+        return Y.detach()
 
     # ---------- log-likelihood for a minibatch --------------------------
     def loss(self, X, Y, T_obs):

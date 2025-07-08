@@ -85,6 +85,21 @@ class EnergyDiffusionImputer(nn.Module):
         self.score_net = ScoreNet(d_x, d_y, k, hidden)
         self.energy_net = EnergyNet(d_x, d_y, k, hidden)
 
+    # --------------------------------------------------------------
+    def forward(
+        self, x: torch.Tensor, t: torch.Tensor, *, steps: int = 20, lr: float = 0.1
+    ) -> torch.Tensor:
+        """Approximate ``p(y|x,t)`` via gradient-based energy minimisation."""
+
+        y = torch.zeros(x.size(0), self.d_y, device=x.device, requires_grad=True)
+        with torch.enable_grad():
+            for _ in range(steps):
+                e_all = self.energy_net(x, y)
+                e = e_all.gather(1, t.view(-1, 1).clamp_min(0))
+                grad = torch.autograd.grad(e.sum(), y, create_graph=False)[0]
+                y = (y - lr * grad).detach().requires_grad_(True)
+        return y.detach()
+
     # ----- diffusion utilities -----
     def _gamma(self, k: torch.Tensor) -> torch.Tensor:
         return k.float() / self.timesteps

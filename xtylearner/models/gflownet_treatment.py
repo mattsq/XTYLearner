@@ -119,10 +119,11 @@ class GFlowNetTreatment(nn.Module):
         return tb_loss + outcome_loss
 
     # --------------------------------------------------------------
-    def forward(self, x: torch.Tensor, t: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        """Return outcome parameters ``p(y|x,t)``."""
+    def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Return the mean of ``p(y|x,t)`` from the outcome model."""
 
-        return self.outcome(x, t)
+        mu, _ = self.outcome(x, t)
+        return mu
 
     # --------------------------------------------------------------
     @torch.no_grad()
