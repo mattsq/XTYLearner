@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import torch
+import pytest
 
 from xtylearner.data import (
     load_toy_dataset,
@@ -126,3 +127,19 @@ def test_load_tabular_with_string_treatments():
     assert Y.shape == (4, 1)
     assert T.dtype == torch.int64
     assert getattr(ds, "treatment_mapping") == {"a": 0, "b": 1}
+
+# Additional tests
+
+def test_load_tabular_invalid_type():
+    with pytest.raises(TypeError):
+        load_tabular_dataset(123)
+
+def test_load_tabular_missing_columns():
+    df = pd.DataFrame({"x1": [0.0, 1.0], "x2": [0.0, 1.0]})
+    with pytest.raises(ValueError):
+        load_tabular_dataset(df)
+
+def test_load_tabular_bad_numpy_shape():
+    arr = np.zeros((2, 2), dtype=np.float32)
+    with pytest.raises(ValueError):
+        load_tabular_dataset(arr, outcome_col=1)
