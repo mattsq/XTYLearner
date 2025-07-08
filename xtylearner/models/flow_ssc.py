@@ -62,6 +62,7 @@ class MixtureOfFlows(nn.Module):
             nn.Linear(128, k),
         )
 
+
     # ---------- log-likelihood for a minibatch --------------------------
     def loss(self, X, Y, T_obs):
         """T_obs = int in [0,K-1] for labelled rows, -1 for missing."""
