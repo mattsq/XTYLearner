@@ -66,9 +66,17 @@ class ArrayTrainer(BaseTrainer):
     def _treatment_metrics(
         self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
     ) -> dict[str, float]:
-        if self.model.log_likelihood is None:
-            return {}
-        return {"cd_ll": float(self.model.log_likelihood)}
+        # The EM baseline exposes a ``log_likelihood`` attribute after calling
+        # ``fit``.  Older or simpler models such as :class:`LP_KNN` do not
+        # implement this attribute.  In that case we fall back to the default
+        # metric computation implemented in :class:`BaseTrainer`, which relies on
+        # ``predict_treatment_proba`` when available.
+        if hasattr(self.model, "log_likelihood"):
+            if self.model.log_likelihood is None:
+                return {}
+            return {"cd_ll": float(self.model.log_likelihood)}
+
+        return super()._treatment_metrics(x, y, t_obs)
 
     def evaluate(self, data_loader: Iterable) -> float:
         X, Y, T_obs = self._collect_arrays(data_loader)
