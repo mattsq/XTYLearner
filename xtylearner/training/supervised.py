@@ -44,18 +44,15 @@ class SupervisedTrainer(BaseTrainer):
                     self.logger.log_step(epoch + 1, batch_idx, num_batches, metrics)
             if self.scheduler is not None:
                 self.scheduler.step()
+            if self.logger and self.val_loader is not None:
+                val_metrics = self._eval_metrics(self.val_loader)
+                self.logger.log_validation(epoch + 1, val_metrics)
             if self.logger:
                 self.logger.end_epoch(epoch + 1)
 
     def evaluate(self, data_loader: Iterable) -> float:
-        self.model.eval()
-        total, n = 0.0, 0
-        with torch.no_grad():
-            for batch in data_loader:
-                loss = self.step(batch)
-                total += float(loss.item()) * len(batch[0])
-                n += len(batch[0])
-        return total / max(n, 1)
+        metrics = self._eval_metrics(data_loader)
+        return metrics.get("loss", next(iter(metrics.values()), 0.0))
 
     def predict(self, *inputs: torch.Tensor):
         self.model.eval()

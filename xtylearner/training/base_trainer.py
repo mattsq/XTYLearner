@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Iterable, Optional, Mapping
+from collections import defaultdict
 
 import torch
 import torch.nn.functional as F
@@ -203,3 +204,22 @@ class BaseTrainer(ABC):
 
         if self.grad_clip_norm is not None:
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip_norm)
+
+    # --------------------------------------------------------------
+    def _eval_metrics(self, data_loader: Iterable) -> Mapping[str, float]:
+        """Return average metrics over ``data_loader``."""
+
+        self.model.eval()
+        running: defaultdict[str, float] = defaultdict(float)
+        n = 0
+        with torch.no_grad():
+            for batch in data_loader:
+                X, Y, T_obs = self._extract_batch(batch)
+                loss = self.step(batch)  # type: ignore[attr-defined]
+                metrics = dict(self._metrics_from_loss(loss))
+                metrics.update(self._treatment_metrics(X, Y, T_obs))
+                metrics.update(self._outcome_metrics(X, Y, T_obs))
+                for k, v in metrics.items():
+                    running[k] += float(v)
+                n += 1
+        return {k: v / max(n, 1) for k, v in running.items()}
