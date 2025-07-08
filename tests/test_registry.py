@@ -48,7 +48,7 @@ from xtylearner.models import (
         (
             "mean_teacher",
             MeanTeacher,
-            {"base_net_fn": lambda n: nn.Linear(3, n), "num_classes": 2},
+            {"d_x": 3, "d_y": 1, "k": 2},
         ),
         ("vat", VAT_Model, {"d_x": 2, "d_y": 1, "k": 2}),
         ("fixmatch", FixMatch, {}),
