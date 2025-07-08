@@ -50,7 +50,8 @@ def em_learn(
             return LinearRegression()
 
     def fit_classifier(X_, Y_, T_):
-        Z = np.concatenate([X_, Y_[:, None]], axis=1)
+        Y_ = Y_.reshape(len(Y_), -1)
+        Z = np.concatenate([X_, Y_], axis=1)
         clf = classifier_factory()
         clf.fit(Z, T_)
         return clf
@@ -69,7 +70,7 @@ def em_learn(
             r = regressor_factory().fit(X_[mask], Y_[mask])
             resid = Y_[mask] - r.predict(X_[mask])
             regs.append(r)
-            sig2.append(resid.var() + 1e-6)  # avoid zero variance
+            sig2.append(resid.var(axis=0) + 1e-6)  # avoid zero variance
         return regs, np.array(sig2)
 
     # ----- initialisation: supervise only on labelled data ---------------
@@ -81,13 +82,18 @@ def em_learn(
         # ===== E-step: impute missing T via MAP ===========================
         if unlabelled.sum() > 0:
             log_post = np.zeros((unlabelled.sum(), k))
-            Z_u = np.concatenate([X[unlabelled], Y[unlabelled][:, None]], axis=1)
+            Z_u = np.concatenate(
+                [X[unlabelled], Y[unlabelled].reshape(unlabelled.sum(), -1)],
+                axis=1,
+            )
             p_t_given_x = clf_T.predict_proba(Z_u)  # shape (n_U, K)
             y_u = Y[unlabelled]
 
             for t in range(k):
                 mu = regs_Y[t].predict(X[unlabelled])
                 log_lik = norm.logpdf(y_u, loc=mu, scale=np.sqrt(s2[t]))
+                if log_lik.ndim > 1:
+                    log_lik = log_lik.sum(axis=1)
                 log_post[:, t] = np.log(p_t_given_x[:, t] + 1e-12) + log_lik
 
             T_hat = log_post.argmax(axis=1)
@@ -100,7 +106,7 @@ def em_learn(
         # ===== Convergence check: complete-data log-likelihood ===========
         ll = 0.0
         # p(T|X) term
-        Z_all = np.concatenate([X, Y[:, None]], axis=1)
+        Z_all = np.concatenate([X, Y.reshape(len(Y), -1)], axis=1)
         if hasattr(clf_T, "predict_log_proba"):
             ll += clf_T.predict_log_proba(Z_all)[np.arange(len(T)), T].sum()
         else:
@@ -110,7 +116,10 @@ def em_learn(
         for t in range(k):
             mask = T == t
             mu = regs_Y[t].predict(X[mask])
-            ll += norm.logpdf(Y[mask], loc=mu, scale=np.sqrt(s2[t])).sum()
+            log_lik = norm.logpdf(Y[mask], loc=mu, scale=np.sqrt(s2[t]))
+            if log_lik.ndim > 1:
+                log_lik = log_lik.sum(axis=1)
+            ll += log_lik.sum()
 
         if verbose:
             print(f"iter {it+1:2d}: complete-data LL = {ll:.2f}")
