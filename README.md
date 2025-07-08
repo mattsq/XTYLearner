@@ -68,16 +68,33 @@ model = get_model("m2_vae", d_x=2, d_y=1, k=2)
 
 ### Available Models
 
-XTYLearner includes a small collection of reference architectures:
+The model registry exposes a variety of architectures grouped below by type.
+
+#### Discriminative
 
 - ``CycleDual`` – a cycle-consistent dual network that imputes missing
   treatment labels.
-- ``MixtureOfFlows`` – a semi-supervised conditional normalising flow
-  combining an invertible network with a classifier.
 - ``MultiTask`` – a discriminative network trained with self-training on
   pseudo-labels for partially observed treatments.
+- ``MaskedTabularTransformer`` – a transformer encoder for tabular data using a
+  masked-token training objective.
+
+#### Generative
+
+- ``MixtureOfFlows`` – a semi-supervised conditional normalising flow
+  combining an invertible network with a classifier.
 - ``M2VAE`` – a generative model based on the M2 variational autoencoder.
 - ``SS_CEVAE`` – a semi-supervised extension of the CEVAE framework.
+- ``JointEBM`` – an energy-based model of the joint distribution ``(X, T, Y)``
+  optimised with a contrastive objective.
+- ``ProbCircuitModel`` – a probabilistic circuit baseline leveraging SPFlow
+  sum-product networks.
+- ``GFlowNetTreatment`` – a Generative Flow Network that samples treatments in
+  proportion to outcome likelihood.
+- ``EMModel`` – a lightweight EM algorithm implementation for linear models.
+
+#### Diffusion
+
 - ``JSBF`` – a score-based diffusion model of the full joint
   distribution ``(X, T, Y)`` supporting missing treatment labels.
 - ``BridgeDiff`` – a diffusion bridge architecture that couples
@@ -89,15 +106,15 @@ XTYLearner includes a small collection of reference architectures:
   for imputing missing treatments.
 - ``DiffusionCEVAE`` – a diffusion-based variant of CEVAE trained via latent
   score matching.
-- ``JointEBM`` – an energy-based model of the joint distribution ``(X, T, Y)``
-  optimised with a contrastive objective.
-- ``MaskedTabularTransformer`` – a transformer encoder for tabular data using a
-  masked-token training objective.
-- ``ProbCircuitModel`` – a probabilistic circuit baseline leveraging SPFlow
-  sum-product networks.
-- ``GFlowNetTreatment`` – a Generative Flow Network that samples treatments in
-  proportion to outcome likelihood.
-- ``EMModel`` – a lightweight EM algorithm implementation for linear models.
+
+#### Semi-Supervised Baselines
+
+- ``LP_KNN`` – a k-nearest neighbour label propagation baseline.
+- ``MeanTeacher`` – an exponential moving average teacher model for
+  consistency training.
+- ``VIME`` – a two-stage self-supervised method for tabular data.
+- ``VAT_Model`` – virtual adversarial training for smooth predictions.
+- ``FixMatch`` – pseudo-labelling combined with strong data augmentations.
 
 Each model exposes a ``loss`` method compatible with the trainer utilities
 described below.
