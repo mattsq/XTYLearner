@@ -50,7 +50,7 @@ from xtylearner.models import (
             MeanTeacher,
             {"base_net_fn": lambda n: nn.Linear(3, n), "num_classes": 2},
         ),
-        ("vat", VAT_Model, {}),
+        ("vat", VAT_Model, {"d_x": 2, "d_y": 1, "k": 2}),
         ("fixmatch", FixMatch, {}),
     ],
 )
