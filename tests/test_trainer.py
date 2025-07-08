@@ -43,6 +43,17 @@ def test_multitask_model_runs():
     assert isinstance(loss, float)
 
 
+def test_multitask_handles_missing_labels():
+    dataset = load_mixed_synthetic_dataset(n_samples=20, d_x=2, seed=42, label_ratio=0.5)
+    loader = DataLoader(dataset, batch_size=5)
+    model = MultiTask(d_x=2, d_y=1, k=2)
+    opt = torch.optim.Adam(model.parameters(), lr=0.01)
+    trainer = Trainer(model, opt, loader)
+    trainer.fit(1)
+    loss = trainer.evaluate(loader)
+    assert isinstance(loss, float)
+
+
 def test_m2vae_trainer_runs():
     dataset = load_toy_dataset(n_samples=20, d_x=2, seed=3)
     loader = DataLoader(dataset, batch_size=5)

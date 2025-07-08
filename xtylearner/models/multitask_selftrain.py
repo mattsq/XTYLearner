@@ -83,13 +83,22 @@ class MultiTask(nn.Module):
         return Y_hat, logits_T, X_hat
 
     def loss(self, X, Y, T_obs):
-        """Simple supervised loss used for unit tests."""
-        T_1h = torch.nn.functional.one_hot(T_obs, self.k).float()
+        """Supervised loss that ignores missing treatment labels."""
+
+        labelled = T_obs >= 0
+
+        # Replace missing labels by a dummy value for the forward pass
+        T_use = torch.where(labelled, T_obs, torch.zeros_like(T_obs))
+        T_1h = torch.nn.functional.one_hot(T_use, self.k).float()
+
         Y_hat, logits_T, X_hat = self.forward(X, Y, T_1h)
-        L_y = mse_loss(Y_hat, Y)
-        L_x = mse_loss(X_hat, X)
-        L_t = cross_entropy_loss(logits_T, T_obs)
-        return L_y + L_x + L_t
+
+        loss = torch.tensor(0.0, device=X.device)
+        if labelled.any():
+            loss += mse_loss(Y_hat[labelled], Y[labelled])
+            loss += mse_loss(X_hat[labelled], X[labelled])
+            loss += cross_entropy_loss(logits_T[labelled], T_obs[labelled])
+        return loss
 
     # --------------------------------------------------------
     @torch.no_grad()
