@@ -108,13 +108,18 @@ class VAT_Model(nn.Module):
                 logits_t[mask], t_use[mask]
             )
 
-        vat_inp = torch.cat([x, y], dim=-1)
-        L_vat = vat_loss(
-            self.classifier, vat_inp, xi=self.xi, eps=self.eps, n_power=self.n_power
-        )
-        lam = ramp_up_sigmoid(self.step, self.ramp, self.lambda_max)
-        self.step += 1
-        loss = loss + lam * L_vat
+        if torch.is_grad_enabled():
+            vat_inp = torch.cat([x, y], dim=-1)
+            L_vat = vat_loss(
+                self.classifier,
+                vat_inp,
+                xi=self.xi,
+                eps=self.eps,
+                n_power=self.n_power,
+            )
+            lam = ramp_up_sigmoid(self.step, self.ramp, self.lambda_max)
+            self.step += 1
+            loss = loss + lam * L_vat
         return loss
 
     # --------------------------------------------------------------
