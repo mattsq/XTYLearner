@@ -20,8 +20,11 @@ from nflows.transforms import (
 )
 from nflows.nn.nets import ResidualNet
 
+from typing import Callable, Iterable
+
 from .registry import register_model
 from ..training.metrics import cross_entropy_loss
+from .layers import make_mlp
 
 
 def make_conditional_flow(
@@ -51,18 +54,31 @@ class MixtureOfFlows(nn.Module):
     * one classifier        p_psi(t | x)
     """
 
-    def __init__(self, d_x: int, d_y: int, k: int) -> None:
+    def __init__(
+        self,
+        d_x: int,
+        d_y: int,
+        k: int,
+        *,
+        hidden_dims: Iterable[int] = (128, 128),
+        activation: type[nn.Module] = nn.ReLU,
+        dropout: float | None = None,
+        norm_layer: Callable[[int], nn.Module] | None = None,
+        flow_layers: int = 6,
+        flow_hidden: int = 128,
+    ) -> None:
         super().__init__()
         self.d_x = d_x
         self.d_y = d_y
         self.k = k
-        self.flow = make_conditional_flow(d_x + d_y, k)
-        self.clf = nn.Sequential(
-            nn.Linear(d_x, 128),
-            nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, k),
+        self.flow = make_conditional_flow(
+            d_x + d_y, k, n_layers=flow_layers, hidden=flow_hidden
+        )
+        self.clf = make_mlp(
+            [d_x, *hidden_dims, k],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
         )
 
     # --------------------------------------------------------
