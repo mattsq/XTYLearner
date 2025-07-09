@@ -43,7 +43,7 @@ from xtylearner.models import (
         ("dragon_net", DragonNet, {"d_x": 2, "d_y": 1, "k": 2}),
         ("m2_vae", M2VAE, {"d_x": 2, "d_y": 1, "k": 2}),
         ("ss_cevae", SS_CEVAE, {"d_x": 2, "d_y": 1, "k": 2}),
-        ("bridge_diff", BridgeDiff, {"d_x": 2, "d_y": 1}),
+        ("bridge_diff", BridgeDiff, {"d_x": 2, "d_y": 1, "embed_dim": 16}),
         ("lt_flow_diff", LTFlowDiff, {"d_x": 2, "d_y": 1}),
         ("jsbf", JSBF, {"d_x": 2, "d_y": 1}),
         ("masked_tabular_transformer", MaskedTabularTransformer, {"d_x": 2}),
