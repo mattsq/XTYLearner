@@ -22,6 +22,7 @@ from .vat import VAT_Model
 from .fixmatch import FixMatch
 from .ss_dml import SSDMLModel
 from .ganite import GANITE
+from .deconfounder_model import DeconfounderCFM
 from .registry import get_model, get_model_names, get_model_args
 
 __all__ = [
@@ -49,6 +50,7 @@ __all__ = [
     "FixMatch",
     "SSDMLModel",
     "GANITE",
+    "DeconfounderCFM",
     "get_model",
     "get_model_names",
     "get_model_args",

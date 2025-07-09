@@ -100,6 +100,11 @@ The model registry exposes a variety of architectures grouped below by type.
 - ``EMModel`` – a lightweight EM algorithm implementation for linear models.
 - ``GANITE`` – a GAN-based approach for individual treatment effect estimation.
 
+#### Causal Factor Models
+
+- ``deconfounder_cfm`` – two-stage factor model that learns a substitute
+  confounder from multiple correlated treatments.
+
 #### Diffusion
 
 - ``JSBF`` – a score-based diffusion model of the full joint
