@@ -25,6 +25,7 @@ from .fixmatch import FixMatch
 from .ss_dml import SSDMLModel
 from .ganite import GANITE
 from .deconfounder_model import DeconfounderCFM
+from .vacim_model import VACIM
 from .registry import get_model, get_model_names, get_model_args
 
 __all__ = [
@@ -55,6 +56,7 @@ __all__ = [
     "DeconfounderCFM",
     "GNN_SCM",
     "DiffusionGNN_SCM",
+    "VACIM",
     "get_model",
     "get_model_names",
     "get_model_args",
