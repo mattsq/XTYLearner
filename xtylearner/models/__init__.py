@@ -15,6 +15,7 @@ from .masked_tabular_transformer import MaskedTabularTransformer
 from .gflownet_treatment import GFlowNetTreatment
 from .dragon_net import DragonNet
 from .gnn_scm import GNN_SCM
+from .diffusion_gnn_scm import DiffusionGNN_SCM
 from .em_model import EMModel
 from .labelprop import LP_KNN
 from .mean_teacher import MeanTeacher
@@ -53,6 +54,7 @@ __all__ = [
     "GANITE",
     "DeconfounderCFM",
     "GNN_SCM",
+    "DiffusionGNN_SCM",
     "get_model",
     "get_model_names",
     "get_model_args",
