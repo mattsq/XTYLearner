@@ -24,6 +24,7 @@ from xtylearner.models import (
     FixMatch,
     SSDMLModel,
     SS_CEVAE,
+    GANITE,
 )
 
 
@@ -46,6 +47,7 @@ from xtylearner.models import (
         ("masked_tabular_transformer", MaskedTabularTransformer, {"d_x": 2}),
         ("prob_circuit", ProbCircuitModel, {}),
         ("lp_knn", LP_KNN, {}),
+        ("ganite", GANITE, {"d_x": 2, "d_y": 1}),
         (
             "mean_teacher",
             MeanTeacher,

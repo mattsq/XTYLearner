@@ -19,6 +19,7 @@ from .vime import VIME
 from .vat import VAT_Model
 from .fixmatch import FixMatch
 from .ss_dml import SSDMLModel
+from .ganite import GANITE
 from .registry import get_model, get_model_names, get_model_args
 
 __all__ = [
@@ -43,6 +44,7 @@ __all__ = [
     "VAT_Model",
     "FixMatch",
     "SSDMLModel",
+    "GANITE",
     "get_model",
     "get_model_names",
     "get_model_args",

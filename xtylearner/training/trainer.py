@@ -6,6 +6,7 @@ import torch
 
 from .base_trainer import BaseTrainer
 from .supervised import SupervisedTrainer
+from .adversarial import AdversarialTrainer
 from .generative import GenerativeTrainer
 from .diffusion import DiffusionTrainer
 from .em import ArrayTrainer
@@ -18,7 +19,9 @@ class Trainer:
     def __init__(
         self,
         model: torch.nn.Module,
-        optimizer: torch.optim.Optimizer,
+        optimizer: (
+            torch.optim.Optimizer | tuple[torch.optim.Optimizer, torch.optim.Optimizer]
+        ),
         train_loader: Iterable,
         val_loader: Optional[Iterable] = None,
         device: str = "cpu",
@@ -27,19 +30,37 @@ class Trainer:
         grad_clip_norm: float | None = None,
     ) -> None:
         trainer_cls = self._select_trainer(model)
-        self._trainer: BaseTrainer = trainer_cls(
-            model,
-            optimizer,
-            train_loader,
-            val_loader,
-            device,
-            logger,
-            scheduler,
-            grad_clip_norm,
-        )
+        if trainer_cls is AdversarialTrainer:
+            if not isinstance(optimizer, (tuple, list)) or len(optimizer) != 2:
+                raise ValueError("AdversarialTrainer requires two optimizers")
+            optim_G, optim_D = optimizer
+            self._trainer = trainer_cls(
+                model,
+                optim_G,
+                optim_D,
+                train_loader,
+                val_loader,
+                device,
+                logger,
+                scheduler,
+                grad_clip_norm,
+            )
+        else:
+            self._trainer = trainer_cls(
+                model,
+                optimizer,  # type: ignore[arg-type]
+                train_loader,
+                val_loader,
+                device,
+                logger,
+                scheduler,
+                grad_clip_norm,
+            )
 
     # ------------------------------------------------------------------
     def _select_trainer(self, model: torch.nn.Module) -> type[BaseTrainer]:
+        if hasattr(model, "loss_G") and hasattr(model, "loss_D"):
+            return AdversarialTrainer
         if hasattr(model, "elbo"):
             return GenerativeTrainer
         if hasattr(model, "sample") or hasattr(model, "paired_sample"):
