@@ -39,7 +39,7 @@ except ModuleNotFoundError:  # fallback to legacy import or no spflow
     except ModuleNotFoundError:  # completely unavailable
         _HAS_SPFLOW = False
 
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegression, LinearRegression
 
 from .registry import register_model
 
@@ -55,6 +55,7 @@ class ProbCircuitModel:
         self._cols_num: Sequence[str] = []
         self._y_cols: List[str] = []
         self._t_idx: int = -1
+        self._regs: list[LinearRegression] = []
 
     # ------------------------------------------------------------------
     def fit(
@@ -148,6 +149,22 @@ class ProbCircuitModel:
             Xy = labelled[self._cols_num + self._y_cols].to_numpy(dtype=np.float64)
             t = labelled["T"].to_numpy().astype(int)
             self._lr = LogisticRegression().fit(Xy, t)
+
+        # Fit simple regressors for E[Y|X,T] from labelled data
+        self._regs.clear()
+        if len(self._y_cols) > 0:
+            labelled = df.dropna(subset=["T"])
+            X_arr = labelled[self._cols_num].to_numpy(dtype=np.float64)
+            Y_arr = labelled[self._y_cols].to_numpy(dtype=np.float64)
+            t_arr = labelled["T"].to_numpy().astype(int)
+            for val in sorted(np.unique(t_arr)):
+                mask = t_arr == val
+                reg = LinearRegression()
+                if mask.sum() > 0:
+                    reg.fit(X_arr[mask], Y_arr[mask])
+                else:
+                    reg.fit(np.zeros((1, X_arr.shape[1])), np.zeros((1, Y_arr.shape[1])))
+                self._regs.append(reg)
         return self
 
     # ------------------------------------------------------------------
@@ -199,12 +216,53 @@ class ProbCircuitModel:
         return out
 
     # --------------------------------------------------------------
-    def predict_treatment_proba(self, X: np.ndarray, Y: np.ndarray) -> np.ndarray:
-        """Return ``p(t|x,y)`` as a two-column array."""
+    def predict_treatment_proba(
+        self, X_or_Z: np.ndarray, Y: np.ndarray | None = None
+    ) -> np.ndarray:
+        """Return ``p(t|x,y)`` as a two-column array.
+
+        Parameters
+        ----------
+        X_or_Z:
+            Either the concatenated ``[X, Y]`` array of shape ``(n, d_x+d_y)``
+            or just the covariate matrix ``X`` when ``Y`` is provided
+            separately.
+        Y:
+            Optional outcome array of shape ``(n, d_y)``.  When ``None``,
+            ``X_or_Z`` is assumed to contain both ``X`` and ``Y``.
+        """
+
+        if Y is None:
+            Z = np.asarray(X_or_Z, dtype=float)
+            X = Z[:, : self._t_idx]
+            Y = Z[:, self._t_idx:]
+        else:
+            X = np.asarray(X_or_Z, dtype=float)
+            Y = np.asarray(Y, dtype=float)
 
         p1 = self.predict_t_posterior(X, Y)
         p0 = 1.0 - p1
         return np.stack([p0, p1], axis=1)
+
+    # --------------------------------------------------------------
+    def predict_outcome(self, X: np.ndarray, t: int | np.ndarray) -> np.ndarray:
+        """Return expected outcome ``E[Y|X,T=t]`` using fitted regressors."""
+
+        if not self._regs:
+            raise ValueError("Model is not fitted")
+
+        t_arr = np.asarray(t)
+        if t_arr.ndim == 0:
+            preds = self._regs[int(t_arr)].predict(X)
+        else:
+            preds = np.empty((len(t_arr), len(self._y_cols)))
+            for val in np.unique(t_arr):
+                mask = t_arr == val
+                preds[mask] = self._regs[int(val)].predict(X[mask])
+
+        if preds.shape[1] == 1:
+            return preds.reshape(-1)
+        return preds
 
 
 __all__ = ["ProbCircuitModel"]
