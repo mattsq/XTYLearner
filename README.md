@@ -99,10 +99,12 @@ The model registry exposes a variety of architectures grouped below by type.
   proportion to outcome likelihood.
 - ``EMModel`` – a lightweight EM algorithm implementation for linear models.
 - ``GANITE`` – a GAN-based approach for individual treatment effect estimation.
+- ``VACIM`` – a CEVAE variant with conditional masking for partial encoders.
+- ``GNN_SCM`` – a graph neural structural causal model learning latent graphs.
 
 #### Causal Factor Models
 
-- ``deconfounder_cfm`` – two-stage factor model that learns a substitute
+- ``DeconfounderCFM`` – two-stage factor model that learns a substitute
   confounder from multiple correlated treatments.
 
 #### Diffusion
@@ -118,6 +120,7 @@ The model registry exposes a variety of architectures grouped below by type.
   for imputing missing treatments.
 - ``DiffusionCEVAE`` – a diffusion-based variant of CEVAE trained via latent
   score matching.
+- ``DiffusionGNN_SCM`` – a diffusion-based variant of the GNN_SCM model.
 
 #### Semi-Supervised Baselines
 
