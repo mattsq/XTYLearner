@@ -7,6 +7,7 @@ from .supervised import SupervisedTrainer
 from .adversarial import AdversarialTrainer
 from .generative import GenerativeTrainer
 from .diffusion import DiffusionTrainer
+from .gnn_trainer import GNNTrainer
 from .em import ArrayTrainer, EMTrainer
 from .metrics import (
     mse_loss,
@@ -21,6 +22,7 @@ __all__ = [
     "SupervisedTrainer",
     "GenerativeTrainer",
     "DiffusionTrainer",
+    "GNNTrainer",
     "AdversarialTrainer",
     "ArrayTrainer",
     "EMTrainer",

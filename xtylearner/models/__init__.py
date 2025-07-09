@@ -14,6 +14,7 @@ from .prob_circuit_model import ProbCircuitModel
 from .masked_tabular_transformer import MaskedTabularTransformer
 from .gflownet_treatment import GFlowNetTreatment
 from .dragon_net import DragonNet
+from .gnn_scm import GNN_SCM
 from .em_model import EMModel
 from .labelprop import LP_KNN
 from .mean_teacher import MeanTeacher
@@ -51,6 +52,7 @@ __all__ = [
     "SSDMLModel",
     "GANITE",
     "DeconfounderCFM",
+    "GNN_SCM",
     "get_model",
     "get_model_names",
     "get_model_args",
