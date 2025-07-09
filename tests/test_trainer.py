@@ -7,6 +7,7 @@ from xtylearner.training import Trainer
 from xtylearner.models import M2VAE, SS_CEVAE, JSBF, DiffusionCEVAE
 from xtylearner.models import BridgeDiff, LTFlowDiff
 from xtylearner.models import EnergyDiffusionImputer, JointEBM, GFlowNetTreatment
+from xtylearner.models import GANITE
 from xtylearner.models import ProbCircuitModel, LP_KNN
 
 
@@ -44,7 +45,9 @@ def test_multitask_model_runs():
 
 
 def test_multitask_handles_missing_labels():
-    dataset = load_mixed_synthetic_dataset(n_samples=20, d_x=2, seed=42, label_ratio=0.5)
+    dataset = load_mixed_synthetic_dataset(
+        n_samples=20, d_x=2, seed=42, label_ratio=0.5
+    )
     loader = DataLoader(dataset, batch_size=5)
     model = MultiTask(d_x=2, d_y=1, k=2)
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
@@ -178,6 +181,20 @@ def test_gflownet_treatment_trainer_runs():
     model = GFlowNetTreatment(d_x=2, d_y=1)
     opt = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = Trainer(model, opt, loader)
+    trainer.fit(1)
+    loss = trainer.evaluate(loader)
+    assert isinstance(loss, float)
+
+
+def test_ganite_trainer_runs():
+    dataset = load_mixed_synthetic_dataset(
+        n_samples=20, d_x=2, seed=17, label_ratio=0.5
+    )
+    loader = DataLoader(dataset, batch_size=5)
+    model = GANITE(d_x=2, d_y=1)
+    opt_g = torch.optim.Adam(model.parameters(), lr=0.001)
+    opt_d = torch.optim.Adam(model.parameters(), lr=0.001)
+    trainer = Trainer(model, (opt_g, opt_d), loader)
     trainer.fit(1)
     loss = trainer.evaluate(loader)
     assert isinstance(loss, float)

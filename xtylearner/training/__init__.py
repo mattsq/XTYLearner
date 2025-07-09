@@ -4,6 +4,7 @@ from .base_trainer import BaseTrainer
 from .logger import TrainerLogger, ConsoleLogger
 from .trainer import Trainer
 from .supervised import SupervisedTrainer
+from .adversarial import AdversarialTrainer
 from .generative import GenerativeTrainer
 from .diffusion import DiffusionTrainer
 from .em import ArrayTrainer, EMTrainer
@@ -20,6 +21,7 @@ __all__ = [
     "SupervisedTrainer",
     "GenerativeTrainer",
     "DiffusionTrainer",
+    "AdversarialTrainer",
     "ArrayTrainer",
     "EMTrainer",
     "Trainer",
