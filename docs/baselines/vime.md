@@ -149,12 +149,14 @@ from .vime_semi_pt import train_vime_sl      # code above
 
 @register_model("vime")
 class VIME(nn.Module):
-    def __init__(self, d_x, out_dim, p_m=0.3, alpha=2.0, K=3, beta=10.0):
+    def __init__(self, d_x, d_y, k=2, p_m=0.3, alpha=2.0, K=3, beta=10.0):
         super().__init__()
         self.encoder = Encoder(d_x)
         self.decoder = Decoder(d_x, self.encoder.out_dim)
-        self.classifier = make_mlp([self.encoder.out_dim, 128, out_dim])
+        self.classifier = make_mlp([self.encoder.out_dim, 128, d_y])
         self.p_m, self.alpha, self.K, self.beta = p_m, alpha, K, beta
+        self.k = k
+        self.d_y = d_y
 
     def forward(self, x):
         return self.classifier(self.encoder(x))

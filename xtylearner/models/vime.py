@@ -17,7 +17,8 @@ class VIME(nn.Module):
     def __init__(
         self,
         d_x: int,
-        out_dim: int,
+        d_y: int,
+        k: int = 2,
         *,
         p_m: float = 0.3,
         alpha: float = 2.0,
@@ -33,6 +34,8 @@ class VIME(nn.Module):
         self.alpha = alpha
         self.K = K
         self.beta = beta
+        self.k = k
+        self.d_y = d_y
 
         self.encoder = Encoder(
             d_x,
@@ -50,7 +53,7 @@ class VIME(nn.Module):
             norm_layer=norm_layer,
         )
         self.classifier = make_mlp(
-            [self.encoder.out_dim, *hidden_dims, out_dim],
+            [self.encoder.out_dim, *hidden_dims, d_y],
             activation=activation,
             dropout=dropout,
             norm_layer=norm_layer,
@@ -101,7 +104,13 @@ class VIME(nn.Module):
             loss_unsup = torch.tensor(0.0, device=x.device)
 
         # total --------------------------------------------------------
-        return loss_pre + loss_sup + self.beta * loss_unsup
+        loss = loss_pre + loss_sup + self.beta * loss_unsup
+        return {
+            "loss": loss,
+            "pretrain": loss_pre,
+            "supervised": loss_sup,
+            "unsup": loss_unsup,
+        }
 
     # --------------------------------------------------------------
     @torch.no_grad()

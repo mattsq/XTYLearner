@@ -10,7 +10,7 @@ def test_vime_basic_training():
     y_lab = torch.randint(0, 2, (4,), dtype=torch.long)
     X_unlab = torch.randn(6, 3)
 
-    model = VIME(d_x=3, out_dim=2)
+    model = VIME(d_x=3, d_y=2)
 
     X_train = torch.cat([X_lab, X_unlab])
     y_train = torch.cat([y_lab, torch.full((6,), -1)])

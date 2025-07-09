@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Iterable, Mapping
 
 import torch
 
@@ -10,7 +10,7 @@ from .base_trainer import BaseTrainer
 class SupervisedTrainer(BaseTrainer):
     """Generic trainer for fully observed models with a ``loss`` method."""
 
-    def step(self, batch: Iterable[torch.Tensor]) -> torch.Tensor:
+    def step(self, batch: Iterable[torch.Tensor]):
         inputs = [b.to(self.device) for b in batch]
         if len(inputs) == 2:
             x, y = inputs
@@ -32,13 +32,14 @@ class SupervisedTrainer(BaseTrainer):
                 self.logger.start_epoch(epoch + 1, num_batches)
             for batch_idx, batch in enumerate(self.train_loader):
                 X, Y, T_obs = self._extract_batch(batch)
-                loss = self.step(batch)
+                out = self.step(batch)
+                loss = out["loss"] if isinstance(out, Mapping) else out
                 self.optimizer.zero_grad()
                 loss.backward()
                 self._clip_grads()
                 self.optimizer.step()
                 if self.logger:
-                    metrics = dict(self._metrics_from_loss(loss))
+                    metrics = dict(self._metrics_from_loss(out))
                     metrics.update(self._treatment_metrics(X, Y, T_obs))
                     metrics.update(self._outcome_metrics(X, Y, T_obs))
                     self.logger.log_step(epoch + 1, batch_idx, num_batches, metrics)
