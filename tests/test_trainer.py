@@ -1,7 +1,13 @@
 import torch
 import pytest
 from torch.utils.data import DataLoader
-from xtylearner.data import load_toy_dataset, load_mixed_synthetic_dataset
+from xtylearner.data import (
+    load_toy_dataset,
+    load_mixed_synthetic_dataset,
+    load_tabular_dataset,
+)
+import pandas as pd
+import numpy as np
 from xtylearner.models import CycleDual, MixtureOfFlows, MultiTask, DragonNet
 from xtylearner.training import Trainer
 from xtylearner.models import M2VAE, SS_CEVAE, JSBF, DiffusionCEVAE
@@ -61,6 +67,27 @@ def test_dragon_net_runs():
     dataset = load_toy_dataset(n_samples=20, d_x=2, seed=18)
     loader = DataLoader(dataset, batch_size=5)
     model = DragonNet(d_x=2, d_y=1, k=2)
+    opt = torch.optim.Adam(model.parameters(), lr=0.01)
+    trainer = Trainer(model, opt, loader)
+    trainer.fit(1)
+    loss = trainer.evaluate(loader)
+    assert isinstance(loss, float)
+
+
+def test_dragon_net_multi_outcome():
+    rng = np.random.default_rng(0)
+    df = pd.DataFrame(
+        {
+            "x1": rng.normal(size=10).astype(np.float32),
+            "x2": rng.normal(size=10).astype(np.float32),
+            "y1": rng.normal(size=10).astype(np.float32),
+            "y2": rng.normal(size=10).astype(np.float32),
+            "t": rng.integers(0, 2, size=10).astype(np.int64),
+        }
+    )
+    dataset = load_tabular_dataset(df, outcome_col=["y1", "y2"], treatment_col="t")
+    loader = DataLoader(dataset, batch_size=5)
+    model = DragonNet(d_x=2, d_y=2, k=2)
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
