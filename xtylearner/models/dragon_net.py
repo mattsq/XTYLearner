@@ -63,8 +63,9 @@ class DragonNet(nn.Module):
         tar_reg = torch.tensor(0.0, device=x.device)
         if labelled.any():
             t_onehot = F.one_hot(t_lab, self.k).float()
-            mu_lab = mu_hat[labelled].squeeze(-1)
-            tau_dr = ((t_onehot / pi_hat[labelled]).mul(y_lab.unsqueeze(1) - mu_lab)).mean(0)
+            mu_lab = mu_hat[labelled]
+            weight = (t_onehot / pi_hat[labelled]).unsqueeze(-1)
+            tau_dr = (weight * (y_lab.unsqueeze(1) - mu_lab)).mean(0)
             tar_reg = tau_dr.pow(2).sum()
 
         l1, l2, l3, l4 = self.lmbda
