@@ -90,6 +90,7 @@ The model registry exposes a variety of architectures grouped below by type.
   combining an invertible network with a classifier.
 - ``M2VAE`` – a generative model based on the M2 variational autoencoder.
 - ``SS_CEVAE`` – a semi-supervised extension of the CEVAE framework.
+- ``CEVAE_M`` – CEVAE with latent treatment for partially-observed labels.
 - ``JointEBM`` – an energy-based model of the joint distribution ``(X, T, Y)``
   optimised with a contrastive objective.
 - ``ProbCircuitModel`` – a probabilistic circuit baseline leveraging SPFlow

@@ -4,6 +4,7 @@ from .cycle_dual import CycleDual
 from .flow_ssc import MixtureOfFlows
 from .multitask_selftrain import MultiTask
 from .generative import M2VAE, SS_CEVAE, DiffusionCEVAE
+from .cevae_m_model import CEVAE_M
 from .energy_diffusion_imputer import EnergyDiffusionImputer
 from .joint_ebm import JointEBM
 from .jsbf_model import JSBF
@@ -30,6 +31,7 @@ __all__ = [
     "M2VAE",
     "SS_CEVAE",
     "DiffusionCEVAE",
+    "CEVAE_M",
     "JSBF",
     "BridgeDiff",
     "LTFlowDiff",
