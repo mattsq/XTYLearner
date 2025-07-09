@@ -128,10 +128,16 @@ class MixtureOfFlows(nn.Module):
     # ------------------------------------------------------------------
     @torch.no_grad()
     def predict_treatment_proba(self, X: torch.Tensor, Y: torch.Tensor) -> torch.Tensor:
-        """Return posterior ``p(t|x,y)`` from the classifier ``clf``."""
+        """Return posterior ``p(t|x,y)`` computed from the flow and classifier."""
 
-        logits = self.clf(X)
-        return logits.softmax(dim=-1)
+        logits = self.clf(X).log_softmax(-1)  # log p_psi(t|x)
+        xy = torch.cat([X, Y], dim=-1).unsqueeze(1)  # (B,1,D)
+        ctx = torch.eye(self.k, device=X.device).unsqueeze(0).repeat(X.size(0), 1, 1)
+        ll = self.flow.log_prob(
+            xy.expand(-1, self.k, -1).reshape(-1, xy.size(-1)),
+            context=ctx.reshape(-1, self.k),
+        ).view(X.size(0), self.k)
+        return (logits + ll).softmax(dim=-1)
 
 
 __all__ = ["MixtureOfFlows"]
