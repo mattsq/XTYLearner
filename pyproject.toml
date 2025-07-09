@@ -19,6 +19,9 @@ dependencies = [
     "scipy",
 ]
 
+[project.optional-dependencies]
+causal = ["doubleml>=0.9.0"]
+
 [project.scripts]
 xtylearner-train = "xtylearner.scripts.train:main"
 

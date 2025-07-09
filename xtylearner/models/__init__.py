@@ -18,6 +18,7 @@ from .mean_teacher import MeanTeacher
 from .vime import VIME
 from .vat import VAT_Model
 from .fixmatch import FixMatch
+from .ss_dml import SSDMLModel
 from .registry import get_model, get_model_names, get_model_args
 
 __all__ = [
@@ -41,6 +42,7 @@ __all__ = [
     "VIME",
     "VAT_Model",
     "FixMatch",
+    "SSDMLModel",
     "get_model",
     "get_model_names",
     "get_model_args",

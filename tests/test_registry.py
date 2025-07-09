@@ -22,6 +22,7 @@ from xtylearner.models import (
     MeanTeacher,
     VAT_Model,
     FixMatch,
+    SSDMLModel,
     SS_CEVAE,
 )
 
@@ -52,6 +53,7 @@ from xtylearner.models import (
         ),
         ("vat", VAT_Model, {"d_x": 2, "d_y": 1, "k": 2}),
         ("fixmatch", FixMatch, {}),
+        ("ss_dml", SSDMLModel, {}),
     ],
 )
 def test_get_model_valid(name, cls, kwargs):

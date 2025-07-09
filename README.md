@@ -16,6 +16,9 @@ pip install -e .
 
 # or install from PyPI when available
 pip install xtylearner
+
+# enable causal baselines
+pip install xtylearner[causal]
 ```
 
 ## API Overview
@@ -115,6 +118,8 @@ The model registry exposes a variety of architectures grouped below by type.
 - ``VIME`` – a two-stage self-supervised method for tabular data.
 - ``VAT_Model`` – virtual adversarial training for smooth predictions.
 - ``FixMatch`` – pseudo-labelling combined with strong data augmentations.
+- ``SSDMLModel`` – semi-supervised double machine learning (requires the
+  ``xtylearner[causal]`` extra).
 
 Each model exposes a ``loss`` method compatible with the trainer utilities
 described below.

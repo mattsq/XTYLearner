@@ -32,6 +32,7 @@
 - **Array-based/EM style models** (e.g. `EMModel`)
   - Implement `fit(X, Y, T)` operating on `numpy.ndarray` inputs.
   - Provide `predict_treatment_proba(Z)` and `predict_outcome(X, t)`.
+  - `ss_dml` – Semi-Supervised Double ML
 
 The high level `Trainer` class in `xtylearner/training` automatically picks the
 appropriate trainer based on the presence of these methods.
