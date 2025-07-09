@@ -7,6 +7,7 @@ from .generative import M2VAE, SS_CEVAE, DiffusionCEVAE
 from .cevae_m_model import CEVAE_M
 from .energy_diffusion_imputer import EnergyDiffusionImputer
 from .joint_ebm import JointEBM
+from .gnn_ebm import GNN_EBM
 from .jsbf_model import JSBF
 from .bridge_diff import BridgeDiff
 from .lt_flow_diff import LTFlowDiff
@@ -40,6 +41,7 @@ __all__ = [
     "LTFlowDiff",
     "EnergyDiffusionImputer",
     "JointEBM",
+    "GNN_EBM",
     "MaskedTabularTransformer",
     "DragonNet",
     "ProbCircuitModel",
