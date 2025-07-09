@@ -1,57 +1,83 @@
 from __future__ import annotations
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
-from .registry import register_model
 from .layers import make_mlp
-from .fixmatch_tabular import train_fixmatch
+from .registry import register_model
+from .fixmatch_tabular import fixmatch_unsup_loss
 
 
 @register_model("fixmatch")
-class FixMatch:
-    """Simple FixMatch wrapper for semi-supervised classification."""
+class FixMatch(nn.Module):
+    """Outcome model with FixMatch-regularised treatment classifier."""
 
-    def __init__(self, tau: float = 0.95, lambda_u: float = 1.0, mu: int = 7) -> None:
-        self.cfg = {"tau": tau, "lambda_u": lambda_u, "mu": mu}
-        self.net: torch.nn.Module | None = None
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+    def __init__(
+        self,
+        d_x: int = 1,
+        d_y: int = 1,
+        k: int = 2,
+        *,
+        hidden_dims: tuple[int, ...] | list[int] = (128, 128),
+        activation: type[nn.Module] = nn.ReLU,
+        dropout: float | None = None,
+        norm_layer: callable | None = None,
+        tau: float = 0.95,
+        lambda_u: float = 1.0,
+    ) -> None:
+        super().__init__()
+        self.k = k
+        self.tau = tau
+        self.lambda_u = lambda_u
+        self.outcome = make_mlp(
+            [d_x + k, *hidden_dims, d_y],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+        self.classifier = make_mlp(
+            [d_x + d_y, *hidden_dims, k],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
 
     # --------------------------------------------------------------
-    def fit(self, X_lab, y_lab, X_unlab):
-        Xl = torch.as_tensor(X_lab, dtype=torch.float32)
-        yl = torch.as_tensor(y_lab, dtype=torch.long)
-        Xu = torch.as_tensor(X_unlab, dtype=torch.float32)
+    def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Predict outcome ``y`` from covariates ``x`` and treatment ``t``."""
 
-        n_class = int(yl.max()) + 1
-        self.net = make_mlp([Xl.size(1), 128, n_class]).to(self.device)
-        lab_loader = torch.utils.data.DataLoader(
-            torch.utils.data.TensorDataset(Xl, yl), batch_size=64, shuffle=True
-        )
-        unlab_loader = torch.utils.data.DataLoader(
-            torch.utils.data.TensorDataset(Xu),
-            batch_size=64 * self.cfg["mu"],
-            shuffle=True,
-        )
-
-        train_fixmatch(
-            self.net,
-            lab_loader,
-            unlab_loader,
-            tau=self.cfg["tau"],
-            lambda_u=self.cfg["lambda_u"],
-            device=self.device,
-        )
-        self.net.eval()
-        return self
+        t1h = F.one_hot(t.to(torch.long), self.k).float()
+        return self.outcome(torch.cat([x, t1h], dim=-1))
 
     # --------------------------------------------------------------
-    def predict_proba(self, X):
-        X = torch.as_tensor(X, dtype=torch.float32).to(self.device)
-        with torch.no_grad():
-            out = self.net(X)
-            return F.softmax(out, dim=1).cpu().numpy()
+    def loss(self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor) -> torch.Tensor:
+        """Supervised loss with FixMatch regularisation."""
+
+        labelled = t_obs >= 0
+        t_use = t_obs.clamp_min(0)
+        t1h = F.one_hot(t_use.to(torch.long), self.k).float()
+
+        y_hat = self.outcome(torch.cat([x, t1h], dim=-1))
+        logits = self.classifier(torch.cat([x, y], dim=-1))
+
+        loss = torch.tensor(0.0, device=x.device)
+        if labelled.any():
+            loss = F.mse_loss(y_hat[labelled], y[labelled]) + F.cross_entropy(
+                logits[labelled], t_use[labelled]
+            )
+
+        if (~labelled).any():
+            x_u = torch.cat([x[~labelled], y[~labelled]], dim=-1)
+            L_unsup = fixmatch_unsup_loss(self.classifier, x_u, tau=self.tau)
+            loss = loss + self.lambda_u * L_unsup
+        return loss
 
     # --------------------------------------------------------------
-    def predict(self, X):
-        return self.predict_proba(X).argmax(1)
+    @torch.no_grad()
+    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        logits = self.classifier(torch.cat([x, y], dim=-1))
+        return logits.softmax(dim=-1)
+
+
+__all__ = ["FixMatch"]
