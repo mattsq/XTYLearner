@@ -68,6 +68,7 @@ class BridgeDiff(nn.Module):
         sigma_min: float = 0.002,
         sigma_max: float = 1.0,
         k: int = 2,
+        embed_dim: int = 64,
     ) -> None:
         super().__init__()
         self.d_y = d_y
@@ -75,7 +76,7 @@ class BridgeDiff(nn.Module):
         self.timesteps = timesteps
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
-        self.score_net = ScoreBridge(d_x, d_y, k, hidden)
+        self.score_net = ScoreBridge(d_x, d_y, k, hidden, embed_dim)
         self.classifier = Classifier(d_x, d_y, k)
 
     # ----- utilities -----

@@ -164,7 +164,7 @@ def test_diffusion_cevae_trainer_runs():
 def test_bridge_diff_trainer_runs():
     dataset = load_mixed_synthetic_dataset(n_samples=20, d_x=2, seed=9, label_ratio=0.5)
     loader = DataLoader(dataset, batch_size=5)
-    model = BridgeDiff(d_x=2, d_y=1)
+    model = BridgeDiff(d_x=2, d_y=1, embed_dim=16)
     opt = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
