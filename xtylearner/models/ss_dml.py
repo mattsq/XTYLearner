@@ -1,6 +1,14 @@
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from doubleml import DoubleMLData, DoubleMLSSM
+from sklearn.linear_model import LogisticRegression
+
+try:  # optional dependency
+    from doubleml import DoubleMLData, DoubleMLSSM
+    _HAS_DOUBLEML = True
+except ModuleNotFoundError:  # pragma: no cover - handled at runtime
+    DoubleMLData = None  # type: ignore
+    DoubleMLSSM = None  # type: ignore
+    _HAS_DOUBLEML = False
 
 from .registry import register_model
 
@@ -11,24 +19,38 @@ class SSDMLModel:
 
     k = 2
 
-    def __init__(self, ml_g=None, ml_m=None, ml_pi=None, n_folds: int = 5, score: str = "missing-at-random"):
+    def __init__(
+        self,
+        ml_g=None,
+        ml_m=None,
+        ml_pi=None,
+        n_folds: int = 5,
+        score: str = "missing-at-random",
+    ):
         self.ml_g = ml_g or RandomForestRegressor(min_samples_leaf=5)
         self.ml_m = ml_m or RandomForestClassifier()
-        self.ml_pi = ml_pi or RandomForestClassifier()
+        self.ml_pi = ml_pi or LogisticRegression(max_iter=1000)
         self.n_folds = n_folds
         self.score = score
         self._dml = None
-        self.g_hat_ = None
         self.g_hat_0, self.g_hat_1 = None, None
         self.m_hat_ = None
         self.ate_ = None
 
     # ------------------------------------------------------------------
     def fit(self, X: np.ndarray, Y: np.ndarray, T_obs: np.ndarray):
+        """Fit the SS-DML estimator from array inputs."""
+
+        if not _HAS_DOUBLEML:  # pragma: no cover - depends on optional dep
+            raise ImportError(
+                "doubleml is required for SSDMLModel. Install with 'pip install xtylearner[causal]'"
+            )
+
         labelled = T_obs != -1
         X_L, Y_L, T_L = X[labelled], Y[labelled], T_obs[labelled]
-        s = np.ones_like(T_L)
-        data = DoubleMLData.from_arrays(x=X_L, y=Y_L, d=T_L.reshape(-1, 1), s=s)
+
+        data = DoubleMLData.from_arrays(X=X_L, y=Y_L, d=T_L.reshape(-1, 1))
+
         self._dml = DoubleMLSSM(
             data,
             ml_g=self.ml_g,
@@ -38,11 +60,15 @@ class SSDMLModel:
             score=self.score,
             normalize_ipw=True,
         )
+        # allow nuisance models to leverage all covariates
+        self._dml.set_external_data(X_full=X)
+
         self._dml.fit()
         self.ate_ = float(self._dml.effect)
-        self.g_hat_ = self._dml._g_hat
-        self.g_hat_0, self.g_hat_1 = self.g_hat_
+
+        self.g_hat_0, self.g_hat_1 = self._dml._g_hat
         self.m_hat_ = self._dml._m_hat
+
         return self
 
     # ------------------------------------------------------------------
@@ -50,7 +76,8 @@ class SSDMLModel:
         return self.m_hat_.predict_proba(Z)
 
     def predict_outcome(self, X: np.ndarray, t: int):
-        return self.g_hat_[t].predict(X)
+        model = self.g_hat_0 if t == 0 else self.g_hat_1
+        return model.predict(X)
 
     @property
     def tau_(self):
