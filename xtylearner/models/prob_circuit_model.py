@@ -8,7 +8,7 @@ missing treatment labels.  It exposes minimal ``fit`` and
 
 from __future__ import annotations
 
-from typing import Iterable, Sequence
+from typing import Iterable, Sequence, List
 
 import math
 import numpy as np
@@ -53,6 +53,7 @@ class ProbCircuitModel:
         self.root = None
         self._lr = None
         self._cols_num: Sequence[str] = []
+        self._y_cols: List[str] = []
         self._t_idx: int = -1
 
     # ------------------------------------------------------------------
@@ -81,25 +82,39 @@ class ProbCircuitModel:
                     "y and t must be provided when fitting from array inputs"
                 )
             X = df_or_x
-            y_arr = y.reshape(-1)
             df = pd.DataFrame(X, columns=[f"x{i}" for i in range(X.shape[1])])
-            df["Y"] = y_arr
+            y_np = np.asarray(y)
+            if y_np.ndim == 1 or (y_np.ndim == 2 and y_np.shape[1] == 1):
+                df["Y"] = y_np.reshape(-1)
+                self._y_cols = ["Y"]
+            else:
+                y_np = y_np.reshape(y_np.shape[0], -1)
+                self._y_cols = [f"Y{i}" for i in range(y_np.shape[1])]
+                for i, col in enumerate(self._y_cols):
+                    df[col] = y_np[:, i]
             df["T"] = t
             df.loc[df["T"] == -1, "T"] = np.nan
 
         cols = list(df.columns)
-        if "T" not in cols or "Y" not in cols:
-            raise ValueError("DataFrame must contain columns 'T' and 'Y'")
+        if "T" not in cols:
+            raise ValueError("DataFrame must contain column 'T'")
+        if not self._y_cols:
+            if "Y" in cols:
+                self._y_cols = ["Y"]
+            else:
+                self._y_cols = [c for c in cols if c.startswith("Y")]
+                if not self._y_cols:
+                    raise ValueError("DataFrame must contain outcome column(s) 'Y'")
 
-        self._cols_num = [c for c in cols if c not in {"T", "Y"}]
+        self._cols_num = [c for c in cols if c not in set(["T"] + self._y_cols)]
         self._t_idx = len(self._cols_num)
 
-        data_np = df[self._cols_num + ["T", "Y"]].to_numpy(dtype=np.float64)
+        data_np = df[self._cols_num + ["T"] + self._y_cols].to_numpy(dtype=np.float64)
 
         if _HAS_SPFLOW:
             meta_types = [Gaussian] * len(self._cols_num)
             meta_types.append(Categorical)  # T
-            meta_types.append(Gaussian)  # Y
+            meta_types.extend([Gaussian] * len(self._y_cols))  # Y columns
 
             try:
                 try:
@@ -125,12 +140,12 @@ class ProbCircuitModel:
             except Exception:  # fallback if SPFlow fails at runtime
                 _HAS_SPFLOW = False
                 labelled = df.dropna(subset=["T"])
-                Xy = labelled[self._cols_num + ["Y"]].to_numpy(dtype=np.float64)
+                Xy = labelled[self._cols_num + self._y_cols].to_numpy(dtype=np.float64)
                 t = labelled["T"].to_numpy().astype(int)
                 self._lr = LogisticRegression().fit(Xy, t)
         else:
             labelled = df.dropna(subset=["T"])
-            Xy = labelled[self._cols_num + ["Y"]].to_numpy(dtype=np.float64)
+            Xy = labelled[self._cols_num + self._y_cols].to_numpy(dtype=np.float64)
             t = labelled["T"].to_numpy().astype(int)
             self._lr = LogisticRegression().fit(Xy, t)
         return self
@@ -148,7 +163,9 @@ class ProbCircuitModel:
             p1 = math.exp(ll1) / (math.exp(ll0) + math.exp(ll1))
             return p1
         assert self._lr is not None
-        prob = self._lr.predict_proba(np.array(row[:-1]).reshape(1, -1))[0, 1]
+        arr = np.asarray(row, dtype=float)
+        feats = np.concatenate([arr[: self._t_idx], arr[self._t_idx + 1 :]])
+        prob = self._lr.predict_proba(feats.reshape(1, -1))[0, 1]
         return float(prob)
 
     def predict_t_posterior(self, X: np.ndarray, Y: np.ndarray) -> np.ndarray:
@@ -162,18 +179,22 @@ class ProbCircuitModel:
             Outcome values ``(n,)`` or ``(n, 1)``.
         """
 
-        if Y.ndim == 2 and Y.shape[1] == 1:
-            Y = Y[:, 0]
+        if Y.ndim == 1:
+            Y = Y.reshape(-1, 1)
+        if Y.ndim != 2:
+            raise ValueError("Y must be one- or two-dimensional")
         if X.shape[0] != Y.shape[0]:
             raise ValueError("X and Y must have the same number of rows")
 
         out = np.empty(X.shape[0])
         if _HAS_SPFLOW:
             for i in range(X.shape[0]):
-                row = np.concatenate([X[i].astype(float), [np.nan], [float(Y[i])]])
+                row = np.concatenate(
+                    [X[i].astype(float), [np.nan], Y[i].astype(float)]
+                )
                 out[i] = self._posterior_row(row)
         else:
-            data = np.concatenate([X, Y.reshape(-1, 1)], axis=1)
+            data = np.concatenate([X, Y], axis=1)
             out[:] = self._lr.predict_proba(data)[:, 1]
         return out
 
