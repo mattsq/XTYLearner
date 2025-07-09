@@ -32,7 +32,7 @@ include = ["xtylearner*"]
 xtylearner = ["configs/*.yaml"]
 
 [tool.pytest.ini_options]
-addopts = "-vv"
+addopts = "-vv --dist=loadgroup"
 testpaths = ["tests"]
 
 [tool.black]
