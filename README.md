@@ -79,6 +79,8 @@ The model registry exposes a variety of architectures grouped below by type.
   treatment labels.
 - ``MultiTask`` – a discriminative network trained with self-training on
   pseudo-labels for partially observed treatments.
+- ``DragonNet`` – shared encoder with outcome and propensity heads plus
+  targeted regularisation for robust effect estimates.
 - ``MaskedTabularTransformer`` – a transformer encoder for tabular data using a
   masked-token training objective.
 

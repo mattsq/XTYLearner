@@ -15,8 +15,18 @@
   - Subclass `torch.nn.Module`.
   - Provide a `loss(x, y, t_obs)` method returning a scalar tensor.
   - Implement `forward` if predictions depend on treatment.
-  - Optionally expose `predict_treatment_proba(x, y)` and
+- Optionally expose `predict_treatment_proba(x, y)` and
     `predict_outcome(x, t)` for evaluation.
+
+  `dragon_net` follows this template. It uses a shared MLP encoder feeding an
+  outcome head and a propensity head. A third reconstruction head predicts the
+  treatment from both the representation and the observed outcome so that rows
+  without labels still inform the network.
+
+  The loss combines mean-squared error for outcomes with cross-entropy for the
+  two treatment heads, a KL term encouraging agreement when `T` is missing and a
+  targeted regularisation penalty. This mirrors the DragonNet objective of Shi
+  et al. (2019).
 
 - **Generative models** (e.g. `DiffusionCEVAE`, `M2VAE`)
   - Subclass `torch.nn.Module`.

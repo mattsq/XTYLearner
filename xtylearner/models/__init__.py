@@ -12,6 +12,7 @@ from .lt_flow_diff import LTFlowDiff
 from .prob_circuit_model import ProbCircuitModel
 from .masked_tabular_transformer import MaskedTabularTransformer
 from .gflownet_treatment import GFlowNetTreatment
+from .dragon_net import DragonNet
 from .em_model import EMModel
 from .labelprop import LP_KNN
 from .mean_teacher import MeanTeacher
@@ -35,6 +36,7 @@ __all__ = [
     "EnergyDiffusionImputer",
     "JointEBM",
     "MaskedTabularTransformer",
+    "DragonNet",
     "ProbCircuitModel",
     "GFlowNetTreatment",
     "EMModel",

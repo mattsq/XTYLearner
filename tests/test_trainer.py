@@ -2,7 +2,7 @@ import torch
 import pytest
 from torch.utils.data import DataLoader
 from xtylearner.data import load_toy_dataset, load_mixed_synthetic_dataset
-from xtylearner.models import CycleDual, MixtureOfFlows, MultiTask
+from xtylearner.models import CycleDual, MixtureOfFlows, MultiTask, DragonNet
 from xtylearner.training import Trainer
 from xtylearner.models import M2VAE, SS_CEVAE, JSBF, DiffusionCEVAE
 from xtylearner.models import BridgeDiff, LTFlowDiff
@@ -50,6 +50,17 @@ def test_multitask_handles_missing_labels():
     )
     loader = DataLoader(dataset, batch_size=5)
     model = MultiTask(d_x=2, d_y=1, k=2)
+    opt = torch.optim.Adam(model.parameters(), lr=0.01)
+    trainer = Trainer(model, opt, loader)
+    trainer.fit(1)
+    loss = trainer.evaluate(loader)
+    assert isinstance(loss, float)
+
+
+def test_dragon_net_runs():
+    dataset = load_toy_dataset(n_samples=20, d_x=2, seed=18)
+    loader = DataLoader(dataset, batch_size=5)
+    model = DragonNet(d_x=2, d_y=1, k=2)
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
