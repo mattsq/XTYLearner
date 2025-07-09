@@ -97,6 +97,7 @@ The model registry exposes a variety of architectures grouped below by type.
 - ``GFlowNetTreatment`` – a Generative Flow Network that samples treatments in
   proportion to outcome likelihood.
 - ``EMModel`` – a lightweight EM algorithm implementation for linear models.
+- ``GANITE`` – a GAN-based approach for individual treatment effect estimation.
 
 #### Diffusion
 
