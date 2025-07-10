@@ -100,8 +100,18 @@ class VACIM(nn.Module):
             mask = torch.zeros(len(x), dtype=torch.bool, device=x.device)
             t_obs = None
         else:
-            mask = ~torch.isnan(t[:, 0])
-            t_obs = t[mask]
+            if t.dim() == 1:
+                if t.is_floating_point():
+                    mask = ~torch.isnan(t)
+                else:
+                    mask = t != -1
+                t_obs = t[mask]
+            else:
+                if t.is_floating_point():
+                    mask = ~torch.isnan(t[:, 0])
+                else:
+                    mask = t[:, 0] != -1
+                t_obs = t[mask]
             if t_obs.dim() == 2 and t_obs.size(1) == 1:
                 t_obs = t_obs.squeeze(1)
 
