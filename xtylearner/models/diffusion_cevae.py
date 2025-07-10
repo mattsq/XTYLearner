@@ -183,6 +183,7 @@ class DiffusionCEVAE(nn.Module):
     ) -> None:
         super().__init__()
         self.k = k
+        self.d_u = d_u
         self.timesteps = timesteps
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
@@ -272,6 +273,8 @@ class DiffusionCEVAE(nn.Module):
         """Approximate ``p(t|x,y)`` using the encoder and decoder."""
 
         b = x.size(0)
+        if y.ndim == 1:
+            y = y.unsqueeze(-1)
         t_dummy = torch.full((b,), -1, dtype=torch.long, device=x.device)
         mu, _ = self.enc_u(x, t_dummy, y)
         logits = self.dec_t(x, mu)
