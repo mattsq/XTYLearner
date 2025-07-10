@@ -105,9 +105,11 @@ class GNN_EBM(nn.Module):
         z = torch.cat([t0, y_init], dim=-1).detach()
         z.requires_grad_(True)
         for _ in range(self.k_langevin):
-            E = self.energy(x, z[:, :1], z[:, 1:])
-            grad, = torch.autograd.grad(E.sum(), z)
-            z = z - 0.5 * self.eta * grad + torch.sqrt(torch.tensor(self.eta)) * torch.randn_like(z)
+            with torch.enable_grad():
+                E = self.energy(x, z[:, :1], z[:, 1:])
+                grad, = torch.autograd.grad(E.sum(), z)
+            z = z - 0.5 * self.eta * grad
+            z = z + torch.sqrt(torch.tensor(self.eta, device=x.device)) * torch.randn_like(z)
             z = z.detach().requires_grad_(True)
         return z[:, :1].detach(), z[:, 1:].detach()
 
