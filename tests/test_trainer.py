@@ -251,6 +251,23 @@ def test_predict_treatment_proba():
     assert torch.allclose(probs.sum(-1), torch.ones(6), atol=1e-5)
 
 
+def test_flow_ssc_predict_and_proba():
+    dataset = load_toy_dataset(n_samples=20, d_x=2, seed=123)
+    loader = DataLoader(dataset, batch_size=10)
+    model = MixtureOfFlows(d_x=2, d_y=1, k=2)
+    opt = torch.optim.Adam(model.parameters(), lr=0.01)
+    trainer = Trainer(model, opt, loader)
+    trainer.fit(1)
+
+    X, Y, _ = next(iter(loader))
+    preds = trainer.predict(X, torch.zeros(len(X), dtype=torch.long))
+    assert preds.shape == (10, 1)
+
+    probs = trainer.predict_treatment_proba(X, Y)
+    assert probs.shape == (10, 2)
+    assert torch.allclose(probs.sum(-1), torch.ones(10), atol=1e-5)
+
+
 def test_trainer_with_scheduler():
     dataset = load_toy_dataset(n_samples=10, d_x=2, seed=14)
     loader = DataLoader(dataset, batch_size=5)

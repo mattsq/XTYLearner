@@ -56,10 +56,29 @@ class GenerativeTrainer(BaseTrainer):
     def predict(self, x: torch.Tensor, t_val: int) -> torch.Tensor:
         self.model.eval()
         with torch.no_grad():
+            x = x.to(self.device)
+
+            # Use model-provided prediction when available
+            if hasattr(self.model, "predict_outcome"):
+                try:
+                    return self.model.predict_outcome(x, t_val)
+                except Exception:
+                    pass
+            if hasattr(self.model, "predict"):
+                try:
+                    return self.model.predict(x, t_val)
+                except Exception:
+                    pass
+            try:
+                return self.model(x, torch.full((x.size(0),), t_val, device=x.device))
+            except Exception:
+                pass
+
+            # Fallback for VAE-style models
             if isinstance(self.model, DiffusionCEVAE):
                 u = torch.randn(x.size(0), self.model.d_u, device=self.device)
                 t = torch.full((x.size(0),), t_val, device=self.device)
-                return self.model.dec_y(x.to(self.device), t, u)
+                return self.model.dec_y(x, t, u)
 
             z_dim = self.model.enc_z.net_mu[-1].out_features
             z = torch.randn(x.size(0), z_dim, device=self.device)
@@ -67,11 +86,11 @@ class GenerativeTrainer(BaseTrainer):
                 torch.full((x.size(0),), t_val, device=self.device), self.model.k
             ).float()
             if isinstance(self.model, M2VAE):
-                return self.model.dec_y(x.to(self.device), t1h, z)
+                return self.model.dec_y(x, t1h, z)
             elif isinstance(self.model, SS_CEVAE):
-                return self.model.dec_y(z, x.to(self.device), t1h)
-            else:
-                raise ValueError("Unsupported model type for prediction")
+                return self.model.dec_y(z, x, t1h)
+
+            raise ValueError("Unsupported model type for prediction")
 
 
 __all__ = ["GenerativeTrainer"]
