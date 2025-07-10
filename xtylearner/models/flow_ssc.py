@@ -155,5 +155,14 @@ class MixtureOfFlows(nn.Module):
         ).view(X.size(0), self.k)
         return (logits + ll).softmax(dim=-1)
 
+    # ------------------------------------------------------------------
+    @torch.no_grad()
+    def predict_outcome(self, X: torch.Tensor, T: int | torch.Tensor) -> torch.Tensor:
+        """Return predicted outcome ``y`` for inputs ``x`` and treatment ``t``."""
+
+        if isinstance(T, int):
+            T = torch.full((X.size(0),), T, dtype=torch.long, device=X.device)
+        return self.forward(X, T)
+
 
 __all__ = ["MixtureOfFlows"]

@@ -56,6 +56,13 @@ class GANITE(nn.Module):
         )
 
     # --------------------------------------------------------------
+    def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Predict outcome for covariates ``x`` under treatment ``t``."""
+
+        t1h = F.one_hot(t.to(torch.long), self.k).float()
+        return self.G_ite(torch.cat([x, t1h], dim=-1))
+
+    # --------------------------------------------------------------
     def _impute_treatment(
         self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -123,7 +130,12 @@ class GANITE(nn.Module):
         return self.G_ite(torch.cat([x, t1h], dim=-1))
 
     @torch.no_grad()
-    def predict_treatment_proba(self, z: torch.Tensor) -> torch.Tensor:
+    def predict_treatment_proba(
+        self, x: torch.Tensor, y: torch.Tensor | None = None
+    ) -> torch.Tensor:
+        """Return ``p(t|x,y)`` from the classifier network."""
+
+        z = torch.cat([x, y], dim=-1) if y is not None else x
         logits = self.C_t(z)
         return logits.softmax(-1)
 
