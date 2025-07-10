@@ -238,6 +238,24 @@ def test_ganite_trainer_runs():
     assert isinstance(loss, float)
 
 
+def test_ganite_predict_and_proba():
+    dataset = load_toy_dataset(n_samples=20, d_x=2, seed=18)
+    loader = DataLoader(dataset, batch_size=10)
+    model = GANITE(d_x=2, d_y=1)
+    opt_g = torch.optim.Adam(model.parameters(), lr=0.001)
+    opt_d = torch.optim.Adam(model.parameters(), lr=0.001)
+    trainer = Trainer(model, (opt_g, opt_d), loader)
+    trainer.fit(1)
+
+    X, Y, T = next(iter(loader))
+    preds = trainer.predict(X, T)
+    assert preds.shape == (10, 1)
+
+    probs = trainer.predict_treatment_proba(X, Y)
+    assert probs.shape == (10, 2)
+    assert torch.allclose(probs.sum(-1), torch.ones(10), atol=1e-5)
+
+
 def test_predict_treatment_proba():
     dataset = load_toy_dataset(n_samples=6, d_x=2, seed=12)
     loader = DataLoader(dataset, batch_size=6)
