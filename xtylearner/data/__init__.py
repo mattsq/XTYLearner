@@ -34,8 +34,8 @@ def get_dataset(name: str, **kwargs):
 
     Returns
     -------
-    ``torch.utils.data.Dataset``
-        The requested dataset object.
+        ``torch.utils.data.Dataset``
+        Dataset instance produced by the corresponding loader.
     """
 
     name = name.lower()

@@ -19,7 +19,7 @@ def load_synthetic_dataset(
     d_x: int = 5,
     seed: int = 0,
 ) -> TensorDataset:
-    """Generate a simple synthetic benchmark dataset.
+    """Generate the default synthetic benchmark dataset used in examples.
 
     Parameters
     ----------

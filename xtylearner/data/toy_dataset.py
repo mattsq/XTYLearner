@@ -20,7 +20,7 @@ def load_toy_dataset(
     d_x: int = 2,
     seed: int = 0,
 ) -> TensorDataset:
-    """Generate a simple synthetic dataset.
+    """Generate a tiny synthetic dataset for quick experiments.
 
     Parameters
     ----------
@@ -34,7 +34,8 @@ def load_toy_dataset(
     Returns
     -------
     TensorDataset
-        Dataset containing ``(X, Y, T)`` tensors.
+        Dataset of shape ``(n_samples, d_x)``, outcome vector ``Y`` and
+        binary treatment ``T``.
     """
 
     rng = np.random.default_rng(seed)

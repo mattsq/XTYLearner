@@ -14,7 +14,7 @@ from .logger import TrainerLogger
 
 
 class Trainer:
-    """High level trainer that dispatches to the appropriate implementation."""
+    """Factory wrapper selecting an appropriate concrete trainer."""
 
     def __init__(
         self,
@@ -36,6 +36,8 @@ class Trainer:
         ) = None,
         grad_clip_norm: float | None = None,
     ) -> None:
+        """Instantiate an appropriate trainer for ``model`` and delegate calls."""
+
         trainer_cls = self._select_trainer(model)
         if trainer_cls is AdversarialTrainer:
             if not isinstance(optimizer, (tuple, list)) or len(optimizer) != 2:
@@ -66,7 +68,7 @@ class Trainer:
 
     # ------------------------------------------------------------------
     def _select_trainer(self, model: torch.nn.Module) -> type[BaseTrainer]:
-        """Choose a concrete trainer class based on model capabilities."""
+        """Pick a trainer subclass based on the interfaces exposed by ``model``."""
         if hasattr(model, "loss_G") and hasattr(model, "loss_D"):
             return AdversarialTrainer
         if hasattr(model, "elbo"):
