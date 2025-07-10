@@ -173,5 +173,33 @@ class DiffusionGNN_SCM(nn.Module):
         L_l1 = (A.abs() * self.mask).sum()
         return L_dm + L_y + L_t + self.lambda_acyc * L_acyc + self.gamma_l1 * L_l1
 
+    # ------------------------------------------------------------------
+    @torch.no_grad()
+    def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:  # noqa: D401
+        """Predict outcome mean for treatment ``t``."""
+        A = self._A()
+        root_emb = self.score_net.root(x, A)
+        t_in = F.one_hot(t, self.k).float()
+        ty_in = torch.cat([t_in, root_emb], dim=-1)
+        mu_y, _ = self.head_Y(torch.cat([x, ty_in], dim=-1)).chunk(2, -1)
+        return mu_y.squeeze(-1)
+
+    # ------------------------------------------------------------------
+    @torch.no_grad()
+    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Return ``p(t|x,y)`` using the learned root embedding."""
+        A = self._A()
+        root_emb = self.score_net.root(x, A)
+        logits = self.head_T(torch.cat([x, root_emb], dim=-1))
+        return logits.softmax(dim=-1)
+
+    # ------------------------------------------------------------------
+    @torch.no_grad()
+    def predict_outcome(self, x: torch.Tensor, t: int | torch.Tensor) -> torch.Tensor:
+        """Predict outcome mean for a fixed treatment value."""
+        if isinstance(t, int):
+            t = torch.full((x.size(0),), t, dtype=torch.long, device=x.device)
+        return self.forward(x, t)
+
 
 __all__ = ["DiffusionGNN_SCM"]
