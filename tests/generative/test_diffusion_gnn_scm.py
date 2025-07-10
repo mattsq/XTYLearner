@@ -9,7 +9,7 @@ from xtylearner.training import Trainer
 def test_diffusion_gnn_scm_acyclic():
     ds = load_toy_dataset(n_samples=30, d_x=2, seed=1)
     loader = DataLoader(ds, batch_size=10)
-    model = DiffusionGNN_SCM(d_x=2, k_t=2, d_y=1)
+    model = DiffusionGNN_SCM(d_x=2, k=2, d_y=1)
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
     trainer = Trainer(model, opt, loader)
     trainer.fit(0)
