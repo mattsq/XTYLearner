@@ -238,6 +238,27 @@ def test_ganite_trainer_runs():
     assert isinstance(loss, float)
 
 
+def test_ganite_with_schedulers():
+    dataset = load_mixed_synthetic_dataset(
+        n_samples=20, d_x=2, seed=18, label_ratio=0.5
+    )
+    loader = DataLoader(dataset, batch_size=5)
+    model = GANITE(d_x=2, d_y=1)
+    opt_g = torch.optim.SGD(model.parameters(), lr=0.1)
+    opt_d = torch.optim.SGD(model.parameters(), lr=0.1)
+    sched_g = torch.optim.lr_scheduler.StepLR(opt_g, step_size=1, gamma=0.1)
+    sched_d = torch.optim.lr_scheduler.StepLR(opt_d, step_size=1, gamma=0.1)
+    trainer = Trainer(
+        model,
+        (opt_g, opt_d),
+        loader,
+        scheduler=(sched_g, sched_d),
+    )
+    trainer.fit(2)
+    assert opt_g.param_groups[0]["lr"] == pytest.approx(0.001, rel=1e-6)
+    assert opt_d.param_groups[0]["lr"] == pytest.approx(0.001, rel=1e-6)
+
+
 def test_predict_treatment_proba():
     dataset = load_toy_dataset(n_samples=6, d_x=2, seed=12)
     loader = DataLoader(dataset, batch_size=6)
