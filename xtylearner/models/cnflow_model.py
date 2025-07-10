@@ -28,12 +28,14 @@ class CNFlowModel(nn.Module):
         k: int,
         hidden: int = 128,
         n_layers: int = 5,
+        eval_samples: int = 100,
     ) -> None:
         super().__init__()
         self.k = k
         self.d_y = d_y
         self.cond_net = make_mlp([d_x, hidden, hidden], activation=nn.ReLU)
         self.flow = self._build_conditional_flow(hidden, n_layers)
+        self.eval_samples = eval_samples
 
     # ------------------------------------------------------------
     def _build_conditional_flow(self, hidden: int, n_layers: int) -> Flow:
@@ -95,15 +97,16 @@ class CNFlowModel(nn.Module):
     def predict_outcome(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         t_onehot = nn.functional.one_hot(t, num_classes=self.k).float()
         context = self.cond_net(x)
-        n = 100 if not self.training else 1
+        n = self.eval_samples if not self.training else 1
         z = self.flow.sample(n, context)  # (B, n, D+k)
         context_exp = context.unsqueeze(1).expand(-1, n, -1)
         z[..., self.d_y :] = t_onehot.unsqueeze(1).expand(-1, n, -1)
         z_flat = z.reshape(-1, self.d_y + self.k)
         ctx_flat = context_exp.reshape(-1, context.size(-1))
-        if hasattr(self.flow, "inverse"):
+        try:
             y_flat, _ = self.flow.inverse(z_flat, context=ctx_flat)
-        else:
+        except AttributeError:
+            # fall back for older nflows
             y_flat, _ = self.flow._transform.inverse(z_flat, ctx_flat)
         y_samples = y_flat[..., : self.d_y].view(x.size(0), n, self.d_y)
         return y_samples.mean(1)
@@ -121,17 +124,18 @@ class CNFlowModel(nn.Module):
     # ------------------------------------------------------------
     @torch.no_grad()
     def potential_outcome(
-        self, x: torch.Tensor, t_star: int | torch.Tensor, n: int = 100
+        self, x: torch.Tensor, t_star: int | torch.Tensor, n: int | None = None
     ) -> torch.Tensor:
         t_star_oh = nn.functional.one_hot(
             torch.as_tensor(t_star, device=x.device), self.k
         ).float()
+        n = self.eval_samples if n is None else n
         context = self.cond_net(x)
         z = self.flow.sample(n, context)
         z[..., self.d_y :] = t_star_oh
-        if hasattr(self.flow, "inverse"):
+        try:
             x_inv, _ = self.flow.inverse(z, context=context)
-        else:
+        except AttributeError:
             x_inv, _ = self.flow._transform.inverse(z, context)
         return x_inv[..., : self.d_y]
 
