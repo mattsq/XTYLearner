@@ -124,7 +124,8 @@ The model registry exposes a variety of architectures grouped below by type.
 
 #### Semi-Supervised Baselines
 
-- ``LP_KNN`` – a k-nearest neighbour label propagation baseline.
+- ``LP_KNN`` – a k-nearest neighbour label propagation baseline that can
+  optionally train a scikit-learn regressor on the propagated labels.
 - ``MeanTeacher`` – an exponential moving average teacher model for
   consistency training.
 - ``VIME`` – a two-stage self-supervised method for tabular data.
