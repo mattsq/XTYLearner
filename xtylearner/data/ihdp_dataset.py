@@ -27,7 +27,20 @@ def load_ihdp(
     split: Literal["train", "test"] = "train",
     data_dir: str = "~/.xtylearner/data",
 ) -> TensorDataset:
-    """Download (if needed) and load the IHDP dataset."""
+    """Load the IHDP dataset, downloading it on demand.
+
+    Parameters
+    ----------
+    split:
+        Which portion of the dataset to load, ``"train"`` or ``"test"``.
+    data_dir:
+        Directory where the ``.npz`` files are stored or should be downloaded to.
+
+    Returns
+    -------
+    TensorDataset
+        Dataset ``(X, Y, T)`` with shapes ``(N, d_x)``, ``(N, 1)`` and ``(N,)``.
+    """
 
     url = URLS[split]
     path = Path(data_dir).expanduser()

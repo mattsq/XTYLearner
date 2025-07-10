@@ -7,31 +7,35 @@ import torch.nn.functional as F
 
 
 def mse_loss(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-    """Mean squared error."""
+    """Mean squared error between ``pred`` and ``target``.
+
+    Both tensors must be broadcastable to the same shape.
+    Returns the average of squared differences as a scalar tensor.
+    """
 
     return F.mse_loss(pred, target)
 
 
 def mae_loss(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-    """Mean absolute error."""
+    """Mean absolute error between ``pred`` and ``target``."""
 
     return torch.mean(torch.abs(pred - target))
 
 
 def rmse_loss(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-    """Root mean squared error."""
+    """Root mean squared error of ``pred`` compared with ``target``."""
 
     return torch.sqrt(mse_loss(pred, target))
 
 
 def cross_entropy_loss(logits: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-    """Cross entropy for classification."""
+    """Cross entropy between ``logits`` and integer class labels ``target``."""
 
     return F.cross_entropy(logits, target)
 
 
 def accuracy(logits: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-    """Classification accuracy for ``logits`` compared with ``target``."""
+    """Classification accuracy comparing argmax of ``logits`` and ``target``."""
 
     pred = logits.argmax(dim=-1)
     return (pred == target).float().mean()

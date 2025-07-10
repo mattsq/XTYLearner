@@ -21,7 +21,18 @@ URL = "https://raw.githubusercontent.com/py-why/benchmark-datasets/main/twins/tw
 
 
 def load_twins(data_dir: str = "~/.xtylearner/data") -> TensorDataset:
-    """Download (if necessary) and load the Twins dataset."""
+    """Load the Twins dataset, downloading a processed CSV if needed.
+
+    Parameters
+    ----------
+    data_dir:
+        Location used to cache the dataset file.
+
+    Returns
+    -------
+    TensorDataset
+        Dataset ``(X, Y, T)`` with shapes ``(N, d_x)``, ``(N, 1)`` and ``(N,)``.
+    """
 
     path = Path(data_dir).expanduser()
     path.mkdir(parents=True, exist_ok=True)

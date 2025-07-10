@@ -35,10 +35,10 @@ def load_tabular_dataset(
     Returns
     -------
     TensorDataset
-        Dataset of ``(X, Y, T)`` tensors.
-        When ``T`` contains string categories, a ``treatment_mapping``
-        attribute on the returned dataset stores the category-to-index
-        mapping.
+        Dataset of ``(X, Y, T)`` tensors. Columns not designated as outcome or
+        treatment become covariates ``X`` in the original order. When ``T``
+        contains string categories, a ``treatment_mapping`` attribute on the
+        returned dataset stores the category-to-index mapping.
     """
 
     if isinstance(data, (str, Path)):

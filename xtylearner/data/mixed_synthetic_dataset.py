@@ -18,6 +18,12 @@ def load_mixed_synthetic_dataset(
 
     Parameters
     ----------
+    n_samples:
+        Total number of samples to generate.
+    d_x:
+        Dimensionality of the covariates.
+    seed:
+        Seed controlling both dataset generation and label masking.
     label_ratio:
         Fraction of samples with observed treatment labels.
 

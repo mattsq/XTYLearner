@@ -19,7 +19,23 @@ def load_synthetic_dataset(
     d_x: int = 5,
     seed: int = 0,
 ) -> TensorDataset:
-    """Generate a moderately sized synthetic benchmark dataset."""
+    """Generate a simple synthetic benchmark dataset.
+
+    Parameters
+    ----------
+    n_samples:
+        Number of observations to generate.
+    d_x:
+        Dimensionality of the covariates ``X``.
+    seed:
+        Random seed controlling reproducibility.
+
+    Returns
+    -------
+    TensorDataset
+        Dataset ``(X, Y, T)`` with shapes ``(n_samples, d_x)``, ``(n_samples, 1)``
+        and ``(n_samples,)``.
+    """
 
     rng = np.random.default_rng(seed)
     X, _ = make_regression(
