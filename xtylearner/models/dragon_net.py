@@ -26,12 +26,15 @@ class DragonNet(nn.Module):
 
     # ------------------------------------------------------------------
     def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Return outcome prediction ``y`` for covariates ``x`` and treatment ``t``."""
+
         phi = self.encoder(x)
         out = self.outcome_head(phi).view(-1, self.k, self.d_y)
         return out.gather(1, t.view(-1, 1, 1).expand(-1, 1, self.d_y)).squeeze(1)
 
     # ------------------------------------------------------------------
     def loss(self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor) -> torch.Tensor:
+        """Compute the DragonNet training loss for a mini-batch."""
         phi = self.encoder(x)
         mu_hat = self.outcome_head(phi).view(-1, self.k, self.d_y)
         pi_hat = self.propensity_head(phi)
@@ -76,12 +79,16 @@ class DragonNet(nn.Module):
     # ------------------------------------------------------------------
     @torch.no_grad()
     def predict_outcome(self, x: torch.Tensor, t: int) -> torch.Tensor:
+        """Predict outcome for all rows in ``x`` under treatment ``t``."""
+
         phi = self.encoder(x)
         mu = self.outcome_head(phi).view(-1, self.k, self.d_y)
         return mu[:, t, :].squeeze(-1)
 
     @torch.no_grad()
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor | None = None) -> torch.Tensor:
+        """Return ``p(t|x)`` or ``p(t|x,y)`` depending on ``y``."""
+
         phi = self.encoder(x)
         if y is None:
             return F.softmax(self.propensity_head(phi), dim=-1)

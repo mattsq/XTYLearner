@@ -13,6 +13,7 @@ class GenerativeTrainer(BaseTrainer):
     """Trainer for generative models using an ELBO objective."""
 
     def step(self, batch: Iterable[torch.Tensor]) -> torch.Tensor:
+        """Compute the ELBO (or loss) for a single training batch."""
         data = [b.to(self.device) for b in batch]
         if len(data) == 2:
             x, y = data

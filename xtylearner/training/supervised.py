@@ -11,6 +11,7 @@ class SupervisedTrainer(BaseTrainer):
     """Generic trainer for fully observed models with a ``loss`` method."""
 
     def step(self, batch: Iterable[torch.Tensor]):
+        """Return the model loss for ``batch`` moved to the current device."""
         inputs = [b.to(self.device) for b in batch]
         if len(inputs) == 2:
             x, y = inputs

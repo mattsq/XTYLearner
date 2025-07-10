@@ -6,6 +6,8 @@ class GNNTrainer(GenerativeTrainer):
 
     @staticmethod
     def add_model_specific_args(parser):
+        """Register command line options used by :class:`GNN_SCM`."""
+
         parser.add_argument("--lambda_acyc", type=float, default=10.0)
         parser.add_argument("--gamma_l1", type=float, default=1e-2)
         return parser
