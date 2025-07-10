@@ -67,6 +67,7 @@ class CEVAE_M(nn.Module):
     def __init__(self, d_x: int, d_y: int, k: int = 2, d_z: int = 16, hidden: int = 64, tau: float = 0.5) -> None:
         super().__init__()
         self.k, self.tau = k, tau
+        self.d_y = d_y
         # encoders
         self.enc_logits_t = MLP(d_x + d_y, hidden, k)
         self.enc_z = CondDiagGaussian(d_x + d_y + k, hidden, d_z)
@@ -74,6 +75,14 @@ class CEVAE_M(nn.Module):
         self.dec_x = MLP(d_z, hidden, d_x)
         self.dec_t = MLP(d_z, hidden, k)
         self.dec_y = MLP(d_x + k + d_z, hidden, d_y)
+
+    # --------------------------------------------------------------
+    def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Predict outcome ``y`` from covariates ``x`` and treatment ``t``."""
+        t_onehot = F.one_hot(t, self.k).float() if t.dim() == 1 else t
+        zeros_y = torch.zeros(x.size(0), self.d_y, device=x.device)
+        z = self.enc_z.mu(torch.cat([x, zeros_y, t_onehot], 1))
+        return self.dec_y(torch.cat([x, t_onehot, z], 1))
 
     # --------------------------------------------------------------
     def loss(self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor) -> torch.Tensor:
@@ -102,7 +111,8 @@ class CEVAE_M(nn.Module):
     @torch.no_grad()
     def predict_outcome(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         t_onehot = F.one_hot(t, self.k).float() if t.dim() == 1 else t
-        z = self.enc_z.mu(torch.cat([x, torch.zeros_like(x[:, :1]), t_onehot], 1))
+        zeros_y = torch.zeros(x.size(0), self.d_y, device=x.device)
+        z = self.enc_z.mu(torch.cat([x, zeros_y, t_onehot], 1))
         return self.dec_y(torch.cat([x, t_onehot, z], 1))
 
     @torch.no_grad()
