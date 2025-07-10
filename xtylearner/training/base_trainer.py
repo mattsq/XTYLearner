@@ -62,7 +62,16 @@ class BaseTrainer(ABC):
         if isinstance(loss, torch.Tensor):
             return {"loss": float(loss.item())}
         if isinstance(loss, Mapping):
-            return {k: float(v) for k, v in loss.items()}
+            metrics: dict[str, float] = {}
+            for k, v in loss.items():
+                if isinstance(v, torch.Tensor) and v.numel() == 1:
+                    metrics[k] = float(v.item())
+                elif not isinstance(v, torch.Tensor):
+                    try:
+                        metrics[k] = float(v)
+                    except Exception:
+                        pass
+            return metrics
         return {"loss": float(loss)}
 
     # --------------------------------------------------------------
