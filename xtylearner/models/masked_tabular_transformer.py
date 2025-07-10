@@ -29,6 +29,8 @@ class MaskedTabularTransformer(nn.Module):
     def __init__(
         self,
         d_x: int,
+        d_y: int = 1,
+        k: int = 2,
         *,
         y_bins: int = 32,
         d_model: int = 128,
@@ -38,14 +40,20 @@ class MaskedTabularTransformer(nn.Module):
         p_mask: float = 0.15,
     ) -> None:
         super().__init__()
+        if d_y != 1:
+            raise ValueError(
+                "MaskedTabularTransformer only supports a single outcome (d_y=1)"
+            )
         self.d_x = d_x
+        self.d_y = d_y
+        self.k = k
         self.y_bins = y_bins
         self.d_model = d_model
         self.p_mask = p_mask
         self.seq_len = d_x + 5
 
         self.num_emb = nn.ModuleList([NumEmbed(d_model) for _ in range(d_x)])
-        self.tok_T = nn.Embedding(3, d_model)
+        self.tok_T = nn.Embedding(k + 1, d_model)
         self.tok_Y = nn.Embedding(y_bins + 1, d_model)
         self.tok_special = nn.Embedding(3, d_model)
         self.pos_emb = nn.Embedding(d_x + 6, d_model)
@@ -54,7 +62,7 @@ class MaskedTabularTransformer(nn.Module):
             d_model, nhead=nhead, dim_feedforward=dim_feedforward
         )
         self.encoder = nn.TransformerEncoder(layer, num_layers=num_layers)
-        self.head_T = nn.Linear(d_model, 3)
+        self.head_T = nn.Linear(d_model, k)
         self.head_Y = nn.Linear(d_model, y_bins)
 
         self.register_buffer("y_min", torch.tensor(0.0))
@@ -86,9 +94,22 @@ class MaskedTabularTransformer(nn.Module):
             seqs.append(row)
         tok_matrix = torch.stack(seqs)
         idx = torch.arange(self.seq_len, device=device)
-        out = self.encoder((tok_matrix + self.pos_emb(idx)).transpose(0, 1)).transpose(0, 1)
+        out = self.encoder((tok_matrix + self.pos_emb(idx)).transpose(0, 1)).transpose(
+            0, 1
+        )
         logits = self.head_Y(out[:, self.d_x + 4])
         return logits
+
+    # ------------------------------------------------------------------
+    @torch.no_grad()
+    def predict_outcome(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Return predicted outcome values for treatment ``t``."""
+
+        logits = self.forward(x, t)
+        probs = logits.softmax(dim=-1)
+        bins = torch.linspace(0, self.y_bins - 1, self.y_bins, device=logits.device)
+        vals = self.y_min + bins / (self.y_bins - 1) * (self.y_max - self.y_min)
+        return (probs * vals).sum(-1, keepdim=True)
 
     # ------------------------------------------------------------------
     def row_to_tokens(
@@ -99,7 +120,7 @@ class MaskedTabularTransformer(nn.Module):
         for i, val in enumerate(x_row):
             tokens.append(self.num_emb[i](val.unsqueeze(0)))
         tokens.append(self.tok_special(torch.tensor([self.TOK_T], device=device)))
-        t_tok = 2 if int(t_val) == -1 else int(t_val)
+        t_tok = self.k if int(t_val) == -1 else int(t_val)
         tokens.append(self.tok_T(torch.tensor([t_tok], device=device)))
         tokens.append(self.tok_special(torch.tensor([self.TOK_Y], device=device)))
         if torch.isnan(y_disc):
@@ -133,7 +154,7 @@ class MaskedTabularTransformer(nn.Module):
         mask_mask[:, self.d_x + 3] = False
         mask_mask[t_obs == -1, self.d_x + 2] = True
 
-        mask_vec = self.tok_T(torch.tensor([2], device=device))
+        mask_vec = self.tok_T(torch.tensor([self.k], device=device))
         tok_matrix[mask_mask] = mask_vec
 
         idx = torch.arange(self.seq_len, device=device)
@@ -152,22 +173,10 @@ class MaskedTabularTransformer(nn.Module):
     def predict_y(
         self, x_row: torch.Tensor, t_prompt: int, n_samples: int = 20
     ) -> float:
-        device = x_row.device
-        idx = torch.arange(self.seq_len, device=device)
-        y_probs = torch.zeros(self.y_bins, device=device)
-        for _ in range(n_samples):
-            seq = self.row_to_tokens(
-                x_row, torch.tensor(float("nan"), device=device), t_prompt
-            )
-            seq[self.d_x + 4] = self.tok_Y(torch.tensor([self.y_bins], device=device))
-            seq = seq + self.pos_emb(idx)
-            out = self.encoder(seq.unsqueeze(1)).squeeze(1)
-            logits = self.head_Y(out[self.d_x + 4])
-            y_probs += F.softmax(logits, dim=0)
-        y_probs /= n_samples
-        pred_bin = y_probs.argmax().item()
-        y_val = self.y_min + pred_bin / (self.y_bins - 1) * (self.y_max - self.y_min)
-        return float(y_val)
+        pred = self.predict_outcome(
+            x_row.unsqueeze(0), torch.tensor([t_prompt], device=x_row.device)
+        )
+        return float(pred.item())
 
     # ------------------------------------------------------------------
     @torch.no_grad()
@@ -183,7 +192,9 @@ class MaskedTabularTransformer(nn.Module):
             seqs.append(row)
         tok_matrix = torch.stack(seqs)
         idx = torch.arange(self.seq_len, device=device)
-        out = self.encoder((tok_matrix + self.pos_emb(idx)).transpose(0, 1)).transpose(0, 1)
+        out = self.encoder((tok_matrix + self.pos_emb(idx)).transpose(0, 1)).transpose(
+            0, 1
+        )
         logits = self.head_T(out[:, self.d_x + 2])
         return logits.softmax(dim=-1)
 
