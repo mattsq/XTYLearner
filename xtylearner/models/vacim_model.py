@@ -157,6 +157,8 @@ class VACIM(nn.Module):
     # --------------------------------------------------------------
     @staticmethod
     def add_model_specific_args(parser):
+        """Register command line options specific to the VACIM model."""
+
         parser.add_argument("--n_mc", type=int, default=5)
         parser.add_argument("--temp_init", type=float, default=1.0)
         return parser

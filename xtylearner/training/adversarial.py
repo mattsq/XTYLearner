@@ -45,6 +45,7 @@ class AdversarialTrainer(BaseTrainer):
 
     # --------------------------------------------------------------
     def step(self, batch: Iterable[torch.Tensor]) -> dict[str, torch.Tensor]:
+        """Perform a single adversarial update step."""
         x, y, t = self._extract_batch(batch)
 
         if not torch.is_grad_enabled():
@@ -67,6 +68,7 @@ class AdversarialTrainer(BaseTrainer):
 
     # --------------------------------------------------------------
     def fit(self, num_epochs: int) -> None:
+        """Alternately update generator and discriminator for ``num_epochs``."""
         for epoch in range(num_epochs):
             self.model.train()
             num_batches = len(self.train_loader)

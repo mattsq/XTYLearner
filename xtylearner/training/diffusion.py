@@ -15,6 +15,7 @@ class DiffusionTrainer(BaseTrainer):
         return self.model.loss(x, y, t)
 
     def fit(self, num_epochs: int) -> None:
+        """Train the diffusion model for ``num_epochs`` epochs."""
         for epoch in range(num_epochs):
             self.model.train()
             num_batches = len(self.train_loader)
