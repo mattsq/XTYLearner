@@ -56,7 +56,9 @@ class MaskedGraphConv(nn.Module):
 
 
 class GraphScoreNet(nn.Module):
-    def __init__(self, d_in: int, d_nodes: int, time_dim: int, hidden: int) -> None:
+    def __init__(
+        self, d_in: int, d_nodes: int, d_y: int, time_dim: int, hidden: int
+    ) -> None:
         super().__init__()
         self.d_nodes = d_nodes
         self.d_in = d_in
@@ -68,12 +70,12 @@ class GraphScoreNet(nn.Module):
         self.fc_in = nn.Linear(d_in, hidden)
         self.conv1 = MaskedGraphConv()
         self.conv2 = MaskedGraphConv()
-        self.fc_out = nn.Linear(hidden, d_nodes)
+        self.fc_out = nn.Linear(hidden, d_y)
 
     def forward(
         self, z: torch.Tensor, x: torch.Tensor, t_emb: torch.Tensor, A: torch.Tensor
     ) -> torch.Tensor:
-        h = torch.cat([x, z], dim=-1)  # (b, d_nodes)
+        h = torch.cat([x, z], dim=-1)  # (b, d_in)
         h = self.fc_in(h)
         h = h.unsqueeze(1).repeat(1, self.d_nodes, 1)
         time_emb = self.time(t_emb)
@@ -112,7 +114,7 @@ class DiffusionGNN_SCM(nn.Module):
     def __init__(
         self,
         d_x: int,
-        k_t: int,
+        k: int,
         d_y: int,
         time_emb_dim: int = 128,
         hidden: int = 256,
@@ -120,7 +122,7 @@ class DiffusionGNN_SCM(nn.Module):
         gamma_l1: float = 1e-2,
     ) -> None:
         super().__init__()
-        self.k = k_t
+        self.k = k
         self.d_y = d_y
         self.d_nodes = d_x + 2
         mask = torch.ones(self.d_nodes, self.d_nodes)
@@ -131,10 +133,10 @@ class DiffusionGNN_SCM(nn.Module):
 
         self.time_emb = SinusoidalTimeEmbedding(time_emb_dim)
         self.score_net = GraphScoreNet(
-            d_x + k_t + d_y, self.d_nodes, time_emb_dim, hidden
+            d_x + k + d_y, self.d_nodes, d_y, time_emb_dim, hidden
         )
-        self.head_T = MLP(d_x + hidden, k_t)
-        self.head_Y = MLP(d_x + k_t + hidden, d_y * 2)
+        self.head_T = MLP(d_x + hidden, k)
+        self.head_Y = MLP(d_x + k + hidden, d_y * 2)
         self.lambda_acyc = lambda_acyc
         self.gamma_l1 = gamma_l1
 
