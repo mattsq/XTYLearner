@@ -11,11 +11,30 @@ class DiffusionTrainer(BaseTrainer):
     """Trainer for score-based diffusion models like JSBF."""
 
     def step(self, batch: Iterable[torch.Tensor]) -> torch.Tensor:
+        """Compute the diffusion loss for one mini-batch.
+
+        Parameters
+        ----------
+        batch:
+            Iterable returning ``(X, Y, T)`` tensors moved to the training
+            device.
+
+        Returns
+        -------
+        torch.Tensor
+            Scalar training loss.
+        """
         x, y, t = [b.to(self.device) for b in batch]
         return self.model.loss(x, y, t)
 
     def fit(self, num_epochs: int) -> None:
-        """Train the diffusion model for ``num_epochs`` epochs."""
+        """Train the diffusion model.
+
+        Parameters
+        ----------
+        num_epochs:
+            Number of epochs to run optimisation for.
+        """
         for epoch in range(num_epochs):
             self.model.train()
             num_batches = len(self.train_loader)
@@ -42,17 +61,35 @@ class DiffusionTrainer(BaseTrainer):
                 self.logger.end_epoch(epoch + 1)
 
     def evaluate(self, data_loader: Iterable) -> float:
+        """Compute the average loss over ``data_loader``.
+
+        Parameters
+        ----------
+        data_loader:
+            Iterable supplying evaluation batches.
+
+        Returns
+        -------
+        float
+            Mean metric extracted from the evaluation routine.
+        """
         metrics = self._eval_metrics(data_loader)
         return metrics.get("loss", next(iter(metrics.values()), 0.0))
 
     def predict(self, *args):
-        """Return model predictions or samples.
+        """Generate samples or outcome predictions.
 
-        ``predict(n)`` draws ``n`` samples from the model prior using
-        ``model.sample`` when called with a single integer argument.  When
-        supplied a covariate matrix ``x`` and treatment indicator ``t``, the
-        method returns outcome predictions by delegating to either
-        ``model.predict_outcome`` or ``model.paired_sample``.
+        Parameters
+        ----------
+        *args:
+            Either a single integer ``n`` for unconditional sampling or a pair
+            ``(x, t)`` to predict outcomes for covariates ``x`` under treatment
+            ``t``.
+
+        Returns
+        -------
+        Any
+            Samples or predicted outcomes depending on the call signature.
         """
 
         self.model.eval()
@@ -68,7 +105,9 @@ class DiffusionTrainer(BaseTrainer):
             x = x.to(self.device)
 
             if isinstance(t, int):
-                t_tensor = torch.full((x.size(0),), t, dtype=torch.long, device=self.device)
+                t_tensor = torch.full(
+                    (x.size(0),), t, dtype=torch.long, device=self.device
+                )
             else:
                 t_tensor = t.to(self.device)
 

@@ -13,7 +13,19 @@ class GenerativeTrainer(BaseTrainer):
     """Trainer for generative models using an ELBO objective."""
 
     def step(self, batch: Iterable[torch.Tensor]) -> torch.Tensor:
-        """Compute the ELBO (or loss) for a single training batch."""
+        """Compute the ELBO (or loss) for one mini-batch.
+
+        Parameters
+        ----------
+        batch:
+            Iterable providing ``(X, Y, T_obs)`` tensors. When only ``X`` and
+            ``Y`` are present a dummy ``T`` filled with ``-1`` is assumed.
+
+        Returns
+        -------
+        torch.Tensor
+            Scalar loss tensor to backpropagate.
+        """
         data = [b.to(self.device) for b in batch]
         if len(data) == 2:
             x, y = data
@@ -25,7 +37,13 @@ class GenerativeTrainer(BaseTrainer):
         return self.model.elbo(x, y, t)
 
     def fit(self, num_epochs: int) -> None:
-        """Run training loops for ``num_epochs`` using the ELBO objective."""
+        """Run the training loop for a fixed number of epochs.
+
+        Parameters
+        ----------
+        num_epochs:
+            Number of passes over ``train_loader`` to perform.
+        """
         for epoch in range(num_epochs):
             self.model.train()
             num_batches = len(self.train_loader)
@@ -52,11 +70,36 @@ class GenerativeTrainer(BaseTrainer):
                 self.logger.end_epoch(epoch + 1)
 
     def evaluate(self, data_loader: Iterable) -> float:
+        """Return the mean loss on ``data_loader``.
+
+        Parameters
+        ----------
+        data_loader:
+            Iterable yielding evaluation batches.
+
+        Returns
+        -------
+        float
+            Scalar metric obtained from :meth:`_eval_metrics`.
+        """
         metrics = self._eval_metrics(data_loader)
         return metrics.get("loss", next(iter(metrics.values()), 0.0))
 
     def predict(self, x: torch.Tensor, t_val: int) -> torch.Tensor:
-        """Predict outcomes for ``x`` under treatment value ``t_val``."""
+        """Predict outcomes for a fixed treatment value.
+
+        Parameters
+        ----------
+        x:
+            Covariate matrix on the same device as the model.
+        t_val:
+            Integer treatment index to condition on.
+
+        Returns
+        -------
+        torch.Tensor
+            Predicted outcome tensor with one row per sample in ``x``.
+        """
 
         self.model.eval()
         with torch.no_grad():

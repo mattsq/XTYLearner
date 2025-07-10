@@ -22,12 +22,38 @@ def em_learn(
     regressor_factory=None,
     verbose=False,
 ):
-    """Return:
-    - clf_T      : classifier modelling  p(T | X)
-    - regs_Y[t]  : list of regressors modelling E[Y | X, T=t]
-    - sigma2[t]  : residual variance per treatment
-    - T_imputed  : np.ndarray of shape (n,) with hard EM labels
-    - ll         : complete-data log-likelihood at convergence
+    """Expectation-maximisation training loop.
+
+    Parameters
+    ----------
+    X, Y, T_obs:
+        Arrays containing covariates, outcomes and (possibly missing)
+        treatments.
+    k:
+        Number of treatment categories.
+    max_iter:
+        Maximum number of EM iterations.
+    tol:
+        Stopping tolerance on the complete-data log-likelihood.
+    classifier_factory:
+        Callable returning a scikit-learn classifier for ``p(T|X,Y)``.
+    regressor_factory:
+        Callable returning regressors for ``E[Y|X,T]``.
+    verbose:
+        If ``True`` print log-likelihood progress.
+
+    Returns
+    -------
+    clf_T : ``sklearn.base.ClassifierMixin``
+        Fitted classifier over ``(X,Y)``.
+    regs_Y : list
+        List of regressors predicting ``Y`` given ``X`` and ``T``.
+    sigma2 : np.ndarray
+        Residual variance per treatment.
+    T_imputed : np.ndarray
+        Hard EM labels for ``T``.
+    ll : float
+        Final complete-data log-likelihood.
     """
     # ----- split labelled vs unlabelled ----------------------------------
     labelled = T_obs != -1

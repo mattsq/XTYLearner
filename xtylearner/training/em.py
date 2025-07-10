@@ -21,7 +21,18 @@ class ArrayTrainer(BaseTrainer):
     def _collect_arrays(
         self, loader: Iterable
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Gather ``X``, ``Y`` and ``T`` arrays from a data loader."""
+        """Gather ``X``, ``Y`` and ``T`` arrays from ``loader``.
+
+        Parameters
+        ----------
+        loader:
+            Iterable yielding batches compatible with :meth:`_extract_batch`.
+
+        Returns
+        -------
+        tuple[np.ndarray, np.ndarray, np.ndarray]
+            Arrays ``(X, Y, T)`` concatenated over the loader.
+        """
         X_list, Y_list, T_list = [], [], []
         for batch in loader:
             x, y, t = self._extract_batch(batch)
@@ -34,7 +45,13 @@ class ArrayTrainer(BaseTrainer):
         return X, Y, T
 
     def fit(self, num_epochs: int) -> None:
-        """Fit the underlying array-based model using the full dataset."""
+        """Fit the wrapped model using all available data.
+
+        Parameters
+        ----------
+        num_epochs:
+            Unused but kept for API compatibility.
+        """
         X, Y, T_obs = self._collect_arrays(self.train_loader)
         num_batches = len(self.train_loader)
         if self.logger:
@@ -99,7 +116,18 @@ class ArrayTrainer(BaseTrainer):
         return super()._treatment_metrics(x, y, t_obs)
 
     def evaluate(self, data_loader: Iterable) -> float:
-        """Return a scalar metric computed over ``data_loader``."""
+        """Return a scalar metric computed over ``data_loader``.
+
+        Parameters
+        ----------
+        data_loader:
+            Iterable of evaluation batches.
+
+        Returns
+        -------
+        float
+            Negative log-likelihood or accuracy depending on the model.
+        """
         X, Y, T_obs = self._collect_arrays(data_loader)
         if hasattr(self.model, "predict_treatment_proba"):
             mask = T_obs != -1
@@ -117,14 +145,40 @@ class ArrayTrainer(BaseTrainer):
         return float((preds == target).mean())
 
     def predict(self, x: torch.Tensor, t_val: int | None = None):
-        """Return model predictions for ``x`` as ``numpy`` arrays."""
+        """Return predictions for ``x`` using the underlying model.
+
+        Parameters
+        ----------
+        x:
+            Covariate matrix.
+        t_val:
+            Optional treatment value when calling outcome predictors.
+
+        Returns
+        -------
+        Any
+            ``numpy`` array of predictions.
+        """
         X_np = x.cpu().numpy()
         if t_val is not None and hasattr(self.model, "predict_outcome"):
             return self.model.predict_outcome(X_np, t_val)
         return self.model.predict(X_np)
 
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Compute treatment probabilities for array-based models."""
+        """Compute ``p(t|x,y)`` for array-based models.
+
+        Parameters
+        ----------
+        x:
+            Covariate tensor.
+        y:
+            Outcome tensor.
+
+        Returns
+        -------
+        torch.Tensor
+            Probability matrix of shape ``(n, k)``.
+        """
         X_np = x.cpu().numpy()
         if getattr(self.model, "requires_outcome", True):
             y_np = y.squeeze(-1).cpu().numpy()

@@ -36,7 +36,27 @@ class Trainer:
         ) = None,
         grad_clip_norm: float | None = None,
     ) -> None:
-        """Instantiate an appropriate trainer for ``model`` and delegate calls."""
+        """Instantiate a concrete trainer and delegate all calls to it.
+
+        Parameters
+        ----------
+        model:
+            Model instance to be trained.
+        optimizer:
+            Optimiser or pair of optimisers depending on the trainer type.
+        train_loader:
+            Iterable of training batches.
+        val_loader:
+            Optional iterable of validation batches.
+        device:
+            Device identifier used for training.
+        logger:
+            Optional progress logger.
+        scheduler:
+            Learning rate scheduler or tuple of schedulers.
+        grad_clip_norm:
+            Optional gradient clipping norm.
+        """
 
         trainer_cls = self._select_trainer(model)
         if trainer_cls is AdversarialTrainer:
@@ -68,7 +88,18 @@ class Trainer:
 
     # ------------------------------------------------------------------
     def _select_trainer(self, model: torch.nn.Module) -> type[BaseTrainer]:
-        """Pick a trainer subclass based on the interfaces exposed by ``model``."""
+        """Pick a trainer subclass based on ``model``'s API.
+
+        Parameters
+        ----------
+        model:
+            Model instance whose methods are inspected.
+
+        Returns
+        -------
+        type[BaseTrainer]
+            Class implementing the training logic for ``model``.
+        """
         if hasattr(model, "loss_G") and hasattr(model, "loss_D"):
             return AdversarialTrainer
         if hasattr(model, "elbo"):
@@ -87,19 +118,60 @@ class Trainer:
 
     # ------------------------------------------------------------------
     def fit(self, num_epochs: int) -> None:
-        """Train the wrapped model for ``num_epochs`` epochs."""
+        """Train the wrapped model for ``num_epochs`` epochs.
+
+        Parameters
+        ----------
+        num_epochs:
+            Number of passes over the training data.
+        """
         self._trainer.fit(num_epochs)
 
     def evaluate(self, data_loader: Iterable) -> float:
-        """Return the primary metric on ``data_loader``."""
+        """Return the primary metric on ``data_loader``.
+
+        Parameters
+        ----------
+        data_loader:
+            Iterable yielding evaluation batches.
+
+        Returns
+        -------
+        float
+            Metric reported by the underlying trainer.
+        """
         return self._trainer.evaluate(data_loader)
 
     def predict(self, *args, **kwargs):
-        """Forward to the underlying trainer's ``predict`` method."""
+        """Forward to the underlying trainer's ``predict`` method.
+
+        Parameters
+        ----------
+        *args, **kwargs:
+            Arguments forwarded to the trainer.
+
+        Returns
+        -------
+        Any
+            Predictions returned by the underlying trainer.
+        """
         return self._trainer.predict(*args, **kwargs)
 
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Delegated call to ``predict_treatment_proba`` of the inner trainer."""
+        """Delegated call to ``predict_treatment_proba`` of the inner trainer.
+
+        Parameters
+        ----------
+        x:
+            Covariate tensor.
+        y:
+            Outcome tensor.
+
+        Returns
+        -------
+        torch.Tensor
+            Probability matrix returned by the trainer.
+        """
         return self._trainer.predict_treatment_proba(x, y)
 
     # Expose attributes of the underlying trainer/model
