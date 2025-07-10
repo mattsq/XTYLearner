@@ -13,7 +13,7 @@ dependencies = [
     "torch",
     "scikit-learn",
     "numpy",
-    "nflows",
+    "nflows>=0.16",
     "pyyaml",
     "pandas",
     "scipy",
