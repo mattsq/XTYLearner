@@ -66,6 +66,8 @@ class BaseTrainer(ABC):
     def _metrics_from_loss(
         self, loss: torch.Tensor | Mapping[str, float]
     ) -> Mapping[str, float]:
+        """Convert a loss tensor or dictionary into a metrics mapping."""
+
         if isinstance(loss, torch.Tensor):
             return {"loss": float(loss.item())}
         if isinstance(loss, Mapping):
@@ -83,7 +85,7 @@ class BaseTrainer(ABC):
 
     # --------------------------------------------------------------
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Return treatment class probabilities ``p(t|x,y)``."""
+        """Compute treatment probabilities ``p(t|x,y)`` for the current model."""
 
         self.model.eval()
         with torch.no_grad():
@@ -110,7 +112,7 @@ class BaseTrainer(ABC):
     def _extract_batch(
         self, batch: Iterable[torch.Tensor]
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Return ``(X, Y, T_obs)`` tensors from ``batch``."""
+        """Move a training batch to the target device and split its parts."""
 
         inputs = [b.to(self.device) for b in batch]
         if len(inputs) == 2:
@@ -123,7 +125,7 @@ class BaseTrainer(ABC):
     def _treatment_metrics(
         self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
     ) -> Mapping[str, float]:
-        """Negative log-likelihood and accuracy for ``p(t|x,y)``."""
+        """Return NLL and accuracy of ``p(t|x,y)`` for observed labels."""
 
         if not hasattr(self.model, "predict_treatment_proba") and not any(
             hasattr(self.model, attr) for attr in ["cls_t", "head_T", "C"]
@@ -148,7 +150,7 @@ class BaseTrainer(ABC):
     def _predict_outcome(
         self, x: torch.Tensor, t: torch.Tensor, y: torch.Tensor
     ) -> torch.Tensor | None:
-        """Best-effort outcome prediction for RMSE logging."""
+        """Internal helper used to guess outcomes for RMSE computation."""
 
         if hasattr(self.model, "predict_outcome"):
             try:
@@ -200,7 +202,7 @@ class BaseTrainer(ABC):
     def _outcome_metrics(
         self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
     ) -> Mapping[str, float]:
-        """RMSE for predicted outcomes when supported."""
+        """Compute RMSE for observed outcomes if the model supports it."""
 
         mask = t_obs >= 0
         if not mask.any():
@@ -216,14 +218,14 @@ class BaseTrainer(ABC):
 
     # --------------------------------------------------------------
     def _clip_grads(self) -> None:
-        """Clip gradients to avoid exploding values."""
+        """Clip gradients of model parameters if ``grad_clip_norm`` is set."""
 
         if self.grad_clip_norm is not None:
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip_norm)
 
     # --------------------------------------------------------------
     def _eval_metrics(self, data_loader: Iterable) -> Mapping[str, float]:
-        """Return average metrics over ``data_loader``."""
+        """Evaluate the model on ``data_loader`` and return averaged metrics."""
 
         self.model.eval()
         running: defaultdict[str, float] = defaultdict(float)

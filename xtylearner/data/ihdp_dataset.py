@@ -27,7 +27,7 @@ def load_ihdp(
     split: Literal["train", "test"] = "train",
     data_dir: str = "~/.xtylearner/data",
 ) -> TensorDataset:
-    """Load the IHDP dataset, downloading it on demand.
+    """Load the IHDP dataset provided with the CEVAE benchmark.
 
     Parameters
     ----------
@@ -39,7 +39,7 @@ def load_ihdp(
     Returns
     -------
     TensorDataset
-        Dataset ``(X, Y, T)`` with shapes ``(N, d_x)``, ``(N, 1)`` and ``(N,)``.
+        TensorDataset with covariates ``X``, outcomes ``Y`` and treatment ``T``.
     """
 
     url = URLS[split]

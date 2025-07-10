@@ -25,6 +25,11 @@ def make_mlp(
     norm_layer : Callable[[int], nn.Module] | None, optional
         Normalisation layer constructor applied to each hidden layer. The integer
         argument corresponds to the size of the current layer.
+
+    Returns
+    -------
+    nn.Sequential
+        The assembled multi-layer perceptron.
     """
 
     n_layers = len(dims) - 1

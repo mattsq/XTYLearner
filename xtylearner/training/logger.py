@@ -15,7 +15,7 @@ class TrainerLogger(ABC):
         self.num_batches = 0
 
     def start_epoch(self, epoch: int, num_batches: int) -> None:
-        """Reset state at the start of ``epoch``."""
+        """Begin a new epoch and reset internal counters."""
 
         self._running.clear()
         self._count = 0
@@ -23,11 +23,15 @@ class TrainerLogger(ABC):
         self.epoch = epoch
 
     def update(self, metrics: Mapping[str, float]) -> None:
+        """Accumulate metrics from a training step."""
+
         self._count += 1
         for k, v in metrics.items():
             self._running[k] += float(v)
 
     def averages(self) -> dict[str, float]:
+        """Return average of all tracked metrics in the current epoch."""
+
         return {k: v / max(self._count, 1) for k, v in self._running.items()}
 
     @abstractmethod
@@ -38,14 +42,14 @@ class TrainerLogger(ABC):
         num_batches: int,
         metrics: Mapping[str, float],
     ) -> None:
-        """Log metrics for a single step."""
+        """Log metrics produced by a single optimisation step."""
 
     @abstractmethod
     def log_validation(self, epoch: int, metrics: Mapping[str, float]) -> None:
-        """Log validation metrics at the end of an epoch."""
+        """Report validation metrics once an epoch finishes."""
 
     def end_epoch(self, epoch: int) -> None:
-        """Log average metrics at the end of an epoch."""
+        """Print averaged metrics collected during the epoch."""
 
         avg = self.averages()
         metric_str = ", ".join(f"{k}={v:.4f}" for k, v in avg.items())
@@ -62,6 +66,8 @@ class ConsoleLogger(TrainerLogger):
         num_batches: int,
         metrics: Mapping[str, float],
     ) -> None:
+        """Print metrics for the current batch."""
+
         self.update(metrics)
         if self._count % self.print_every == 0 or batch_idx == num_batches - 1:
             metric_str = ", ".join(f"{k}={v:.4f}" for k, v in metrics.items())
@@ -73,5 +79,7 @@ class ConsoleLogger(TrainerLogger):
             )
 
     def log_validation(self, epoch: int, metrics: Mapping[str, float]) -> None:
+        """Print aggregated validation metrics."""
+
         metric_str = ", ".join(f"{k}={v:.4f}" for k, v in metrics.items())
         print(f"Epoch {epoch} validation: {metric_str}")

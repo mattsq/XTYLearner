@@ -56,6 +56,8 @@ class GenerativeTrainer(BaseTrainer):
         return metrics.get("loss", next(iter(metrics.values()), 0.0))
 
     def predict(self, x: torch.Tensor, t_val: int) -> torch.Tensor:
+        """Predict outcomes for ``x`` under treatment value ``t_val``."""
+
         self.model.eval()
         with torch.no_grad():
             x = x.to(self.device)
