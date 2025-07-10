@@ -117,6 +117,7 @@ class ArrayTrainer(BaseTrainer):
         return float((preds == target).mean())
 
     def predict(self, x: torch.Tensor, t_val: int | None = None):
+        """Return model predictions for ``x`` as ``numpy`` arrays."""
         X_np = x.cpu().numpy()
         if t_val is not None and hasattr(self.model, "predict_outcome"):
             return self.model.predict_outcome(X_np, t_val)

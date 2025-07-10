@@ -20,6 +20,24 @@ class VAE_T(nn.Module):
 
     # ------------------------------------------------------------------
     def encode(self, t: torch.Tensor, *, sample: bool = True) -> torch.Tensor:
+        """Encode observed treatments into a latent code.
+
+        Parameters
+        ----------
+        t:
+            Tensor of shape ``(n, k_t)`` containing possibly masked
+            one-hot treatment labels. ``NaN`` entries are treated as
+            missing values.
+        sample:
+            When ``True`` draw a sample ``z`` from the posterior
+            ``q(z|t)``. If ``False`` the posterior mean is returned.
+
+        Returns
+        -------
+        torch.Tensor
+            Latent representation ``z`` with dimension ``d_z``.
+        """
+
         t_filled = torch.nan_to_num(t, 0.0)
         mu = self.enc_mu(t_filled)
         logv = self.enc_log(t_filled).clamp(-8, 8)
@@ -32,6 +50,8 @@ class VAE_T(nn.Module):
 
     # ------------------------------------------------------------------
     def elbo(self, t: torch.Tensor) -> torch.Tensor:
+        """Return the evidence lower bound for a batch of treatments."""
+
         mask = torch.isfinite(t)
         t_filled = torch.nan_to_num(t, 0.0)
         mu = self.enc_mu(t_filled)

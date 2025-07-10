@@ -14,11 +14,14 @@ DEFAULT_CFG = Path(__file__).resolve().parent.parent / "configs" / "default.yaml
 
 
 def load_config(path: Path) -> dict:
+    """Load a YAML configuration file and return it as a dictionary."""
+
     with open(path, "r") as f:
         return yaml.safe_load(f)
 
 
 def main() -> None:
+    """Entry point for the ``train.py`` script."""
     parser = argparse.ArgumentParser(description="Train an XTYLearner model")
     parser.add_argument(
         "--model", required=True, help="Model name registered in xtylearner.models"

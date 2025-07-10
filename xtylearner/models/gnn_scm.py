@@ -62,6 +62,7 @@ class GNN_SCM(nn.Module):
         return torch.sigmoid(self.B) * self.mask
 
     def sample_T(self, x: torch.Tensor) -> torch.Tensor:
+        """Draw a treatment sample ``t`` from ``p(t|x)``."""
         eps = torch.randn(x.size(0), self.noise_dim, device=x.device)
         pars = self.f_T(torch.cat([x, eps], -1))
         if self.k is not None:
@@ -71,6 +72,7 @@ class GNN_SCM(nn.Module):
         return mu + torch.exp(log_sigma) * torch.randn_like(mu)
 
     def sample_Y(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Sample an outcome ``y`` conditional on ``x`` and treatment ``t``."""
         eps = torch.randn(x.size(0), self.noise_dim, device=x.device)
         t_in = F.one_hot(t, self.k).float() if self.k is not None else t.unsqueeze(-1)
         mu, log_sigma = self.f_Y(torch.cat([x, t_in, eps], -1)).chunk(2, -1)
@@ -78,6 +80,7 @@ class GNN_SCM(nn.Module):
 
     # --------------------------------------------------------------
     def log_p_t(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Log-probability of treatment assignments under the model."""
         eps = torch.zeros(x.size(0), self.noise_dim, device=x.device)
         pars = self.f_T(torch.cat([x, eps], -1))
         if self.k is not None:
@@ -86,6 +89,7 @@ class GNN_SCM(nn.Module):
         return -0.5 * ((t - mu) / log_sigma.exp()).pow(2) - log_sigma
 
     def log_p_y(self, x: torch.Tensor, t: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Log-probability of outcomes given ``x`` and ``t``."""
         t_in = F.one_hot(t, self.k).float() if self.k is not None else t.unsqueeze(-1)
         eps = torch.zeros(x.size(0), self.noise_dim, device=x.device)
         mu, log_sigma = self.f_Y(torch.cat([x, t_in, eps], -1)).chunk(2, -1)
@@ -110,6 +114,7 @@ class GNN_SCM(nn.Module):
     # --------------------------------------------------------------
     @torch.no_grad()
     def predict_outcome(self, x: torch.Tensor, t: int | torch.Tensor) -> torch.Tensor:
+        """Return the mean outcome for covariates ``x`` under treatment ``t``."""
         if isinstance(t, int):
             t = torch.full((x.size(0),), t, dtype=torch.long if self.k is not None else torch.float32, device=x.device)
         t_in = F.one_hot(t, self.k).float() if self.k is not None else t.unsqueeze(-1)
@@ -119,6 +124,7 @@ class GNN_SCM(nn.Module):
 
     @torch.no_grad()
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor | None = None) -> torch.Tensor:
+        """Compute ``p(t|x)`` (or parameters of the treatment distribution)."""
         eps = torch.zeros(x.size(0), self.noise_dim, device=x.device)
         pars = self.f_T(torch.cat([x, eps], -1))
         if self.k is None:
