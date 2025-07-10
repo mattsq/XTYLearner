@@ -30,6 +30,29 @@ class AdversarialTrainer(BaseTrainer):
         ) = None,
         grad_clip_norm: float | None = None,
     ) -> None:
+        """Create a trainer for adversarial models.
+
+        Parameters
+        ----------
+        model:
+            Model exposing ``loss_G`` and ``loss_D`` methods.
+        optim_G:
+            Optimiser updating the generator parameters.
+        optim_D:
+            Optimiser updating the discriminator parameters.
+        train_loader:
+            Iterable of training batches.
+        val_loader:
+            Optional iterable of validation batches.
+        device:
+            Device identifier for training.
+        logger:
+            Optional :class:`TrainerLogger` implementation.
+        scheduler:
+            Learning rate scheduler or pair of schedulers for G/D.
+        grad_clip_norm:
+            If set, gradients are clipped to this norm.
+        """
         super().__init__(
             model,
             optim_G,
@@ -45,7 +68,18 @@ class AdversarialTrainer(BaseTrainer):
 
     # --------------------------------------------------------------
     def step(self, batch: Iterable[torch.Tensor]) -> dict[str, torch.Tensor]:
-        """Perform a single adversarial update step."""
+        """Perform one update of generator and discriminator.
+
+        Parameters
+        ----------
+        batch:
+            Iterable yielding ``(X, Y, T)`` tensors on the correct device.
+
+        Returns
+        -------
+        dict[str, torch.Tensor]
+            Dictionary containing ``loss_G`` and ``loss_D`` values.
+        """
         x, y, t = self._extract_batch(batch)
 
         if not torch.is_grad_enabled():
@@ -68,7 +102,13 @@ class AdversarialTrainer(BaseTrainer):
 
     # --------------------------------------------------------------
     def fit(self, num_epochs: int) -> None:
-        """Alternately update generator and discriminator for ``num_epochs``."""
+        """Alternately update generator and discriminator.
+
+        Parameters
+        ----------
+        num_epochs:
+            Number of training epochs to run.
+        """
         for epoch in range(num_epochs):
             self.model.train()
             num_batches = len(self.train_loader)
@@ -97,10 +137,34 @@ class AdversarialTrainer(BaseTrainer):
 
     # --------------------------------------------------------------
     def evaluate(self, data_loader: Iterable) -> float:
+        """Return the generator loss on ``data_loader``.
+
+        Parameters
+        ----------
+        data_loader:
+            Iterable providing evaluation batches.
+
+        Returns
+        -------
+        float
+            Scalar ``loss_G`` or another metric if available.
+        """
         metrics = self._eval_metrics(data_loader)
         return metrics.get("loss_G", next(iter(metrics.values()), 0.0))
 
     def predict(self, *inputs: torch.Tensor):
+        """Return model outputs for ``inputs`` without gradient tracking.
+
+        Parameters
+        ----------
+        *inputs:
+            Input tensors forwarded to the model.
+
+        Returns
+        -------
+        torch.Tensor | Any
+            Predictions produced by the underlying model.
+        """
         self.model.eval()
         with torch.no_grad():
             inputs = [i.to(self.device) for i in inputs]

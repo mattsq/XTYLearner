@@ -11,7 +11,19 @@ class SupervisedTrainer(BaseTrainer):
     """Generic trainer for fully observed models with a ``loss`` method."""
 
     def step(self, batch: Iterable[torch.Tensor]):
-        """Return the model loss for ``batch`` moved to the current device."""
+        """Forward ``batch`` through the model and return the loss.
+
+        Parameters
+        ----------
+        batch:
+            Iterable of tensors containing covariates ``X``, outcomes ``Y`` and
+            optionally observed treatments ``T``.
+
+        Returns
+        -------
+        torch.Tensor
+            Loss tensor produced by the model.
+        """
         inputs = [b.to(self.device) for b in batch]
         if len(inputs) == 2:
             x, y = inputs
@@ -26,7 +38,13 @@ class SupervisedTrainer(BaseTrainer):
         raise ValueError("Model must implement a 'loss' method or return a loss tensor")
 
     def fit(self, num_epochs: int) -> None:
-        """Train the model for a fixed number of epochs."""
+        """Optimise the model parameters for ``num_epochs`` epochs.
+
+        Parameters
+        ----------
+        num_epochs:
+            Number of passes over ``train_loader``.
+        """
         for epoch in range(num_epochs):
             self.model.train()
             num_batches = len(self.train_loader)
@@ -54,10 +72,34 @@ class SupervisedTrainer(BaseTrainer):
                 self.logger.end_epoch(epoch + 1)
 
     def evaluate(self, data_loader: Iterable) -> float:
+        """Return the primary evaluation metric on ``data_loader``.
+
+        Parameters
+        ----------
+        data_loader:
+            Iterable yielding evaluation batches.
+
+        Returns
+        -------
+        float
+            Scalar metric such as loss or accuracy.
+        """
         metrics = self._eval_metrics(data_loader)
         return metrics.get("loss", next(iter(metrics.values()), 0.0))
 
     def predict(self, *inputs: torch.Tensor):
+        """Return model outputs for ``inputs``.
+
+        Parameters
+        ----------
+        *inputs:
+            Tensors forwarded to the underlying model.
+
+        Returns
+        -------
+        torch.Tensor | Any
+            Predictions returned by the model.
+        """
         self.model.eval()
         with torch.no_grad():
             inputs = [i.to(self.device) for i in inputs]

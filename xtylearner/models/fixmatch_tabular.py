@@ -6,12 +6,34 @@ import torch.nn.functional as F
 
 # --- tabular augmentations -------------------------------------------
 def weak_aug(x: torch.Tensor) -> torch.Tensor:
-    """Light Gaussian noise."""
+    """Apply light Gaussian noise to ``x``.
+
+    Parameters
+    ----------
+    x:
+        Input features.
+
+    Returns
+    -------
+    torch.Tensor
+        Noisy tensor with the same shape as ``x``.
+    """
     return x + 0.01 * torch.randn_like(x)
 
 
 def strong_aug(x: torch.Tensor) -> torch.Tensor:
-    """MixUp and feature dropout."""
+    """Apply MixUp and feature dropout augmentations.
+
+    Parameters
+    ----------
+    x:
+        Input features.
+
+    Returns
+    -------
+    torch.Tensor
+        Augmented tensor of the same shape as ``x``.
+    """
     lam = torch.distributions.Beta(1.0, 1.0).sample().item()
     idx = torch.randperm(x.size(0))
     x_mix = lam * x + (1 - lam) * x[idx]
@@ -22,7 +44,22 @@ def strong_aug(x: torch.Tensor) -> torch.Tensor:
 
 # --- FixMatch loss helper --------------------------------------------
 def fixmatch_unsup_loss(model, x_u: torch.Tensor, tau: float = 0.95) -> torch.Tensor:
-    """Unsupervised FixMatch loss for a batch of inputs."""
+    """Unsupervised FixMatch loss for unlabelled data.
+
+    Parameters
+    ----------
+    model:
+        Classification network.
+    x_u:
+        Unlabelled input batch.
+    tau:
+        Confidence threshold for pseudo labels.
+
+    Returns
+    -------
+    torch.Tensor
+        Scalar unsupervised loss.
+    """
     with torch.no_grad():
         p_w = F.softmax(model(weak_aug(x_u)), dim=1)
         max_p, y_star = p_w.max(1)
@@ -49,7 +86,29 @@ def train_fixmatch(
     lr: float = 3e-4,
     device: str | None = None,
 ) -> None:
-    """Train ``model`` with FixMatch."""
+    """Train ``model`` using the FixMatch algorithm.
+
+    Parameters
+    ----------
+    model:
+        Neural network classifier.
+    loader_lab:
+        Data loader of labelled batches ``(x_l, y_l)``.
+    loader_unlab:
+        Data loader of unlabelled examples ``(x_u,)``.
+    epochs:
+        Number of training epochs.
+    mu:
+        Ratio of unlabelled to labelled batches.
+    tau:
+        Confidence threshold for pseudo labels.
+    lambda_u:
+        Weight of the unsupervised loss term.
+    lr:
+        Learning rate for AdamW optimiser.
+    device:
+        Optional device identifier.
+    """
 
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
