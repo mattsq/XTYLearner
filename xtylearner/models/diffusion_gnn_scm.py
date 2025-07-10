@@ -18,6 +18,22 @@ def cosine_alpha(t: torch.Tensor, s: float = 0.008) -> torch.Tensor:
 def forward_diffuse(
     z0: torch.Tensor, t: torch.Tensor
 ) -> tuple[torch.Tensor, torch.Tensor]:
+    """Diffuse ``z0`` forward to time ``t`` and return the noisy value.
+
+    Parameters
+    ----------
+    z0:
+        Original latent sample at time zero.
+    t:
+        Continuous time step in ``[0, 1]``.
+
+    Returns
+    -------
+    tuple[torch.Tensor, torch.Tensor]
+        The noisy latent ``z_t`` and the noise ``\varepsilon`` that was added
+        to obtain it.
+    """
+
     alpha = cosine_alpha(t)
     sigma = torch.sqrt(1 - alpha**2)
     noise = torch.randn_like(z0)
@@ -28,6 +44,8 @@ def forward_diffuse(
 def gaussian_nll(
     x: torch.Tensor, mu: torch.Tensor, log_sigma: torch.Tensor
 ) -> torch.Tensor:
+    """Elementwise Gaussian negative log-likelihood."""
+
     return 0.5 * ((x - mu) / log_sigma.exp()) ** 2 + log_sigma
 
 

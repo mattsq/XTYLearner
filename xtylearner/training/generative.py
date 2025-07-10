@@ -24,6 +24,7 @@ class GenerativeTrainer(BaseTrainer):
         return self.model.elbo(x, y, t)
 
     def fit(self, num_epochs: int) -> None:
+        """Run training loops for ``num_epochs`` using the ELBO objective."""
         for epoch in range(num_epochs):
             self.model.train()
             num_batches = len(self.train_loader)

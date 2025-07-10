@@ -25,6 +25,7 @@ class SupervisedTrainer(BaseTrainer):
         raise ValueError("Model must implement a 'loss' method or return a loss tensor")
 
     def fit(self, num_epochs: int) -> None:
+        """Train the model for a fixed number of epochs."""
         for epoch in range(num_epochs):
             self.model.train()
             num_batches = len(self.train_loader)

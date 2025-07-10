@@ -21,6 +21,7 @@ class ArrayTrainer(BaseTrainer):
     def _collect_arrays(
         self, loader: Iterable
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Gather ``X``, ``Y`` and ``T`` arrays from a data loader."""
         X_list, Y_list, T_list = [], [], []
         for batch in loader:
             x, y, t = self._extract_batch(batch)
@@ -33,6 +34,7 @@ class ArrayTrainer(BaseTrainer):
         return X, Y, T
 
     def fit(self, num_epochs: int) -> None:
+        """Fit the underlying array-based model using the full dataset."""
         X, Y, T_obs = self._collect_arrays(self.train_loader)
         num_batches = len(self.train_loader)
         if self.logger:
@@ -97,6 +99,7 @@ class ArrayTrainer(BaseTrainer):
         return super()._treatment_metrics(x, y, t_obs)
 
     def evaluate(self, data_loader: Iterable) -> float:
+        """Return a scalar metric computed over ``data_loader``."""
         X, Y, T_obs = self._collect_arrays(data_loader)
         if hasattr(self.model, "predict_treatment_proba"):
             mask = T_obs != -1
@@ -120,6 +123,7 @@ class ArrayTrainer(BaseTrainer):
         return self.model.predict(X_np)
 
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Compute treatment probabilities for array-based models."""
         X_np = x.cpu().numpy()
         if getattr(self.model, "requires_outcome", True):
             y_np = y.squeeze(-1).cpu().numpy()

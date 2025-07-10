@@ -119,12 +119,18 @@ class MultiTask(nn.Module):
 
 class DataWrapper(torch.utils.data.Dataset):
     def __init__(self, X, Y, T):
+        """Simple container exposing tensors as a ``Dataset``."""
+
         self.X, self.Y, self.T = X, Y, T  # tensors
 
     def __len__(self):
+        """Dataset size."""
+
         return len(self.X)
 
     def __getitem__(self, i):
+        """Return the ``i``-th triplet ``(X, Y, T)``."""
+
         return self.X[i], self.Y[i], self.T[i]
 
 
