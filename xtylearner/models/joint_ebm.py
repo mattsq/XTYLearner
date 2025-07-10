@@ -6,24 +6,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .layers import make_mlp
 from .registry import register_model
-
-
-class EnergyNet(nn.Module):
-    """Simple energy network E(x, y) -> energies for each t."""
-
-    def __init__(self, d_x: int, d_y: int, k: int, hidden: int = 128) -> None:
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(d_x + d_y, hidden),
-            nn.ReLU(),
-            nn.Linear(hidden, hidden),
-            nn.ReLU(),
-            nn.Linear(hidden, k),
-        )
-
-    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return self.net(torch.cat([x, y], dim=-1))
 
 
 @register_model("joint_ebm")
@@ -38,10 +22,11 @@ class JointEBM(nn.Module):
         super().__init__()
         self.k = k
         self.d_y = d_y
-        self.energy_net = EnergyNet(d_x, d_y, k, hidden)
+        self.energy_net = make_mlp([d_x + d_y, hidden, hidden, k])
 
     def energy(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return self.energy_net(x, y)
+        inp = torch.cat([x, y], dim=-1)
+        return self.energy_net(inp)
 
     # --------------------------------------------------------------
     def forward(
@@ -52,7 +37,7 @@ class JointEBM(nn.Module):
         with torch.enable_grad():
             y = torch.zeros(x.size(0), self.d_y, device=x.device, requires_grad=True)
             for _ in range(steps):
-                e_all = self.energy_net(x, y)
+                e_all = self.energy_net(torch.cat([x, y], dim=-1))
                 e = e_all.gather(1, t.view(-1, 1).clamp_min(0))
                 grad = torch.autograd.grad(e.sum(), y, create_graph=False)[0]
                 y = (y - lr * grad).detach().requires_grad_(True)
@@ -61,7 +46,7 @@ class JointEBM(nn.Module):
     def loss(
         self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
     ) -> torch.Tensor:
-        energies = self.energy_net(x, y)  # (B,2)
+        energies = self.energy_net(torch.cat([x, y], dim=-1))  # (B,2)
         labelled = t_obs >= 0
         loss_lab = torch.tensor(0.0, device=x.device)
         if labelled.any():
@@ -76,7 +61,7 @@ class JointEBM(nn.Module):
 
     @torch.no_grad()
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        energies = self.energy_net(x, y)
+        energies = self.energy_net(torch.cat([x, y], dim=-1))
         return F.softmax(-energies, dim=-1)
 
 
