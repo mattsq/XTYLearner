@@ -26,7 +26,14 @@ class BaseTrainer(ABC):
         val_loader: Optional[Iterable] = None,
         device: str = "cpu",
         logger: Optional[TrainerLogger] = None,
-        scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+        scheduler: (
+            torch.optim.lr_scheduler._LRScheduler
+            | tuple[
+                torch.optim.lr_scheduler._LRScheduler,
+                torch.optim.lr_scheduler._LRScheduler,
+            ]
+            | None
+        ) = None,
         grad_clip_norm: float | None = None,
     ) -> None:
         # Some simple models (e.g. probabilistic circuits) do not inherit from

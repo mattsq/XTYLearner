@@ -26,7 +26,14 @@ class Trainer:
         val_loader: Optional[Iterable] = None,
         device: str = "cpu",
         logger: Optional[TrainerLogger] = None,
-        scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+        scheduler: (
+            torch.optim.lr_scheduler._LRScheduler
+            | tuple[
+                torch.optim.lr_scheduler._LRScheduler,
+                torch.optim.lr_scheduler._LRScheduler,
+            ]
+            | None
+        ) = None,
         grad_clip_norm: float | None = None,
     ) -> None:
         trainer_cls = self._select_trainer(model)

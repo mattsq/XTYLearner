@@ -20,7 +20,14 @@ class AdversarialTrainer(BaseTrainer):
         val_loader: Optional[Iterable] = None,
         device: str = "cpu",
         logger: Optional[TrainerLogger] = None,
-        scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+        scheduler: (
+            torch.optim.lr_scheduler._LRScheduler
+            | tuple[
+                torch.optim.lr_scheduler._LRScheduler,
+                torch.optim.lr_scheduler._LRScheduler,
+            ]
+            | None
+        ) = None,
         grad_clip_norm: float | None = None,
     ) -> None:
         super().__init__(
@@ -74,7 +81,12 @@ class AdversarialTrainer(BaseTrainer):
                     metrics.update(self._outcome_metrics(X, Y, T_obs))
                     self.logger.log_step(epoch + 1, batch_idx, num_batches, metrics)
             if self.scheduler is not None:
-                self.scheduler.step()
+                if isinstance(self.scheduler, (tuple, list)):
+                    for sched in self.scheduler:
+                        if sched is not None:
+                            sched.step()
+                else:
+                    self.scheduler.step()
             if self.logger and self.val_loader is not None:
                 val_metrics = self._eval_metrics(self.val_loader)
                 self.logger.log_validation(epoch + 1, val_metrics)
