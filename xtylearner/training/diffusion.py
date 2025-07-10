@@ -44,10 +44,47 @@ class DiffusionTrainer(BaseTrainer):
         metrics = self._eval_metrics(data_loader)
         return metrics.get("loss", next(iter(metrics.values()), 0.0))
 
-    def predict(self, n: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def predict(self, *args):
+        """Return model predictions or samples.
+
+        ``predict(n)`` draws ``n`` samples from the model prior using
+        ``model.sample`` when called with a single integer argument.  When
+        supplied a covariate matrix ``x`` and treatment indicator ``t``, the
+        method returns outcome predictions by delegating to either
+        ``model.predict_outcome`` or ``model.paired_sample``.
+        """
+
         self.model.eval()
         with torch.no_grad():
-            return self.model.sample(n)
+            # Sampling from the prior
+            if len(args) == 1 and isinstance(args[0], int):
+                return self.model.sample(args[0])
+
+            if len(args) != 2:
+                raise TypeError("predict() expects `n` or `(x, t)` arguments")
+
+            x, t = args
+            x = x.to(self.device)
+
+            if isinstance(t, int):
+                t_tensor = torch.full((x.size(0),), t, dtype=torch.long, device=self.device)
+            else:
+                t_tensor = t.to(self.device)
+
+            if hasattr(self.model, "predict_outcome"):
+                return self.model.predict_outcome(x, t_tensor)
+
+            if hasattr(self.model, "paired_sample"):
+                y_all = self.model.paired_sample(x)
+                if isinstance(t, torch.Tensor) and t.dim() > 0:
+                    preds = torch.zeros_like(y_all[0])
+                    for val in t_tensor.unique():
+                        idx = t_tensor == val
+                        preds[idx] = y_all[int(val)][idx]
+                    return preds
+                return y_all[int(t_tensor[0].item())]
+
+            raise ValueError("Model does not support outcome prediction")
 
 
 __all__ = ["DiffusionTrainer"]
