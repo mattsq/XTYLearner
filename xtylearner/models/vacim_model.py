@@ -93,7 +93,7 @@ class VACIM(nn.Module):
     # --------------------------------------------------------------
     def loss(
         self, x: torch.Tensor, y: torch.Tensor, t: torch.Tensor | None = None
-    ) -> dict[str, torch.Tensor]:
+    ) -> torch.Tensor:
         """Compute negative ELBO for a batch."""
 
         if t is None:
@@ -128,7 +128,31 @@ class VACIM(nn.Module):
             elbo[~mask], y_pred[~mask], t_imp[~mask] = e, y_hat, t_prob
 
         self.temperature = max(0.5, self.temperature * 0.999)
-        return {"loss": -elbo.mean(), "y_hat": y_pred, "t_prob": t_imp}
+        return {"loss": -elbo.mean()}
+
+    # --------------------------------------------------------------
+    @torch.no_grad()
+    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Return posterior ``p(t|x,y)`` using the partial encoder and guide."""
+
+        z_mu, _ = self.enc_z_part(torch.cat([x, y], 1)).chunk(2, 1)
+        logits = self.enc_t(torch.cat([x, y, z_mu], 1))
+        return torch.softmax(logits, 1)
+
+    @torch.no_grad()
+    def predict_outcome(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Predict outcome ``y`` from covariates ``x`` and treatment ``t``."""
+
+        if t.dim() == 1 or (t.dim() == 2 and t.size(1) == 1):
+            t_onehot = F.one_hot(t.to(torch.long), self.k).float()
+        else:
+            t_onehot = t.float()
+        z_mu, _ = self.prior_z(x).chunk(2, 1)
+        y_mu, _ = self.dec_y(torch.cat([x, t_onehot, z_mu], 1)).chunk(2, 1)
+        return y_mu
+
+    def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        return self.predict_outcome(x, t)
 
     # --------------------------------------------------------------
     @staticmethod
