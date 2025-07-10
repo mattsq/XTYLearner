@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import math
-from typing import Tuple
+from typing import Tuple, Callable
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+from .layers import make_mlp
 
 from .registry import register_model
 
@@ -15,11 +17,24 @@ from .registry import register_model
 class OutcomeModel(nn.Module):
     """Simple outcome likelihood model ``p_phi(y|x,t)``."""
 
-    def __init__(self, d_x: int, d_y: int, k: int, hidden: int = 128) -> None:
+    def __init__(
+        self,
+        d_x: int,
+        d_y: int,
+        k: int,
+        *,
+        hidden_dims: tuple[int, ...] | list[int] = (128,),
+        activation: type[nn.Module] = nn.ReLU,
+        dropout: float | None = None,
+        norm_layer: Callable[[int], nn.Module] | None = None,
+    ) -> None:
         super().__init__()
         self.k = k
-        self.net = nn.Sequential(
-            nn.Linear(d_x + k, hidden), nn.ReLU(), nn.Linear(hidden, d_y * 2)
+        self.net = make_mlp(
+            [d_x + k, *hidden_dims, d_y * 2],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
         )
 
     def forward(
@@ -35,10 +50,23 @@ class OutcomeModel(nn.Module):
 class PolicyNet(nn.Module):
     """Policy network predicting logits ``log pi(t|x,y)``."""
 
-    def __init__(self, d_x: int, d_y: int, k: int, hidden: int = 128) -> None:
+    def __init__(
+        self,
+        d_x: int,
+        d_y: int,
+        k: int,
+        *,
+        hidden_dims: tuple[int, ...] | list[int] = (128,),
+        activation: type[nn.Module] = nn.ReLU,
+        dropout: float | None = None,
+        norm_layer: Callable[[int], nn.Module] | None = None,
+    ) -> None:
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(d_x + d_y, hidden), nn.ReLU(), nn.Linear(hidden, k)
+        self.net = make_mlp(
+            [d_x + d_y, *hidden_dims, k],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
         )
 
     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
@@ -48,10 +76,22 @@ class PolicyNet(nn.Module):
 class FlowNet(nn.Module):
     """Scalar flow value for the root state."""
 
-    def __init__(self, d_x: int, d_y: int, hidden: int = 64) -> None:
+    def __init__(
+        self,
+        d_x: int,
+        d_y: int,
+        *,
+        hidden_dims: tuple[int, ...] | list[int] = (64,),
+        activation: type[nn.Module] = nn.ReLU,
+        dropout: float | None = None,
+        norm_layer: Callable[[int], nn.Module] | None = None,
+    ) -> None:
         super().__init__()
-        self.fc = nn.Sequential(
-            nn.Linear(d_x + d_y, hidden), nn.ReLU(), nn.Linear(hidden, 1)
+        self.fc = make_mlp(
+            [d_x + d_y, *hidden_dims, 1],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
         )
 
     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
@@ -62,14 +102,49 @@ class FlowNet(nn.Module):
 class GFlowNetTreatment(nn.Module):
     """Minimal GFlowNet that samples treatments in proportion to outcome likelihood."""
 
-    def __init__(self, d_x: int, d_y: int, k: int = 2) -> None:
+    def __init__(
+        self,
+        d_x: int,
+        d_y: int,
+        k: int = 2,
+        *,
+        outcome_hidden: tuple[int, ...] | list[int] = (128,),
+        policy_hidden: tuple[int, ...] | list[int] = (128,),
+        flow_hidden: tuple[int, ...] | list[int] = (64,),
+        activation: type[nn.Module] = nn.ReLU,
+        dropout: float | None = None,
+        norm_layer: Callable[[int], nn.Module] | None = None,
+    ) -> None:
         super().__init__()
         self.d_x = d_x
         self.d_y = d_y
         self.k = k
-        self.outcome = OutcomeModel(d_x, d_y, k)
-        self.policy = PolicyNet(d_x, d_y, k)
-        self.flow = FlowNet(d_x, d_y)
+        self.outcome = OutcomeModel(
+            d_x,
+            d_y,
+            k,
+            hidden_dims=outcome_hidden,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+        self.policy = PolicyNet(
+            d_x,
+            d_y,
+            k,
+            hidden_dims=policy_hidden,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+        self.flow = FlowNet(
+            d_x,
+            d_y,
+            hidden_dims=flow_hidden,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
 
     # --------------------------------------------------------------
     def loss(
