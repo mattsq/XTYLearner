@@ -1,5 +1,4 @@
 import torch
-import yaml
 import pytest
 from torch.utils.data import DataLoader, TensorDataset
 

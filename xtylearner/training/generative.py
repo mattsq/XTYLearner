@@ -6,7 +6,7 @@ import torch
 from torch.nn.functional import one_hot
 
 from .base_trainer import BaseTrainer
-from ..models.generative import M2VAE, SS_CEVAE
+from ..models.generative import M2VAE, SS_CEVAE, DiffusionCEVAE
 
 
 class GenerativeTrainer(BaseTrainer):
@@ -56,6 +56,11 @@ class GenerativeTrainer(BaseTrainer):
     def predict(self, x: torch.Tensor, t_val: int) -> torch.Tensor:
         self.model.eval()
         with torch.no_grad():
+            if isinstance(self.model, DiffusionCEVAE):
+                u = torch.randn(x.size(0), self.model.d_u, device=self.device)
+                t = torch.full((x.size(0),), t_val, device=self.device)
+                return self.model.dec_y(x.to(self.device), t, u)
+
             z_dim = self.model.enc_z.net_mu[-1].out_features
             z = torch.randn(x.size(0), z_dim, device=self.device)
             t1h = one_hot(
