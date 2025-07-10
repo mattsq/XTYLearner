@@ -9,7 +9,18 @@ _MODEL_REGISTRY: Dict[str, Callable[..., Any]] = {}
 
 
 def register_model(name: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-    """Decorator to register a model class under ``name``."""
+    """Register ``cls`` under ``name`` so it can be constructed later.
+
+    Parameters
+    ----------
+    name:
+        Identifier used with :func:`get_model`.
+
+    Returns
+    -------
+    Callable[[Callable[..., Any]], Callable[..., Any]]
+        A decorator that adds the class to the registry unchanged.
+    """
 
     def decorator(cls: Callable[..., Any]) -> Callable[..., Any]:
         _MODEL_REGISTRY[name] = cls
@@ -19,20 +30,44 @@ def register_model(name: str) -> Callable[[Callable[..., Any]], Callable[..., An
 
 
 def get_model(name: str, **hparams: Any) -> Any:
-    """Instantiate a model from the registry."""
+    """Instantiate a registered model.
+
+    Parameters
+    ----------
+    name:
+        Model identifier previously passed to :func:`register_model`.
+    **hparams:
+        Keyword arguments forwarded to the model constructor.
+
+    Returns
+    -------
+    Any
+        A newly created model instance.
+    """
     if name not in _MODEL_REGISTRY:
         raise ValueError(f"Unknown model '{name}'. Available: {list(_MODEL_REGISTRY)}")
     return _MODEL_REGISTRY[name](**hparams)
 
 
 def get_model_names() -> list[str]:
-    """Return a sorted list of registered model names."""
+    """List names of all registered models in alphabetical order."""
 
     return sorted(_MODEL_REGISTRY)
 
 
 def get_model_args(name: str) -> List[str]:
-    """Return the constructor argument names for a registered model."""
+    """Return the argument names for ``name``'s constructor.
+
+    Parameters
+    ----------
+    name:
+        Identifier of a registered model.
+
+    Returns
+    -------
+    list[str]
+        Positional parameter names excluding ``self``.
+    """
 
     if name not in _MODEL_REGISTRY:
         raise ValueError(
