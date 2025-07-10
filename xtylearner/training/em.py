@@ -75,6 +75,9 @@ class ArrayTrainer(BaseTrainer):
                         torch.from_numpy(Tv),
                     )
                 )
+                if hasattr(self.model, "regressor_metrics"):
+                    extra = self.model.regressor_metrics(X, Y, T_obs, Xv, Yv, Tv)
+                    val_metrics.update(extra)
                 self.logger.log_validation(1, val_metrics)
             self.logger.end_epoch(1)
 
