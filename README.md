@@ -88,6 +88,8 @@ The model registry exposes a variety of architectures grouped below by type.
 
 - ``MixtureOfFlows`` – a semi-supervised conditional normalising flow
   combining an invertible network with a classifier.
+- ``CNFlowModel`` – a conditional normalising flow modelling the joint
+  distribution ``(Y, T)`` given ``X``.
 - ``M2VAE`` – a generative model based on the M2 variational autoencoder.
 - ``SS_CEVAE`` – a semi-supervised extension of the CEVAE framework.
 - ``CEVAE_M`` – CEVAE with latent treatment for partially-observed labels.
