@@ -81,6 +81,8 @@ The model registry exposes a variety of architectures grouped below by type.
   pseudo-labels for partially observed treatments.
 - ``DragonNet`` – shared encoder with outcome and propensity heads plus
   targeted regularisation for robust effect estimates.
+- ``CaCoRE`` – a contrastive representation encoder linking ``h(x)`` with the
+  joint outcome-treatment space.
 - ``MaskedTabularTransformer`` – a transformer encoder for tabular data using a
   masked-token training objective.
 
