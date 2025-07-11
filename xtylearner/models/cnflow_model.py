@@ -1,4 +1,11 @@
-"""Conditional normalising flow for joint modelling of (y,t)|x."""
+"""Conditional normalising flow for joint modelling of ``(y, t) | x``.
+
+The implementation uses masked autoregressive blocks from the ``nflows``
+library to parameterise an invertible mapping between ``(y, t)`` and a base
+Gaussian.  A small MLP produces conditioning features from ``x`` which are fed
+to each flow layer.  Missing treatment labels can be marginalised out during
+training by summing the likelihood over all possible treatments.
+"""
 
 from __future__ import annotations
 
@@ -19,7 +26,14 @@ from .layers import make_mlp
 
 @register_model("cnflow")
 class CNFlowModel(nn.Module):
-    """Joint density model ``p(y,t|x)`` using a conditional normalising flow."""
+    """Joint density model ``p(y, t | x)`` implemented with a conditional flow.
+
+    The model concatenates the outcome ``y`` and treatment ``t`` into a single
+    vector which is transformed via a stack of masked autoregressive layers.
+    Conditioning features computed from ``x`` are injected into every layer.  A
+    negative log-likelihood objective marginalises over missing treatments when
+    necessary.
+    """
 
     def __init__(
         self,
@@ -39,6 +53,8 @@ class CNFlowModel(nn.Module):
 
     # ------------------------------------------------------------
     def _build_conditional_flow(self, hidden: int, n_layers: int) -> Flow:
+        """Return a conditional flow over ``(y, t)`` with context from ``x``."""
+
         transforms = []
         for _ in range(n_layers):
             transforms.append(
@@ -57,6 +73,8 @@ class CNFlowModel(nn.Module):
     def _joint_log_prob(
         self, x: torch.Tensor, y: torch.Tensor, t_onehot: torch.Tensor
     ) -> torch.Tensor:
+        """Compute ``log p(y,t|x)`` for each sample."""
+
         context = self.cond_net(x)
         z = torch.cat([y, t_onehot], dim=-1)
         return self.flow.log_prob(z, context)
@@ -69,7 +87,11 @@ class CNFlowModel(nn.Module):
         t_obs: torch.Tensor,
         t_mask: torch.Tensor,
     ) -> torch.Tensor:
-        """Negative log-likelihood handling missing treatment labels."""
+        """Return the average negative log-likelihood for a mini-batch.
+
+        Rows with ``t_mask==0`` are treated as unlabelled and the likelihood is
+        marginalised over all treatments.
+        """
 
         y = y.float()
         t_onehot = nn.functional.one_hot(t_obs.clamp_min(0), num_classes=self.k).float()
@@ -95,6 +117,8 @@ class CNFlowModel(nn.Module):
     # ------------------------------------------------------------
     @torch.no_grad()
     def predict_outcome(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Return ``E[y|x,t]`` estimated from flow samples."""
+
         t_onehot = nn.functional.one_hot(t, num_classes=self.k).float()
         context = self.cond_net(x)
         n = self.eval_samples if not self.training else 1
@@ -114,6 +138,8 @@ class CNFlowModel(nn.Module):
     # ------------------------------------------------------------
     @torch.no_grad()
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Return posterior ``p(t|x,y)`` computed from the flow."""
+
         y = y.float()
         all_t = torch.eye(self.k, device=x.device).repeat(len(x), 1)
         rep_x = x.repeat_interleave(self.k, dim=0)
@@ -126,6 +152,8 @@ class CNFlowModel(nn.Module):
     def potential_outcome(
         self, x: torch.Tensor, t_star: int | torch.Tensor, n: int | None = None
     ) -> torch.Tensor:
+        """Draw samples from ``p(y|x,t_star)`` using the flow."""
+
         t_star_oh = nn.functional.one_hot(
             torch.as_tensor(t_star, device=x.device), self.k
         ).float()
