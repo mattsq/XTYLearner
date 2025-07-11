@@ -73,9 +73,27 @@ class CaCoRE(nn.Module):
         ], activation=nn.ReLU)
 
     # ------------------------------------------------------------------
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Return representation ``h(x)``."""
-        return self.encoder(x)
+    def forward(
+        self, x: torch.Tensor, t: torch.Tensor | None = None
+    ) -> torch.Tensor:
+        """Return outcome prediction ``y`` or representation ``h(x)``.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Covariate batch of shape ``(n, d_x)``.
+        t : torch.Tensor | None, optional
+            Treatment indices in ``[0, k-1]``.  If ``None`` (default) the
+            latent representation ``h(x)`` is returned instead of an outcome
+            prediction.
+        """
+
+        h = self.encoder(x)
+        if t is None:
+            return h
+        t_oh = F.one_hot(t, num_classes=self.k).float()
+        h_t = torch.cat([h, t_oh], dim=-1)
+        return self.outcome_head(h_t)
 
     # ------------------------------------------------------------------
     def loss(
