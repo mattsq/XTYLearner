@@ -83,7 +83,7 @@ class CaCoRE(nn.Module):
         labels = torch.arange(x.size(0), device=x.device)
         loss_cpc = F.cross_entropy(sim, labels)
 
-        return loss_y + loss_t + 0.1 * loss_cpc
+        return loss_y + loss_t + self.cpc_weight * loss_cpc
 
     # ------------------------------------------------------------------
     @torch.no_grad()
