@@ -147,7 +147,6 @@ class FactorVAEPlus(nn.Module):
     ) -> None:
         super().__init__()
         self.k = k
-        self.t_dim = k
         self.cat_sizes = [k]
         self.z_dim = d_z
 
