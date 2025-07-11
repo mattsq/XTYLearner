@@ -15,6 +15,7 @@ from .prob_circuit_model import ProbCircuitModel
 from .masked_tabular_transformer import MaskedTabularTransformer
 from .gflownet_treatment import GFlowNetTreatment
 from .dragon_net import DragonNet
+from .cacore_model import CaCoRE
 from .gnn_scm import GNN_SCM
 from .diffusion_gnn_scm import DiffusionGNN_SCM
 from .em_model import EMModel
@@ -46,6 +47,7 @@ __all__ = [
     "GNN_EBM",
     "MaskedTabularTransformer",
     "DragonNet",
+    "CaCoRE",
     "ProbCircuitModel",
     "GFlowNetTreatment",
     "EMModel",
