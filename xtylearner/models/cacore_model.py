@@ -10,14 +10,43 @@ from .registry import register_model
 class CaCoRE(nn.Module):
     """Contrastive Causal Representation Encoder.
 
-    Learns a shared representation ``h(x)`` with outcome and treatment heads
-    and a contrastive mutual information regulariser.
+    Maps covariates ``x`` to a latent representation ``h(x)`` shared between an
+    outcome head and a propensity head. A contrastive InfoNCE objective links
+    ``h(x)`` with a joint embedding of ``(y, t)`` to maximise mutual
+    information.
     """
 
-    def __init__(self, d_x: int, d_y: int, k: int, hidden: int = 128, rep_dim: int = 64) -> None:
+    def __init__(
+        self,
+        d_x: int,
+        d_y: int,
+        k: int,
+        hidden: int = 128,
+        rep_dim: int = 64,
+        cpc_weight: float = 1.0,
+    ) -> None:
+        """Initialize the CaCoRE networks.
+
+        Parameters
+        ----------
+        d_x: int
+            Number of covariate features.
+        d_y: int
+            Dimensionality of the outcome.
+        k: int
+            Number of treatment classes.
+        hidden: int, optional
+            Width of the hidden layers. Defaults to ``128``.
+        rep_dim: int, optional
+            Size of the latent representation ``h(x)``. Defaults to ``64``.
+        cpc_weight: float, optional
+            Weight of the InfoNCE regulariser. Defaults to ``1.0``.
+        """
+
         super().__init__()
         self.k = k
         self.d_y = d_y
+        self.cpc_weight = cpc_weight
 
         # Encoder mapping x -> h
         self.encoder = make_mlp([d_x, hidden, rep_dim], activation=nn.ReLU)
@@ -55,7 +84,22 @@ class CaCoRE(nn.Module):
         y: torch.Tensor,
         t_obs: torch.Tensor,
     ) -> torch.Tensor:
-        """Compute CaCoRE training loss."""
+        """Compute the training loss.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Covariates of shape ``(batch, d_x)``.
+        y : torch.Tensor
+            Outcomes with shape ``(batch, d_y)``.
+        t_obs : torch.Tensor
+            Observed treatments in ``[0, k-1]`` or ``-1`` when missing.
+
+        Returns
+        -------
+        torch.Tensor
+            Scalar loss combining outcome, propensity and contrastive terms.
+        """
         y = y.float()
         h = self.encoder(x)
 
@@ -88,6 +132,8 @@ class CaCoRE(nn.Module):
     # ------------------------------------------------------------------
     @torch.no_grad()
     def predict_outcome(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Predict outcome ``y`` for covariates ``x`` under treatment ``t``."""
+
         h = self.encoder(x)
         t_oh = F.one_hot(t, num_classes=self.k).float()
         h_t = torch.cat([h, t_oh], dim=-1)
@@ -95,6 +141,8 @@ class CaCoRE(nn.Module):
 
     @torch.no_grad()
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Return ``p(t|x,y)`` from the propensity head."""
+
         h = self.encoder(x)
         h_y = torch.cat([h, y.float()], dim=-1)
         logits = self.propensity_head(h_y)
