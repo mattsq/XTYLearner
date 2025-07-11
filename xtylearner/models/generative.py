@@ -9,6 +9,7 @@ from .bridge_diff import BridgeDiff
 from .lt_flow_diff import LTFlowDiff
 from .energy_diffusion_imputer import EnergyDiffusionImputer
 from .vacim_model import VACIM
+from .factor_vae_plus import FactorVAEPlus
 
 __all__ = [
     "M2VAE",
@@ -20,4 +21,5 @@ __all__ = [
     "LTFlowDiff",
     "EnergyDiffusionImputer",
     "VACIM",
+    "FactorVAEPlus",
 ]
