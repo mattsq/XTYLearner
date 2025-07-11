@@ -141,7 +141,14 @@ class BaseTrainer(ABC):
         except Exception:
             return {}
 
+        if isinstance(probs, (list, tuple)):
+            if len(probs) == 0:
+                return {}
+            probs = probs[0]
+
         log_probs = probs.clamp_min(1e-12).log()
+        if t_obs.dim() > 1 and t_obs.size(-1) == 1:
+            t_obs = t_obs.squeeze(-1)
         nll = F.nll_loss(log_probs[mask], t_obs[mask])
         acc = accuracy(log_probs[mask], t_obs[mask])
         return {"nll": float(nll.item()), "accuracy": float(acc.item())}
