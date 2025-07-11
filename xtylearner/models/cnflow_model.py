@@ -116,6 +116,25 @@ class CNFlowModel(nn.Module):
         return nll / x.size(0)
 
     # ------------------------------------------------------------
+    def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Return outcome prediction ``E[y|x,t]`` from the flow."""
+
+        t_onehot = nn.functional.one_hot(t, num_classes=self.k).float()
+        context = self.cond_net(x)
+        n = self.eval_samples if not self.training else 1
+        z = self.flow.sample(n, context)
+        context_exp = context.unsqueeze(1).expand(-1, n, -1)
+        z[..., self.d_y :] = t_onehot.unsqueeze(1).expand(-1, n, -1)
+        z_flat = z.reshape(-1, self.d_y + self.k)
+        ctx_flat = context_exp.reshape(-1, context.size(-1))
+        try:
+            y_flat, _ = self.flow.inverse(z_flat, context=ctx_flat)
+        except AttributeError:
+            y_flat, _ = self.flow._transform.inverse(z_flat, ctx_flat)
+        y_samples = y_flat[..., : self.d_y].view(x.size(0), n, self.d_y)
+        return y_samples.mean(1)
+
+    # ------------------------------------------------------------
     @torch.no_grad()
     def predict_outcome(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """Return ``E[y|x,t]`` estimated from flow samples."""
