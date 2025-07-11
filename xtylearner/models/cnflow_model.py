@@ -85,27 +85,28 @@ class CNFlowModel(nn.Module):
         x: torch.Tensor,
         y: torch.Tensor,
         t_obs: torch.Tensor,
-        t_mask: torch.Tensor,
     ) -> torch.Tensor:
         """Return the average negative log-likelihood for a mini-batch.
 
-        Rows with ``t_mask==0`` are treated as unlabelled and the likelihood is
-        marginalised over all treatments.
+        Missing labels are denoted by ``-1`` in ``t_obs`` and are marginalised
+        out when computing the likelihood.
         """
 
         y = y.float()
         t_onehot = nn.functional.one_hot(t_obs.clamp_min(0), num_classes=self.k).float()
 
+        t_mask = t_obs != -1
+
         logp_obs = torch.tensor(0.0, device=x.device)
         if t_mask.any():
             logp_obs = self._joint_log_prob(
-                x[t_mask == 1], y[t_mask == 1], t_onehot[t_mask == 1]
+                x[t_mask], y[t_mask], t_onehot[t_mask]
             )
 
         nll = -logp_obs.sum()
-        if (t_mask == 0).any():
-            x_m = x[t_mask == 0]
-            y_m = y[t_mask == 0]
+        if (~t_mask).any():
+            x_m = x[~t_mask]
+            y_m = y[~t_mask]
             all_t = torch.eye(self.k, device=x.device).repeat(len(x_m), 1)
             rep_x = x_m.repeat_interleave(self.k, dim=0)
             rep_y = y_m.repeat_interleave(self.k, dim=0)

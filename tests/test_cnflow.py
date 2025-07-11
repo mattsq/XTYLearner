@@ -9,9 +9,11 @@ def test_shapes():
     y = torch.randn(17, d_y)
     t = torch.randint(0, k, (17,))
     mask = torch.randint(0, 2, (17,))
+    t_obs = t.clone()
+    t_obs[mask == 0] = -1
 
     model = CNFlowModel(d_x=d_x, d_y=d_y, k=k)
-    loss = model.loss(x, y, t, mask)
+    loss = model.loss(x, y, t_obs)
     loss.backward()
 
     assert torch.isfinite(loss)
