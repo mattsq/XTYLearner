@@ -28,6 +28,7 @@ from .ss_dml import SSDMLModel
 from .ganite import GANITE
 from .deconfounder_model import DeconfounderCFM
 from .vacim_model import VACIM
+from .factor_vae_plus import FactorVAEPlus
 from .cnflow_model import CNFlowModel
 from .registry import get_model, get_model_names, get_model_args
 
@@ -62,6 +63,7 @@ __all__ = [
     "GNN_SCM",
     "DiffusionGNN_SCM",
     "VACIM",
+    "FactorVAEPlus",
     "CNFlowModel",
     "get_model",
     "get_model_names",
