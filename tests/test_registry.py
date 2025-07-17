@@ -29,6 +29,7 @@ from xtylearner.models import (
     SS_CEVAE,
     CEVAE_M,
     GANITE,
+    CTMT,
 )
 
 
@@ -64,6 +65,7 @@ from xtylearner.models import (
         ("fixmatch", FixMatch, {}),
         ("ss_dml", SSDMLModel, {}),
         ("semiite", SemiITE, {"d_x": 2, "d_y": 1}),
+        ("ctm_t", CTMT, {"d_in": 4}),
     ],
 )
 def test_get_model_valid(name, cls, kwargs):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
 
@@ -124,10 +125,51 @@ def log_categorical(t: torch.Tensor, logits: torch.Tensor) -> torch.Tensor:
     return (t * F.log_softmax(logits, 1)).sum(1)
 
 
+def sinusoidal_time_embed(dim: int):
+    """Return a function embedding scalar timesteps with sinusoids."""
+
+    def embed(t: torch.Tensor) -> torch.Tensor:
+        if t.dim() == 1:
+            t_local = t.unsqueeze(-1)
+        else:
+            t_local = t
+        half = dim // 2
+        freqs = torch.exp(
+            torch.arange(half, device=t_local.device, dtype=t_local.dtype)
+            * -(math.log(10000.0) / max(half - 1, 1))
+        )
+        args = t_local * freqs
+        emb = torch.cat([args.sin(), args.cos()], dim=-1)
+        if dim % 2 == 1:
+            emb = torch.cat([emb, torch.zeros_like(t_local)], dim=-1)
+        return emb
+
+    return embed
+
+
+class UNet1D(nn.Module):
+    """Minimal 1D UNet-like MLP used for tabular inputs."""
+
+    def __init__(self, d_in: int, hidden: int) -> None:
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(d_in + hidden, hidden),
+            nn.ReLU(),
+            nn.Linear(hidden, hidden),
+            nn.ReLU(),
+        )
+
+    def forward(self, x: torch.Tensor, emb: torch.Tensor) -> torch.Tensor:
+        h = torch.cat([x, emb], dim=-1)
+        return self.net(h)
+
+
 __all__ = [
     "ramp_up_sigmoid",
     "reparameterise",
     "kl_normal",
     "gumbel_softmax",
     "log_categorical",
+    "sinusoidal_time_embed",
+    "UNet1D",
 ]
