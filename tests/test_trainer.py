@@ -14,7 +14,7 @@ from xtylearner.models import M2VAE, SS_CEVAE, JSBF, DiffusionCEVAE
 from xtylearner.models import BridgeDiff, LTFlowDiff
 from xtylearner.models import EnergyDiffusionImputer, JointEBM, GFlowNetTreatment
 from xtylearner.models import GANITE
-from xtylearner.models import ProbCircuitModel, LP_KNN
+from xtylearner.models import ProbCircuitModel, LP_KNN, CTMT
 
 
 def test_supervised_trainer_runs():
@@ -335,3 +335,17 @@ def test_labelprop_trainer_runs():
     trainer.fit(1)
     acc = trainer.evaluate(loader)
     assert isinstance(acc, float)
+
+
+def test_ctm_trainer_runs():
+    dataset = load_mixed_synthetic_dataset(
+        n_samples=20, d_x=2, seed=19, label_ratio=0.5
+    )
+    loader = DataLoader(dataset, batch_size=5)
+    d_in = 2 + 1 + 1
+    model = CTMT(d_in=d_in)
+    opt = torch.optim.Adam(model.parameters(), lr=0.001)
+    trainer = Trainer(model, opt, loader)
+    trainer.fit(1)
+    loss = trainer.evaluate(loader)
+    assert isinstance(loss, float)

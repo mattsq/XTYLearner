@@ -1,0 +1,10 @@
+model: ctm_t
+optim:
+  lr: 3e-4
+  weight_decay: 1e-4
+train:
+  epochs: 100
+  batch_size: 256
+  lmb_t: 0.1
+  pseudo: true
+  tau: 0.8
