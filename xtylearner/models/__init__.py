@@ -30,6 +30,7 @@ from .deconfounder_model import DeconfounderCFM
 from .vacim_model import VACIM
 from .factor_vae_plus import FactorVAEPlus
 from .cnflow_model import CNFlowModel
+from .semiite import SemiITE
 from .registry import get_model, get_model_names, get_model_args
 
 __all__ = [
@@ -65,6 +66,7 @@ __all__ = [
     "VACIM",
     "FactorVAEPlus",
     "CNFlowModel",
+    "SemiITE",
     "get_model",
     "get_model_names",
     "get_model_args",
