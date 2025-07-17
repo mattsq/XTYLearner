@@ -25,6 +25,7 @@ from xtylearner.models import (
     VAT_Model,
     FixMatch,
     SSDMLModel,
+    SemiITE,
     SS_CEVAE,
     CEVAE_M,
     GANITE,
@@ -62,6 +63,7 @@ from xtylearner.models import (
         ("vat", VAT_Model, {"d_x": 2, "d_y": 1, "k": 2}),
         ("fixmatch", FixMatch, {}),
         ("ss_dml", SSDMLModel, {}),
+        ("semiite", SemiITE, {"d_x": 2, "d_y": 1}),
     ],
 )
 def test_get_model_valid(name, cls, kwargs):

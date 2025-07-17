@@ -7,6 +7,7 @@ from .supervised import SupervisedTrainer
 from .adversarial import AdversarialTrainer
 from .generative import GenerativeTrainer
 from .diffusion import DiffusionTrainer
+from .cotrain import CoTrainTrainer
 from .gnn_trainer import GNNTrainer
 from .em import ArrayTrainer, EMTrainer
 from .metrics import (
@@ -22,6 +23,7 @@ __all__ = [
     "SupervisedTrainer",
     "GenerativeTrainer",
     "DiffusionTrainer",
+    "CoTrainTrainer",
     "GNNTrainer",
     "AdversarialTrainer",
     "ArrayTrainer",
