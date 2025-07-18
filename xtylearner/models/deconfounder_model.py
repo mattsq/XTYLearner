@@ -77,13 +77,13 @@ class DeconfounderCFM(nn.Module):
         return y1 - y0
 
     @torch.no_grad()
-    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Not implemented since the model does not learn ``p(t|x,y)``."""
+    def predict(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        return self.predict_outcome(x, t)
 
-        raise NotImplementedError(
-            "DeconfounderCFM does not model p(t|x,y); treatment probabilities "
-            "are unavailable."
-        )
+    @torch.no_grad()
+    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        k = self.vae_t.dec[-1].out_features
+        return torch.full((x.size(0), k), 1.0 / k, device=x.device)
 
     def on_epoch_end(self, t: torch.Tensor | None = None) -> None:
         self.epoch += 1

@@ -88,6 +88,30 @@ class GNN_EBM(nn.Module):
         self.lambda_acyc = lambda_acyc
         self.gamma_l1 = gamma_l1
 
+    # --------------------------------------------------------------
+    @torch.no_grad()
+    def predict_outcome(self, x: torch.Tensor, t: int | torch.Tensor) -> torch.Tensor:
+        if isinstance(t, int):
+            t = torch.full((x.size(0),), t, dtype=torch.float32, device=x.device)
+        else:
+            t = t.view(-1).float()
+        y_init = torch.zeros(x.size(0), self.d_y, device=x.device)
+        _, y = self.langevin(x, t, y_init)
+        return y
+
+    @torch.no_grad()
+    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        energies = []
+        for idx in range(self.k_t):
+            t_tmp = torch.full((x.size(0), 1), float(idx), device=x.device)
+            energies.append(-self.energy(x, t_tmp, y))
+        logits = torch.stack(energies, dim=-1)
+        return logits.softmax(dim=-1)
+
+    @torch.no_grad()
+    def predict(self, x: torch.Tensor, t: int | torch.Tensor) -> torch.Tensor:
+        return self.predict_outcome(x, t)
+
     # ------------------------------------------------------------------
     def _A(self) -> torch.Tensor:
         return torch.sigmoid(self.B) * self.mask

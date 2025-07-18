@@ -171,5 +171,10 @@ class JSBF(nn.Module):
         _, logits = self.net(xy, t_dummy, tau)
         return logits[:, : self.k].softmax(dim=-1)
 
+    @torch.no_grad()
+    def predict_outcome(self, x: torch.Tensor, t: int | torch.Tensor) -> torch.Tensor:
+        _, y, _ = self.sample(x.size(0))
+        return y
+
 
 __all__ = ["JSBF"]
