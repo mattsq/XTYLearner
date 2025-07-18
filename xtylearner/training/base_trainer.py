@@ -161,12 +161,15 @@ class BaseTrainer(ABC):
 
         if hasattr(self.model, "predict_outcome"):
             try:
-                out = self.model.predict_outcome(x.cpu().numpy(), t.cpu().numpy())
-                if isinstance(out, np.ndarray):
-                    return torch.from_numpy(out).to(self.device)
-                return out.to(self.device)
+                out = self.model.predict_outcome(x, t)
             except Exception:
-                return None
+                try:
+                    out = self.model.predict_outcome(x.cpu().numpy(), t.cpu().numpy())
+                except Exception:
+                    return None
+            if isinstance(out, np.ndarray):
+                return torch.from_numpy(out).to(self.device)
+            return out.to(self.device)
 
         if hasattr(self.model, "head_Y"):
             try:
