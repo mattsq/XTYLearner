@@ -34,10 +34,18 @@ class LP_KNN:
     target = "treatment"
     requires_outcome = False
 
-    def __init__(self, n_neighbors: int = 10, regressor=None):
+    def __init__(
+        self,
+        n_neighbors: int = 10,
+        regressor=None,
+        *,
+        d_x: int | None = None,
+        d_y: int | None = None,
+        k: int | None = None,
+    ):
         self.clf = LabelPropagation(kernel="knn", n_neighbors=n_neighbors)
         self.regressor = regressor
-        self.k = None
+        self.k = k
 
     # ------------------------------------------------------------------
     def fit(self, X, y, t_obs=None):

@@ -169,6 +169,8 @@ class EMModel:
         classifier_factory=None,
         regressor_factory=None,
         verbose: bool = False,
+        d_x: int | None = None,
+        d_y: int | None = None,
     ) -> None:
         self.k = k
         self.max_iter = max_iter
