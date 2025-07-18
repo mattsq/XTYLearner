@@ -156,7 +156,7 @@ class BridgeDiff(nn.Module):
                 prev = tau - 1 / n_steps
                 noise_scale = (sig**2 - self._sigma(prev).pow(2)).sqrt()
                 noise = torch.randn_like(y[:, 0])
-                y = y + noise_scale * noise.unsqueeze(1)
+                y = y + noise_scale.unsqueeze(-1) * noise.unsqueeze(1)
         return tuple(y[:, t] for t in range(self.k))
 
     # ----- posterior utility -----
