@@ -32,6 +32,7 @@ from .factor_vae_plus import FactorVAEPlus
 from .cnflow_model import CNFlowModel
 from .semiite import SemiITE
 from .ctm_t import CTMT
+from .scgm import SCGM
 from .registry import get_model, get_model_names, get_model_args
 
 __all__ = [
@@ -69,6 +70,7 @@ __all__ = [
     "CNFlowModel",
     "SemiITE",
     "CTMT",
+    "SCGM",
     "get_model",
     "get_model_names",
     "get_model_args",
