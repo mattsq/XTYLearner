@@ -30,6 +30,7 @@ from xtylearner.models import (
     CEVAE_M,
     GANITE,
     CTMT,
+    SCGM,
 )
 
 
@@ -66,6 +67,7 @@ from xtylearner.models import (
         ("ss_dml", SSDMLModel, {}),
         ("semiite", SemiITE, {"d_x": 2, "d_y": 1}),
         ("ctm_t", CTMT, {"d_in": 4}),
+        ("scgm", SCGM, {"d_x": 2, "d_y": 1, "k": 2}),
     ],
 )
 def test_get_model_valid(name, cls, kwargs):
