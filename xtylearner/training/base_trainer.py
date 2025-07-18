@@ -161,12 +161,20 @@ class BaseTrainer(ABC):
 
         if hasattr(self.model, "predict_outcome"):
             try:
-                out = self.model.predict_outcome(x.cpu().numpy(), t.cpu().numpy())
+                # First try using tensors directly -- most models expect this
+                out = self.model.predict_outcome(x, t)
                 if isinstance(out, np.ndarray):
                     return torch.from_numpy(out).to(self.device)
                 return out.to(self.device)
             except Exception:
-                return None
+                try:
+                    # Some lightweight wrappers may require numpy inputs
+                    out = self.model.predict_outcome(x.cpu().numpy(), t.cpu().numpy())
+                    if isinstance(out, np.ndarray):
+                        return torch.from_numpy(out).to(self.device)
+                    return out.to(self.device)
+                except Exception:
+                    return None
 
         if hasattr(self.model, "head_Y"):
             try:
