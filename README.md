@@ -85,6 +85,8 @@ The model registry exposes a variety of architectures grouped below by type.
   joint outcome-treatment space.
 - ``MaskedTabularTransformer`` – a transformer encoder for tabular data using a
   masked-token training objective.
+- ``SemiITE`` – a co-training network for semi-supervised treatment effect
+  estimation.
 
 #### Generative
 
@@ -105,6 +107,10 @@ The model registry exposes a variety of architectures grouped below by type.
 - ``GANITE`` – a GAN-based approach for individual treatment effect estimation.
 - ``VACIM`` – a CEVAE variant with conditional masking for partial encoders.
 - ``GNN_SCM`` – a graph neural structural causal model learning latent graphs.
+- ``GNN_EBM`` – an energy-based variant of the GNN-SCM model.
+- ``FactorVAEPlus`` – a latent variable model with multiple categorical
+  treatments.
+- ``SCGM`` – a semi-supervised causal generative model.
 
 #### Causal Factor Models
 
@@ -125,6 +131,7 @@ The model registry exposes a variety of architectures grouped below by type.
 - ``DiffusionCEVAE`` – a diffusion-based variant of CEVAE trained via latent
   score matching.
 - ``DiffusionGNN_SCM`` – a diffusion-based variant of the GNN_SCM model.
+- ``CTMT`` – a consistency-trajectory diffusion model with a treatment head.
 
 #### Semi-Supervised Baselines
 
