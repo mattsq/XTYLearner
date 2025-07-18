@@ -132,5 +132,9 @@ class GNN_SCM(nn.Module):
             return torch.cat([mu, log_sigma.exp()], dim=-1)
         return F.softmax(pars, dim=-1)
 
+    @torch.no_grad()
+    def predict(self, x: torch.Tensor, t: int | torch.Tensor) -> torch.Tensor:
+        return self.predict_outcome(x, t)
+
 
 __all__ = ["GNN_SCM"]

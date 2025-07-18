@@ -128,7 +128,7 @@ class SCGM(nn.Module):
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         mask_y = ~torch.isnan(y)
         y_f = torch.nan_to_num(y, nan=0.0)
-        logits = self.enc_t(torch.cat([x, y_f, mask_y.float().unsqueeze(-1)], dim=-1))
+        logits = self.enc_t(torch.cat([x, y_f, mask_y.float()], dim=-1))
         return logits.softmax(-1)
 
     @torch.no_grad()
@@ -141,6 +141,10 @@ class SCGM(nn.Module):
         return self.dec_y(torch.cat([z, x, t_onehot], dim=-1))
 
     def forward_outcome(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        return self.predict_outcome(x, t)
+
+    @torch.no_grad()
+    def predict(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         return self.predict_outcome(x, t)
 
 

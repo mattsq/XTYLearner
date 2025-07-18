@@ -47,7 +47,9 @@ class SemiITE(nn.Module):
 
     # --------------------------------------------------------------
     @torch.no_grad()
-    def predict_treatment_proba(self, x: torch.Tensor) -> torch.Tensor:
+    def predict_treatment_proba(
+        self, x: torch.Tensor, y: torch.Tensor | None = None
+    ) -> torch.Tensor:
         z = self.encode(x)
         return self.prop(z).softmax(dim=-1)
 

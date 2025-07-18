@@ -85,7 +85,23 @@ class CTMTrainer(BaseTrainer):
                 if isinstance(t_val, int)
                 else t_val.to(self.device)
             )
-            raise ValueError("Prediction of outcomes not implemented for CTMT")
+            x0 = torch.cat(
+                [x, torch.zeros(x.size(0), 1, device=self.device), t_tensor.unsqueeze(-1).float()],
+                dim=-1,
+            )
+            out, _ = self.model(x0, torch.zeros_like(t_tensor, dtype=torch.float32).unsqueeze(-1), torch.zeros_like(t_tensor, dtype=torch.float32).unsqueeze(-1))
+            y_hat = out[:, x.size(1) : x.size(1) + 1]
+            return y_hat
+
+    @torch.no_grad()
+    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        self.model.eval()
+        x = x.to(self.device)
+        y = y.to(self.device)
+        zeros = torch.zeros(x.size(0), 1, device=self.device)
+        x0 = torch.cat([x, y, zeros], dim=-1)
+        _, logits = self.model(x0, zeros, zeros)
+        return logits.softmax(dim=-1)
 
 
 __all__ = ["CTMTrainer"]

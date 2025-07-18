@@ -10,7 +10,9 @@ from .adversarial import AdversarialTrainer
 from .generative import GenerativeTrainer
 from .diffusion import DiffusionTrainer
 from .ctm_trainer import CTMTrainer
+from .cotrain import CoTrainTrainer
 from ..models.ctm_t import CTMT
+from ..models.semiite import SemiITE
 from .em import ArrayTrainer
 from .logger import TrainerLogger
 
@@ -106,6 +108,8 @@ class Trainer:
             return AdversarialTrainer
         if isinstance(model, CTMT):
             return CTMTrainer
+        if isinstance(model, SemiITE):
+            return CoTrainTrainer
         if hasattr(model, "elbo"):
             return GenerativeTrainer
         if hasattr(model, "sample") or hasattr(model, "paired_sample"):

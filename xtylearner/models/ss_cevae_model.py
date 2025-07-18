@@ -214,6 +214,15 @@ class SS_CEVAE(nn.Module):
         self.k = k
         self.tau = tau
 
+    @torch.no_grad()
+    def predict_outcome(self, x: torch.Tensor, t: int | torch.Tensor) -> torch.Tensor:
+        if isinstance(t, int):
+            t = torch.full((x.size(0),), t, dtype=torch.long, device=x.device)
+        t1h = one_hot(t, self.k).float()
+        z_dim = self.dec_x.net[0].in_features
+        z = torch.zeros(x.size(0), z_dim, device=x.device)
+        return self.dec_y(z, x, t1h)
+
     def elbo(
         self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
     ) -> torch.Tensor:
