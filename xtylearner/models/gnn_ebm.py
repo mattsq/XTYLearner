@@ -139,5 +139,20 @@ class GNN_EBM(nn.Module):
         t, _ = self.langevin(x, None, y)
         return t.squeeze(-1)
 
+    # ------------------------------------------------------------------
+    @torch.no_grad()
+    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Approximate ``p(t|x,y)`` using the energy function."""
+        if self.k_t is None:
+            raise ValueError("Number of treatment classes 'k_t' must be set")
+
+        logits = []
+        num_classes = self.k_t if self.k_t > 1 else 2
+        for i in range(num_classes):
+            t_val = torch.full((x.size(0), 1), float(i), device=x.device)
+            logits.append(-self.energy(x, t_val, y))
+        logits = torch.stack(logits, dim=-1)
+        return logits.softmax(dim=-1)
+
 
 __all__ = ["GNN_EBM"]
