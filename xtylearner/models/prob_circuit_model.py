@@ -48,7 +48,14 @@ from .registry import register_model
 class ProbCircuitModel:
     """Learn a probabilistic circuit over ``(X, T, Y)`` using SPFlow."""
 
-    def __init__(self, min_instances_slice: int = 200) -> None:
+    def __init__(
+        self,
+        min_instances_slice: int = 200,
+        *,
+        d_x: int | None = None,
+        d_y: int | None = None,
+        k: int | None = None,
+    ) -> None:
         self.min_instances_slice = min_instances_slice
         self.root = None
         self._lr = None

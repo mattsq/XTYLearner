@@ -24,11 +24,14 @@ class GANITE(nn.Module):
         d_x: int,
         d_y: int = 1,
         *,
+        k: int | None = None,
         hidden_dims: tuple[int, ...] | list[int] = (200, 200),
         activation: type[nn.Module] = nn.ReLU,
         dropout: float | None = None,
         norm_layer: Callable[[int], nn.Module] | None = None,
     ) -> None:
+        if k is not None:
+            self.k = k
         super().__init__()
         self.G_cf = make_mlp(
             [d_x + d_y + self.k, *hidden_dims, d_y],

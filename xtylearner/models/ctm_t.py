@@ -11,7 +11,22 @@ from .utils import sinusoidal_time_embed, UNet1D
 class CTMT(nn.Module):
     """Consistency-Trajectory Model with a treatment head."""
 
-    def __init__(self, d_in: int, d_treat: int = 2, hidden: int = 64) -> None:
+    def __init__(
+        self,
+        d_in: int | None = None,
+        d_treat: int = 2,
+        hidden: int = 64,
+        *,
+        d_x: int | None = None,
+        d_y: int | None = None,
+        k: int | None = None,
+    ) -> None:
+        if d_in is None and d_x is None:
+            raise TypeError("d_in or d_x must be specified")
+        if d_x is not None:
+            d_in = d_x
+        if k is not None:
+            d_treat = k
         super().__init__()
         self.d_in = d_in
         self.d_treat = d_treat

@@ -52,15 +52,20 @@ class GNN_EBM(nn.Module):
     def __init__(
         self,
         d_x: int,
-        k_t: int,
         d_y: int,
+        k_t: int | None = None,
         *,
+        k: int | None = None,
         hidden: int = 128,
         k_langevin: int = 20,
         eta: float = 1e-2,
         lambda_acyc: float = 5.0,
         gamma_l1: float = 1e-2,
     ) -> None:
+        if k_t is None:
+            k_t = k
+        elif k is not None:
+            k_t = k
         super().__init__()
         self.d_x = d_x
         self.k_t = k_t

@@ -31,12 +31,18 @@ class DeconfounderCFM(nn.Module):
         self,
         d_x: int,
         d_y: int,
-        k_t: int,
+        k_t: int | None = None,
         d_z: int = 16,
         hidden: int = 64,
         pretrain_epochs: int = 50,
         ppc_freq: int = 25,
+        *,
+        k: int | None = None,
     ) -> None:
+        if k_t is None:
+            k_t = k
+        elif k is not None:
+            k_t = k
         super().__init__()
         self.vae_t = VAE_T(k_t, d_z, hidden)
         self.out_net = OutcomeNet(d_x + d_z + k_t, d_y, hidden)

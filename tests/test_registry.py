@@ -110,3 +110,10 @@ def test_get_model_args_valid():
 def test_get_model_args_invalid():
     with pytest.raises(ValueError):
         get_model_args("unknown_model")
+
+
+def test_all_models_accept_standard_args():
+    """Every registered model should accept d_x, d_y and k."""
+    for name in get_model_names():
+        model = get_model(name, d_x=1, d_y=1, k=2)
+        assert model is not None

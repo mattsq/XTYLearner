@@ -26,6 +26,10 @@ class SSDMLModel:
         ml_pi=None,
         n_folds: int = 5,
         score: str = "missing-at-random",
+        *,
+        d_x: int | None = None,
+        d_y: int | None = None,
+        k: int | None = None,
     ):
         self.ml_g = ml_g or RandomForestRegressor(min_samples_leaf=5)
         self.ml_m = ml_m or RandomForestClassifier()
