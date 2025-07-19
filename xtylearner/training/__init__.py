@@ -9,6 +9,7 @@ from .generative import GenerativeTrainer
 from .diffusion import DiffusionTrainer
 from .ctm_trainer import CTMTrainer
 from .cotrain import CoTrainTrainer
+from .active_trainer import ActiveTrainer
 from .gnn_trainer import GNNTrainer
 from .em import ArrayTrainer, EMTrainer
 from .metrics import (
@@ -28,6 +29,7 @@ __all__ = [
     "CoTrainTrainer",
     "GNNTrainer",
     "AdversarialTrainer",
+    "ActiveTrainer",
     "ArrayTrainer",
     "EMTrainer",
     "Trainer",

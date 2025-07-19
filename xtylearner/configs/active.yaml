@@ -1,0 +1,4 @@
+strategy: fccm
+budget: 500
+batch: 20
+lambdas: [0.5, 0.3, 0.2]
