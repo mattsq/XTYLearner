@@ -122,6 +122,14 @@ class VIME(nn.Module):
         return logits.softmax(dim=-1).cpu()
 
     # --------------------------------------------------------------
+    def predict_treatment_proba(
+        self, x: torch.Tensor, _y: torch.Tensor
+    ) -> torch.Tensor:
+        """Alias of :meth:`predict_proba` for API compatibility."""
+
+        return self.predict_proba(x)
+
+    # --------------------------------------------------------------
     def predict(self, X: torch.Tensor | list) -> torch.Tensor:
         return self.predict_proba(X).argmax(dim=1)
 
