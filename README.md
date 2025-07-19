@@ -208,6 +208,36 @@ trainer = Trainer(model, optimizer, loader)
 trainer.fit(5)
 ```
 
+### Active Learning
+
+Utilities in :mod:`xtylearner.active` implement common query strategies for
+selecting the most informative unlabelled points:
+
+- ``EntropyT`` – rank samples by the entropy of the model's treatment
+  predictions.
+- ``DeltaCATE`` – prioritise points with high variance in predicted treatment
+  effects.
+- ``FCCMRadius`` – a weighted combination of entropy, effect variance and the
+  coverage radius around labelled data.
+
+The :class:`xtylearner.training.ActiveTrainer` wraps a standard trainer with an
+active learning loop.  Given a ``TensorDataset`` containing labelled and
+unlabelled rows (with ``T = -1`` for missing labels), it repeatedly fits the
+model, scores the unlabelled pool with the chosen strategy and moves the top
+scoring samples into the labelled set until the budget is exhausted.
+
+```python
+from torch.utils.data import DataLoader, TensorDataset
+from xtylearner.active import EntropyT
+from xtylearner.training import ActiveTrainer
+
+dataset = TensorDataset(X, Y, T)  # use -1 for unlabelled treatments
+loader = DataLoader(dataset, batch_size=32, shuffle=True)
+trainer = ActiveTrainer(model, optimizer, loader, strategy=EntropyT(),
+                        budget=50, batch=10)
+trainer.fit(5)
+```
+
 ## Command Line Interface
 
 The package exposes a simple CLI for training defined in
