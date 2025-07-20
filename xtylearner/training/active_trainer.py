@@ -5,12 +5,12 @@ from typing import Iterable, Optional
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from .supervised import SupervisedTrainer
+from .trainer import Trainer
 from .logger import TrainerLogger
 from ..active import QueryStrategy
 
 
-class ActiveTrainer(SupervisedTrainer):
+class ActiveTrainer:
     """Simple active learning loop over a semi-supervised dataset."""
 
     def __init__(
@@ -27,7 +27,7 @@ class ActiveTrainer(SupervisedTrainer):
         scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
         grad_clip_norm: float | None = None,
     ) -> None:
-        super().__init__(
+        self._trainer = Trainer(
             model,
             optimizer,
             train_loader,
@@ -48,26 +48,29 @@ class ActiveTrainer(SupervisedTrainer):
 
     # --------------------------------------------------------------
     def fit(self, num_epochs: int) -> None:
-        dataset = self.train_loader.dataset  # type: ignore[attr-defined]
+        dataset = self._trainer.train_loader.dataset  # type: ignore[attr-defined]
         if not hasattr(dataset, "tensors"):
             raise ValueError("ActiveTrainer requires a TensorDataset")
         X, Y, T = dataset.tensors
-        labelled = T >= 0
+        if T.dim() == 1:
+            labelled = T >= 0
+        else:
+            labelled = torch.isfinite(T).all(-1)
         L = TensorDataset(X[labelled], Y[labelled], T[labelled])
         U = TensorDataset(X[~labelled], Y[~labelled], T[~labelled])
 
         while self._budget_left() and len(U) > 0:
             loader_L = DataLoader(
-                L, batch_size=self.train_loader.batch_size, shuffle=True
+                L, batch_size=self._trainer.train_loader.batch_size, shuffle=True
             )
-            self.train_loader = loader_L
-            super().fit(num_epochs)
+            self._trainer.train_loader = loader_L
+            self._trainer.fit(num_epochs)
 
             if hasattr(self.strategy, "update_labeled"):
                 self.strategy.update_labeled(L.tensors[0])
 
-            rep_fn = getattr(self.model, "encoder", None)
-            scores = self.strategy(self.model, U.tensors[0], rep_fn, self.batch)
+            rep_fn = getattr(self._trainer.model, "encoder", None)
+            scores = self.strategy(self._trainer.model, U.tensors[0], rep_fn, self.batch)
             topk = torch.topk(scores, min(self.batch, len(U)), largest=True).indices
 
             new_X = U.tensors[0][topk]
@@ -87,7 +90,27 @@ class ActiveTrainer(SupervisedTrainer):
             )
             self.queries += len(topk)
 
-        self.train_loader = DataLoader(
-            L, batch_size=self.train_loader.batch_size, shuffle=True
+        self._trainer.train_loader = DataLoader(
+            L, batch_size=self._trainer.train_loader.batch_size, shuffle=True
         )
-        super().fit(num_epochs)
+        self._trainer.fit(num_epochs)
+
+    # --------------------------------------------------------------
+    def evaluate(self, data_loader: Iterable) -> float:
+        return self._trainer.evaluate(data_loader)
+
+    # --------------------------------------------------------------
+    def predict(self, *args, **kwargs):
+        return self._trainer.predict(*args, **kwargs)
+
+    # --------------------------------------------------------------
+    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        return self._trainer.predict_treatment_proba(x, y)
+
+    # --------------------------------------------------------------
+    def __getattr__(self, name):
+        return getattr(self._trainer, name)
+
+
+__all__ = ["ActiveTrainer"]
+
