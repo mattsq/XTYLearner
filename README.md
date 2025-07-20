@@ -87,6 +87,8 @@ The model registry exposes a variety of architectures grouped below by type.
   masked-token training objective.
 - ``SemiITE`` – a co-training network for semi-supervised treatment effect
   estimation.
+- ``CCL_CPCModel`` – a contrastive predictive coding model for sequential
+  covariates and partially observed labels.
 
 #### Generative
 
