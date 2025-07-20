@@ -46,3 +46,16 @@
 
 The high level `Trainer` class in `xtylearner/training` automatically picks the
 appropriate trainer based on the presence of these methods.
+
+## ccl_cpc
+
+Identifier: `ccl_cpc`
+
+Hyper-parameters:
+- `hidden` – encoder width (default 128)
+- `lambda_cpc` – weight for the CPC objective
+- `lambda_y` – labelled outcome loss weight
+- `lambda_t` – labelled treatment loss weight
+- `temperature` – InfoNCE softmax temperature
+- `k_future` – prediction horizon in steps
+- `seq_len` – input sequence length

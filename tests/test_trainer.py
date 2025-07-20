@@ -15,6 +15,7 @@ from xtylearner.models import BridgeDiff, LTFlowDiff
 from xtylearner.models import EnergyDiffusionImputer, JointEBM, GFlowNetTreatment
 from xtylearner.models import GANITE
 from xtylearner.models import ProbCircuitModel, LP_KNN, CTMT
+from xtylearner.models import CCL_CPCModel
 
 
 def test_supervised_trainer_runs():
@@ -345,6 +346,19 @@ def test_ctm_trainer_runs():
     d_in = 2 + 1 + 1
     model = CTMT(d_in=d_in)
     opt = torch.optim.Adam(model.parameters(), lr=0.001)
+    trainer = Trainer(model, opt, loader)
+    trainer.fit(1)
+    loss = trainer.evaluate(loader)
+    assert isinstance(loss, float)
+
+
+def test_ccl_cpc_trainer_runs():
+    dataset = load_mixed_synthetic_dataset(
+        n_samples=20, d_x=2, seed=20, label_ratio=0.5
+    )
+    loader = DataLoader(dataset, batch_size=5)
+    model = CCL_CPCModel(d_x=2, d_y=1, k=2)
+    opt = torch.optim.Adam(model.parameters(), lr=0.01)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     loss = trainer.evaluate(loader)

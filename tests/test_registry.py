@@ -31,6 +31,7 @@ from xtylearner.models import (
     GANITE,
     CTMT,
     SCGM,
+    CCL_CPCModel,
 )
 
 
@@ -68,6 +69,7 @@ from xtylearner.models import (
         ("semiite", SemiITE, {"d_x": 2, "d_y": 1}),
         ("ctm_t", CTMT, {"d_in": 4}),
         ("scgm", SCGM, {"d_x": 2, "d_y": 1, "k": 2}),
+        ("ccl_cpc", CCL_CPCModel, {"d_x": 2, "d_y": 1, "k": 2}),
     ],
 )
 def test_get_model_valid(name, cls, kwargs):
