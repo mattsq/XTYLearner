@@ -29,5 +29,5 @@ def test_scgm_trainer_runs():
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}

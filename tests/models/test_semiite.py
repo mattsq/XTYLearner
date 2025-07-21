@@ -23,5 +23,5 @@ def test_semiite_shapes_and_trainer():
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
     trainer = CoTrainTrainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}

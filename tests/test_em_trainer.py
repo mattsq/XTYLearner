@@ -13,5 +13,5 @@ def test_em_trainer_runs():
     opt = torch.optim.SGD([torch.zeros(1, requires_grad=True)], lr=0.1)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}

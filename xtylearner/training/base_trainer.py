@@ -56,8 +56,8 @@ class BaseTrainer(ABC):
         """Train the model for ``num_epochs`` epochs."""
 
     @abstractmethod
-    def evaluate(self, data_loader: Iterable) -> float:
-        """Return a scalar loss/metric evaluated on ``data_loader``."""
+    def evaluate(self, data_loader: Iterable) -> Mapping[str, float]:
+        """Return evaluation metrics averaged over ``data_loader``."""
 
     @abstractmethod
     def predict(self, *args, **kwargs):

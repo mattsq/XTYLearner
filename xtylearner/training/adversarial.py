@@ -136,8 +136,8 @@ class AdversarialTrainer(BaseTrainer):
                 self.logger.end_epoch(epoch + 1)
 
     # --------------------------------------------------------------
-    def evaluate(self, data_loader: Iterable) -> float:
-        """Return the generator loss on ``data_loader``.
+    def evaluate(self, data_loader: Iterable) -> Mapping[str, float]:
+        """Return metrics on ``data_loader``.
 
         Parameters
         ----------
@@ -146,11 +146,16 @@ class AdversarialTrainer(BaseTrainer):
 
         Returns
         -------
-        float
-            Scalar ``loss_G`` or another metric if available.
+        Mapping[str, float]
+            Dictionary with loss, treatment accuracy and RMSE metrics.
         """
         metrics = self._eval_metrics(data_loader)
-        return metrics.get("loss_G", next(iter(metrics.values()), 0.0))
+        loss_val = metrics.get("loss_G", next(iter(metrics.values()), 0.0))
+        return {
+            "loss": float(loss_val),
+            "treatment accuracy": float(metrics.get("accuracy", 0.0)),
+            "outcome rmse": float(metrics.get("rmse", 0.0)),
+        }
 
     def predict(self, *inputs: torch.Tensor):
         """Return model outputs for ``inputs`` without gradient tracking.

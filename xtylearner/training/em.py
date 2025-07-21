@@ -115,8 +115,8 @@ class ArrayTrainer(BaseTrainer):
 
         return super()._treatment_metrics(x, y, t_obs)
 
-    def evaluate(self, data_loader: Iterable) -> float:
-        """Return a scalar metric computed over ``data_loader``.
+    def evaluate(self, data_loader: Iterable) -> Mapping[str, float]:
+        """Return evaluation metrics computed over ``data_loader``.
 
         Parameters
         ----------
@@ -125,24 +125,38 @@ class ArrayTrainer(BaseTrainer):
 
         Returns
         -------
-        float
-            Negative log-likelihood or accuracy depending on the model.
+        Mapping[str, float]
+            Dictionary with loss, treatment accuracy and RMSE metrics.
         """
         X, Y, T_obs = self._collect_arrays(data_loader)
+        metrics = {}
         if hasattr(self.model, "predict_treatment_proba"):
             mask = T_obs != -1
             if mask.sum() == 0:
-                return 0.0
-            if getattr(self.model, "requires_outcome", True):
-                Z = np.concatenate([X[mask], Y[mask, None]], axis=1)
+                loss = 0.0
             else:
-                Z = X[mask]
-            probs = self.model.predict_treatment_proba(Z)
-            nll = -np.log(probs[np.arange(mask.sum()), T_obs[mask]] + 1e-12).mean()
-            return float(nll)
-        preds = self.model.predict(X)
-        target = T_obs if getattr(self.model, "target", "outcome") == "treatment" else Y
-        return float((preds == target).mean())
+                if getattr(self.model, "requires_outcome", True):
+                    Z = np.concatenate([X[mask], Y[mask, None]], axis=1)
+                else:
+                    Z = X[mask]
+                probs = self.model.predict_treatment_proba(Z)
+                loss = -np.log(probs[np.arange(mask.sum()), T_obs[mask]] + 1e-12).mean()
+            metrics["loss"] = float(loss)
+        else:
+            preds = self.model.predict(X)
+            target = T_obs if getattr(self.model, "target", "outcome") == "treatment" else Y
+            acc = float((preds == target).mean())
+            metrics["loss"] = acc
+        tensor_X = torch.from_numpy(X)
+        tensor_Y = torch.from_numpy(Y).unsqueeze(-1)
+        tensor_T = torch.from_numpy(T_obs)
+        metrics.update(self._treatment_metrics(tensor_X, tensor_Y, tensor_T))
+        metrics.update(self._outcome_metrics(tensor_X, tensor_Y, tensor_T))
+        return {
+            "loss": float(metrics.get("loss", 0.0)),
+            "treatment accuracy": float(metrics.get("accuracy", 0.0)),
+            "outcome rmse": float(metrics.get("rmse", 0.0)),
+        }
 
     def predict(self, x: torch.Tensor, t_val: int | None = None):
         """Return predictions for ``x`` using the underlying model.

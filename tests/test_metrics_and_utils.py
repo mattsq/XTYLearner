@@ -1,6 +1,7 @@
 import math
 import torch
 import pytest
+from typing import Mapping
 
 from xtylearner.training.metrics import (
     mse_loss,
@@ -29,8 +30,8 @@ class DummyTrainer(BaseTrainer):
     def fit(self, num_epochs: int) -> None:
         pass
 
-    def evaluate(self, data_loader) -> float:
-        return 0.0
+    def evaluate(self, data_loader) -> Mapping[str, float]:
+        return {"loss": 0.0, "treatment accuracy": 0.0, "outcome rmse": 0.0}
 
     def predict(self, *args, **kwargs):
         pass
