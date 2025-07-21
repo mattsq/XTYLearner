@@ -100,6 +100,24 @@ class EnergyDiffusionImputer(nn.Module):
                 y = (y - lr * grad).detach().requires_grad_(True)
         return y.detach()
 
+    # --------------------------------------------------------------
+    def predict_outcome(
+        self,
+        x: torch.Tensor,
+        t: torch.Tensor,
+        *,
+        steps: int = 20,
+        lr: float = 0.1,
+    ) -> torch.Tensor:
+        """Convenience wrapper around :meth:`forward`.
+
+        This method matches the interface expected by ``BaseTrainer`` for
+        computing outcome metrics during training.
+        """
+
+        t = t.to(torch.long)
+        return self.forward(x, t, steps=steps, lr=lr)
+
     # ----- diffusion utilities -----
     def _gamma(self, k: torch.Tensor) -> torch.Tensor:
         return k.float() / self.timesteps
