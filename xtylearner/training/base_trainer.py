@@ -223,7 +223,14 @@ class BaseTrainer(ABC):
         if preds is None:
             return {}
 
-        rmse = rmse_loss(preds, y[mask])
+        targets = y[mask]
+        if preds.dim() != targets.dim():
+            if preds.dim() + 1 == targets.dim() and targets.size(-1) == 1:
+                targets = targets.squeeze(-1)
+            elif preds.dim() - 1 == targets.dim() and preds.size(-1) == 1:
+                preds = preds.squeeze(-1)
+
+        rmse = rmse_loss(preds, targets)
         return {"rmse": float(rmse.item())}
 
     # --------------------------------------------------------------
