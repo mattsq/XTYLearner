@@ -135,8 +135,8 @@ class Trainer:
         """
         self._trainer.fit(num_epochs)
 
-    def evaluate(self, data_loader: Iterable) -> float:
-        """Return the primary metric on ``data_loader``.
+    def evaluate(self, data_loader: Iterable) -> Mapping[str, float]:
+        """Return evaluation metrics on ``data_loader``.
 
         Parameters
         ----------
@@ -145,8 +145,8 @@ class Trainer:
 
         Returns
         -------
-        float
-            Metric reported by the underlying trainer.
+        Mapping[str, float]
+            Metrics reported by the underlying trainer.
         """
         return self._trainer.evaluate(data_loader)
 

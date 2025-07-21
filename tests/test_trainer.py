@@ -25,8 +25,8 @@ def test_supervised_trainer_runs():
     opt = torch.optim.SGD(model.parameters(), lr=0.01)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
 
 def test_flow_model_runs():
@@ -36,8 +36,8 @@ def test_flow_model_runs():
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
 
 def test_multitask_model_runs():
@@ -47,8 +47,8 @@ def test_multitask_model_runs():
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
 
 def test_multitask_handles_missing_labels():
@@ -60,8 +60,8 @@ def test_multitask_handles_missing_labels():
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
 
 def test_dragon_net_runs():
@@ -71,8 +71,8 @@ def test_dragon_net_runs():
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
 
 def test_dragon_net_multi_outcome():
@@ -92,8 +92,8 @@ def test_dragon_net_multi_outcome():
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
 
 def test_m2vae_trainer_runs():
@@ -103,8 +103,8 @@ def test_m2vae_trainer_runs():
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
 
 def test_cevae_trainer_runs():
@@ -114,8 +114,8 @@ def test_cevae_trainer_runs():
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
 
 def test_supervised_trainer_mixed_dataset():
@@ -125,8 +125,8 @@ def test_supervised_trainer_mixed_dataset():
     opt = torch.optim.SGD(model.parameters(), lr=0.01)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
 
 def test_cevae_trainer_mixed_dataset():
@@ -136,8 +136,8 @@ def test_cevae_trainer_mixed_dataset():
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
 
 def test_jsbf_trainer_runs():
@@ -147,8 +147,8 @@ def test_jsbf_trainer_runs():
     opt = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
 
 def test_diffusion_cevae_trainer_runs():
@@ -158,8 +158,8 @@ def test_diffusion_cevae_trainer_runs():
     opt = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
 
 def test_bridge_diff_trainer_runs():
@@ -169,8 +169,8 @@ def test_bridge_diff_trainer_runs():
     opt = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
 
 def test_lt_flow_diff_trainer_runs():
@@ -182,8 +182,8 @@ def test_lt_flow_diff_trainer_runs():
     opt = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
 
 def test_eg_ddi_trainer_runs():
@@ -195,8 +195,8 @@ def test_eg_ddi_trainer_runs():
     opt = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
 
 def test_joint_ebm_trainer_runs():
@@ -208,8 +208,8 @@ def test_joint_ebm_trainer_runs():
     opt = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
 
 def test_gflownet_treatment_trainer_runs():
@@ -221,8 +221,8 @@ def test_gflownet_treatment_trainer_runs():
     opt = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
 
 def test_ganite_trainer_runs():
@@ -235,8 +235,8 @@ def test_ganite_trainer_runs():
     opt_d = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = Trainer(model, (opt_g, opt_d), loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
 def test_ganite_with_schedulers():
     dataset = load_mixed_synthetic_dataset(
@@ -334,8 +334,8 @@ def test_labelprop_trainer_runs():
     opt = torch.optim.SGD([torch.zeros(1, requires_grad=True)], lr=0.1)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    acc = trainer.evaluate(loader)
-    assert isinstance(acc, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
 
 def test_ctm_trainer_runs():
@@ -348,8 +348,8 @@ def test_ctm_trainer_runs():
     opt = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
 
 def test_ccl_cpc_trainer_runs():
@@ -361,5 +361,5 @@ def test_ccl_cpc_trainer_runs():
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}

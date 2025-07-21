@@ -96,7 +96,7 @@ class ActiveTrainer:
         self._trainer.fit(num_epochs)
 
     # --------------------------------------------------------------
-    def evaluate(self, data_loader: Iterable) -> float:
+    def evaluate(self, data_loader: Iterable) -> Mapping[str, float]:
         return self._trainer.evaluate(data_loader)
 
     # --------------------------------------------------------------

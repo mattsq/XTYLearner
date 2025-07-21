@@ -60,8 +60,8 @@ class DiffusionTrainer(BaseTrainer):
             if self.logger:
                 self.logger.end_epoch(epoch + 1)
 
-    def evaluate(self, data_loader: Iterable) -> float:
-        """Compute the average loss over ``data_loader``.
+    def evaluate(self, data_loader: Iterable) -> Mapping[str, float]:
+        """Compute averaged metrics over ``data_loader``.
 
         Parameters
         ----------
@@ -70,11 +70,16 @@ class DiffusionTrainer(BaseTrainer):
 
         Returns
         -------
-        float
-            Mean metric extracted from the evaluation routine.
+        Mapping[str, float]
+            Dictionary with loss, treatment accuracy and RMSE metrics.
         """
         metrics = self._eval_metrics(data_loader)
-        return metrics.get("loss", next(iter(metrics.values()), 0.0))
+        loss_val = metrics.get("loss", next(iter(metrics.values()), 0.0))
+        return {
+            "loss": float(loss_val),
+            "treatment accuracy": float(metrics.get("accuracy", 0.0)),
+            "outcome rmse": float(metrics.get("rmse", 0.0)),
+        }
 
     def predict(self, *args):
         """Generate samples or outcome predictions.

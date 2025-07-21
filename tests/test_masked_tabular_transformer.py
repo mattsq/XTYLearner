@@ -16,8 +16,8 @@ def test_masked_tabular_transformer_runs():
     opt = torch.optim.Adam(model.parameters(), lr=1e-3)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
-    loss = trainer.evaluate(loader)
-    assert isinstance(loss, float)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
 
     x_row = X[0]
     y0 = model.predict_y(x_row, t_prompt=0, n_samples=2)
