@@ -199,10 +199,13 @@ class BaseTrainer(ABC):
                 # handle vector t by batching unique values
                 if t.dim() == 0 or t.numel() == 1:
                     return self.predict(x, int(t.item()))
-                preds = torch.zeros(x.size(0), y.size(-1), device=self.device)
+                preds = torch.zeros_like(y)
                 for val in t.unique():
                     idx = t == val
-                    preds[idx] = self.predict(x[idx], int(val.item()))
+                    out = self.predict(x[idx], int(val.item()))
+                    if out.dim() > preds[idx].dim() and out.size(-1) == 1:
+                        out = out.squeeze(-1)
+                    preds[idx] = out
                 return preds
             except Exception:
                 return None

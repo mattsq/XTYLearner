@@ -16,6 +16,7 @@ from xtylearner.models import EnergyDiffusionImputer, JointEBM, GFlowNetTreatmen
 from xtylearner.models import GANITE
 from xtylearner.models import ProbCircuitModel, LP_KNN, CTMT
 from xtylearner.models import CCL_CPCModel
+from xtylearner.models import MeanTeacher
 
 
 def test_supervised_trainer_runs():
@@ -57,6 +58,19 @@ def test_multitask_handles_missing_labels():
     )
     loader = DataLoader(dataset, batch_size=5)
     model = MultiTask(d_x=2, d_y=1, k=2)
+    opt = torch.optim.Adam(model.parameters(), lr=0.01)
+    trainer = Trainer(model, opt, loader)
+    trainer.fit(1)
+    metrics = trainer.evaluate(loader)
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+
+
+def test_mean_teacher_outputs_rmse():
+    dataset = load_mixed_synthetic_dataset(
+        n_samples=20, d_x=2, seed=0, label_ratio=0.5
+    )
+    loader = DataLoader(dataset, batch_size=5)
+    model = MeanTeacher(d_x=2, d_y=1, k=2)
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
