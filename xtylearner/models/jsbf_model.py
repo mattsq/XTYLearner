@@ -29,8 +29,7 @@ class ScoreNet(nn.Module):
             nn.SiLU(),
         )
         self.score_head = nn.Linear(hidden, d_x + d_y)
-        # Extra "other" class for denoising target
-        self.class_head = nn.Linear(hidden, k + 1)
+        self.class_head = nn.Linear(hidden, k)
 
     def forward(
         self, xy: torch.Tensor, t_corrupt: torch.Tensor, tau: torch.Tensor
@@ -60,6 +59,8 @@ class JSBF(nn.Module):
         Number of diffusion steps.
     sigma_min, sigma_max:
         Minimum and maximum noise levels.
+    cls_coef:
+        Weight for the discrete denoising loss.
     """
 
     def __init__(
@@ -72,6 +73,7 @@ class JSBF(nn.Module):
         sigma_min: float = 0.002,
         sigma_max: float = 1.0,
         k: int = 2,
+        cls_coef: float = 1.0,
     ) -> None:
         super().__init__()
         self.d_x = d_x
@@ -81,6 +83,7 @@ class JSBF(nn.Module):
         self.timesteps = timesteps
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
+        self.cls_coef = cls_coef
         self.net = ScoreNet(d_x, d_y, k, hidden)
 
     # ----- diffusion utilities -----
@@ -97,7 +100,10 @@ class JSBF(nn.Module):
         self, t0: torch.Tensor, t_idx: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Corrupt a label following the D3PM process."""
-        gamma = (t_idx.float() / self.timesteps).view(-1)
+        # Cosine corruption schedule following Austin et al. (2021)
+        gamma = 0.5 * (
+            1 - torch.cos(torch.pi * t_idx.float() / self.timesteps)
+        ).view(-1)
         rand = torch.randint(0, self.k, t0.shape, device=t0.device)
         keep = torch.bernoulli(1 - gamma).bool()
         corrupted = torch.where(keep, t0, rand)
@@ -109,7 +115,7 @@ class JSBF(nn.Module):
         self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
     ) -> torch.Tensor:
         b = x.size(0)
-        t_idx = torch.randint(1, self.timesteps + 1, (b,), device=x.device)
+        t_idx = torch.randint(0, self.timesteps, (b,), device=x.device)
         xy0 = torch.cat([x, y], dim=-1)
         xy_t, eps, sig_t = self._q_sample_continuous(xy0, t_idx)
 
@@ -126,12 +132,12 @@ class JSBF(nn.Module):
 
         score_pred, logits_pred = self.net(xy_t, t_corrupt, tau)
 
-        score_loss = ((score_pred + eps / sig_t) ** 2).mean()
+        score_loss = (((score_pred + eps / sig_t) ** 2) * sig_t**2).mean()
 
         cls_per_row = F.cross_entropy(logits_pred, t_cln, reduction="none")
-        cls_loss = (cls_per_row * t_mask.float()).mean()
+        cls_loss = cls_per_row[t_mask].mean()
 
-        return score_loss + 1000.0 * cls_loss
+        return score_loss + self.cls_coef * cls_loss
 
     # ----- simple sampler -----
     @torch.no_grad()
@@ -142,18 +148,16 @@ class JSBF(nn.Module):
         xy = xy * self.sigma_max * extra_noise
         t = torch.randint(0, self.k, (n,), device=xy.device)
 
-        for t_idx in reversed(range(1, self.timesteps + 1)):
+        for t_idx in reversed(range(1, self.timesteps)):
             tau = torch.full((n, 1), t_idx / self.timesteps, device=xy.device)
             sig_t = self._sigma(tau)
+            sig_prev = self._sigma(
+                torch.tensor((t_idx - 1) / self.timesteps, device=xy.device)
+            )
+            step = sig_prev**2 - sig_t**2
             score, logits = self.net(xy, t, tau)
-            xy = xy + (sig_t**2) * score
-            if t_idx > 1:
-                prev = (t_idx - 1) / self.timesteps
-                noise_scale = (
-                    sig_t**2 - self._sigma(torch.tensor(prev, device=xy.device)) ** 2
-                ).sqrt()
-                xy = xy + noise_scale * torch.randn_like(xy)
-            probs = F.softmax(logits[:, : self.k], -1)
+            xy = xy + step * score + step.sqrt() * torch.randn_like(xy)
+            probs = F.softmax(logits, -1)
             t = torch.multinomial(probs, 1).squeeze(-1)
 
         x = xy[:, : self.d_x]
@@ -173,8 +177,31 @@ class JSBF(nn.Module):
 
     @torch.no_grad()
     def predict_outcome(self, x: torch.Tensor, t: int | torch.Tensor) -> torch.Tensor:
-        _, y, _ = self.sample(x.size(0))
-        return y
+        if isinstance(t, int):
+            t = torch.full((x.size(0),), t, dtype=torch.long, device=x.device)
+        return self._sample_conditional(x, t)
+
+    @torch.no_grad()
+    def _sample_conditional(
+        self, x: torch.Tensor, t: torch.Tensor, extra_noise: float = 1.0
+    ) -> torch.Tensor:
+        n = x.size(0)
+        y = torch.randn(n, self.d_y, device=x.device) * self.sigma_max * extra_noise
+        xy = torch.cat([x, y], dim=-1)
+
+        for t_idx in reversed(range(1, self.timesteps)):
+            tau = torch.full((n, 1), t_idx / self.timesteps, device=x.device)
+            sig_t = self._sigma(tau)
+            sig_prev = self._sigma(
+                torch.tensor((t_idx - 1) / self.timesteps, device=x.device)
+            )
+            step = sig_prev**2 - sig_t**2
+            score, logits = self.net(xy, t, tau)
+            xy[:, self.d_x :] += step * score[:, self.d_x :]
+            xy[:, self.d_x :] += step.sqrt() * torch.randn_like(y)
+            probs = F.softmax(logits, -1)
+            t = torch.multinomial(probs, 1).squeeze(-1)
+        return xy[:, self.d_x :]
 
 
 __all__ = ["JSBF"]
