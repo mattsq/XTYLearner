@@ -107,7 +107,10 @@ class SupervisedTrainer(BaseTrainer):
         """
         self.model.eval()
         with torch.no_grad():
-            inputs = [i.to(self.device) for i in inputs]
+            inputs = [
+                i.to(self.device) if isinstance(i, torch.Tensor) else i
+                for i in inputs
+            ]
             if hasattr(self.model, "predict"):
                 return self.model.predict(*inputs)
             return self.model(*inputs)
