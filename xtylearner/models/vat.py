@@ -92,6 +92,16 @@ class VAT_Model(nn.Module):
         return self.outcome(torch.cat([x, t_onehot], dim=-1))
 
     # --------------------------------------------------------------
+    @torch.no_grad()
+    def predict_outcome(self, x: torch.Tensor, t: int | torch.Tensor) -> torch.Tensor:
+        if isinstance(t, int):
+            t = torch.full((x.size(0),), t, dtype=torch.long, device=x.device)
+        elif t.dim() == 0:
+            t = t.expand(x.size(0)).to(torch.long)
+        t_onehot = F.one_hot(t.to(torch.long), self.k).float()
+        return self.outcome(torch.cat([x, t_onehot], dim=-1))
+
+    # --------------------------------------------------------------
     def loss(
         self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
     ) -> torch.Tensor:

@@ -17,3 +17,15 @@ def test_vat_basic_shapes():
 
     probs = model.predict_treatment_proba(x, y)
     assert probs.shape == (5, 2)
+
+
+def test_vat_predict_outcome():
+    model = VAT_Model(d_x=3, d_y=1, k=2)
+    x = torch.randn(4, 3)
+    t = torch.randint(0, 2, (4,))
+
+    out = model.predict_outcome(x, t)
+    assert out.shape == (4, 1)
+
+    out_scalar = model.predict_outcome(x, int(t[0].item()))
+    assert out_scalar.shape == (4, 1)
