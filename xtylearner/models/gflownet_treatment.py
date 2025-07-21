@@ -202,6 +202,22 @@ class GFlowNetTreatment(nn.Module):
 
     # --------------------------------------------------------------
     @torch.no_grad()
+    def predict_outcome(self, x: torch.Tensor, t: int | torch.Tensor) -> torch.Tensor:
+        """Return the mean outcome conditioned on ``x`` and ``t``."""
+
+        if isinstance(t, int):
+            t = torch.full((x.size(0),), t, dtype=torch.long, device=x.device)
+        mu, _ = self.outcome(x, t)
+        return mu.squeeze(-1)
+
+    @torch.no_grad()
+    def predict(self, x: torch.Tensor, t: int | torch.Tensor) -> torch.Tensor:
+        """Alias of :meth:`predict_outcome` for compatibility with ``Trainer``."""
+
+        return self.predict_outcome(x, t)
+
+    # --------------------------------------------------------------
+    @torch.no_grad()
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Return posterior ``p(t|x,y)`` from the policy network."""
 
