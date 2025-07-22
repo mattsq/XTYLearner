@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from xtylearner.data import load_synthetic_dataset
 from xtylearner.models import SemiITE
 from xtylearner.training import CoTrainTrainer
+import torch.nn as nn
 
 
 def test_semiite_shapes_and_trainer():
@@ -44,3 +45,27 @@ def test_semiite_multiclass_trains():
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
     assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+
+
+def test_semiite_custom_mlp_args():
+    model = SemiITE(
+        d_x=2,
+        d_y=1,
+        k=2,
+        enc_hidden_dims=[16],
+        outcome_hidden_dims=[8],
+        activation=nn.Tanh,
+        dropout=0.1,
+        norm_layer=nn.BatchNorm1d,
+    )
+    layers = list(model.enc)
+    assert isinstance(layers[1], nn.BatchNorm1d)
+    assert isinstance(layers[2], nn.Tanh)
+    assert any(isinstance(layer, nn.Dropout) for layer in layers)
+    assert layers[0].out_features == 16
+
+    out_layers = list(model.outcome[0])
+    assert isinstance(out_layers[1], nn.BatchNorm1d)
+    assert isinstance(out_layers[2], nn.Tanh)
+    assert any(isinstance(layer, nn.Dropout) for layer in out_layers)
+    assert out_layers[0].out_features == 8
