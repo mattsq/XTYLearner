@@ -79,5 +79,17 @@ class FixMatch(nn.Module):
         logits = self.classifier(torch.cat([x, y], dim=-1))
         return logits.softmax(dim=-1)
 
+    # --------------------------------------------------------------
+    @torch.no_grad()
+    def predict_outcome(self, x: torch.Tensor, t: int | torch.Tensor) -> torch.Tensor:
+        """Return outcome predictions for covariates ``x`` and treatment ``t``."""
+
+        if isinstance(t, int):
+            t = torch.full((x.size(0),), t, dtype=torch.long, device=x.device)
+        elif t.dim() == 0:
+            t = t.expand(x.size(0)).to(torch.long)
+        t1h = F.one_hot(t.to(torch.long), self.k).float()
+        return self.outcome(torch.cat([x, t1h], dim=-1))
+
 
 __all__ = ["FixMatch"]
