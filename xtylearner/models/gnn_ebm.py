@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .registry import register_model
+from .layers import make_mlp
 from .gnn_scm import notears_acyclicity
 
 
@@ -30,19 +31,6 @@ class MaskedGraphConvStack(nn.Module):
         h = F.relu(self.conv1(h, A))
         h = F.relu(self.conv2(h, A))
         return h
-
-
-class MLP(nn.Module):
-    def __init__(self, d_in: int, d_out: int, hidden: int = 128) -> None:
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(d_in, hidden),
-            nn.ReLU(),
-            nn.Linear(hidden, d_out),
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:  # noqa: D401
-        return self.net(x)
 
 
 @register_model("gnn_ebm")
@@ -80,8 +68,8 @@ class GNN_EBM(nn.Module):
 
         d_in = d_x + 1 + d_y  # x + t + y
         self.gnn = MaskedGraphConvStack(self.d_nodes, d_in, hidden)
-        self.e_T = MLP(hidden, 1)
-        self.e_Y = MLP(hidden, 1)
+        self.e_T = make_mlp([hidden, hidden, 1])
+        self.e_Y = make_mlp([hidden, hidden, 1])
 
         self.k_langevin = k_langevin
         self.eta = eta
@@ -98,15 +86,6 @@ class GNN_EBM(nn.Module):
         y_init = torch.zeros(x.size(0), self.d_y, device=x.device)
         _, y = self.langevin(x, t, y_init)
         return y
-
-    @torch.no_grad()
-    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        energies = []
-        for idx in range(self.k_t):
-            t_tmp = torch.full((x.size(0), 1), float(idx), device=x.device)
-            energies.append(-self.energy(x, t_tmp, y))
-        logits = torch.stack(energies, dim=-1)
-        return logits.softmax(dim=-1)
 
     @torch.no_grad()
     def predict(self, x: torch.Tensor, t: int | torch.Tensor) -> torch.Tensor:
@@ -136,14 +115,18 @@ class GNN_EBM(nn.Module):
         for _ in range(self.k_langevin):
             with torch.enable_grad():
                 E = self.energy(x, z[:, :1], z[:, 1:])
-                grad, = torch.autograd.grad(E.sum(), z)
+                (grad,) = torch.autograd.grad(E.sum(), z)
             z = z - 0.5 * self.eta * grad
-            z = z + torch.sqrt(torch.tensor(self.eta, device=x.device)) * torch.randn_like(z)
+            z = z + torch.sqrt(
+                torch.tensor(self.eta, device=x.device)
+            ) * torch.randn_like(z)
             z = z.detach().requires_grad_(True)
         return z[:, :1].detach(), z[:, 1:].detach()
 
     # ------------------------------------------------------------------
-    def loss(self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor | None) -> torch.Tensor:
+    def loss(
+        self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor | None
+    ) -> torch.Tensor:
         pos_E = torch.tensor(0.0, device=x.device)
         if t_obs is not None:
             pos_E = self.energy(x, t_obs.unsqueeze(-1).float(), y).mean()
@@ -165,7 +148,9 @@ class GNN_EBM(nn.Module):
 
     # ------------------------------------------------------------------
     @torch.no_grad()
-    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def predict_treatment_proba(
+        self, x: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:  # noqa: F811
         """Approximate ``p(t|x,y)`` using the energy function."""
         if self.k_t is None:
             raise ValueError("Number of treatment classes 'k_t' must be set")
