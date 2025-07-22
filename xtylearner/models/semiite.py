@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Callable, Iterable, Sequence
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -19,6 +21,12 @@ class SemiITE(nn.Module):
         k: int = 2,
         *,
         rep_dim: int = 128,
+        enc_hidden_dims: Sequence[int] = (256,),
+        outcome_hidden_dims: Sequence[int] = (128,),
+        activation: type[nn.Module] = nn.ReLU,
+        dropout: float | Sequence[float] | None = None,
+        norm_layer: Callable[[int], nn.Module] | None = None,
+        mlp_constructor: Callable[..., nn.Module] = make_mlp,
         lambda_u: float = 0.5,
         q_pseudo: int = 32,
         mmd_beta: float = 1e-2,
@@ -29,10 +37,23 @@ class SemiITE(nn.Module):
         self.q_pseudo = q_pseudo
         self.mmd_beta = mmd_beta
 
-        self.enc = make_mlp([d_x, 256, rep_dim])
+        self.enc = mlp_constructor(
+            [d_x, *enc_hidden_dims, rep_dim],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
         self.prop = nn.Linear(rep_dim, k)
         self.outcome = nn.ModuleList(
-            [make_mlp([rep_dim + k, 128, d_y]) for _ in range(3)]
+            [
+                mlp_constructor(
+                    [rep_dim + k, *outcome_hidden_dims, d_y],
+                    activation=activation,
+                    dropout=dropout,
+                    norm_layer=norm_layer,
+                )
+                for _ in range(3)
+            ]
         )
 
     # --------------------------------------------------------------
