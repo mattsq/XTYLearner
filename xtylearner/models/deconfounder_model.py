@@ -56,7 +56,7 @@ class DeconfounderCFM(nn.Module):
             return self.vae_t.elbo(t)
         elbo_t = self.vae_t.elbo(t)
         z = self.vae_t.encode(t, sample=False).detach()
-        inp = torch.cat([x, torch.nan_to_num(t, 0.0), z], 1)
+        inp = torch.cat([x, torch.nan_to_num(t.float(), 0.0), z], 1)
         pred = self.out_net(inp)
         loss_y = F.mse_loss(pred, y)
         return elbo_t + loss_y
@@ -65,7 +65,7 @@ class DeconfounderCFM(nn.Module):
     @torch.no_grad()
     def predict_outcome(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         z = self.vae_t.encode(t, sample=False)
-        inp = torch.cat([x, torch.nan_to_num(t, 0.0), z], 1)
+        inp = torch.cat([x, torch.nan_to_num(t.float(), 0.0), z], 1)
         return self.out_net(inp)
 
     @torch.no_grad()
@@ -89,7 +89,7 @@ class DeconfounderCFM(nn.Module):
         self.epoch += 1
         if t is not None and self.epoch.item() % self.ppc_freq == 0:
             z = self.vae_t.encode(t, sample=False)
-            ppc = _hsic(torch.nan_to_num(t, 0.0), z)
+            ppc = _hsic(torch.nan_to_num(t.float(), 0.0), z)
             if hasattr(self, "logger"):
                 self.logger.log_scalar("ppc_hsic", float(ppc))
 

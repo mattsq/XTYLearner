@@ -38,6 +38,7 @@ class VAE_T(nn.Module):
             Latent representation ``z`` with dimension ``d_z``.
         """
 
+        t = t.float()
         t_filled = torch.nan_to_num(t, 0.0)
         mu = self.enc_mu(t_filled)
         logv = self.enc_log(t_filled).clamp(-8, 8)
@@ -51,7 +52,7 @@ class VAE_T(nn.Module):
     # ------------------------------------------------------------------
     def elbo(self, t: torch.Tensor) -> torch.Tensor:
         """Return the evidence lower bound for a batch of treatments."""
-
+        t = t.float()
         mask = torch.isfinite(t)
         t_filled = torch.nan_to_num(t, 0.0)
         mu = self.enc_mu(t_filled)
