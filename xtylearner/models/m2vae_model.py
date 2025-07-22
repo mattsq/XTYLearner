@@ -270,5 +270,14 @@ class M2VAE(nn.Module):
         logits = self.cls_t(x, y)
         return logits.softmax(dim=-1)
 
+    @torch.no_grad()
+    def predict_outcome(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Sample from ``p(y|x,t)`` using the decoder."""
+
+        z_dim = self.enc_z.net_mu[-1].out_features
+        z = torch.randn(x.size(0), z_dim, device=x.device)
+        t_onehot = one_hot(t.to(torch.long), self.k).float()
+        return self.dec_y(x, t_onehot, z)
+
 
 __all__ = ["M2VAE"]

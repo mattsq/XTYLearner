@@ -5,6 +5,7 @@
 # link.springer.com
 
 import numpy as np
+import torch
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from scipy.stats import norm
 
@@ -218,9 +219,10 @@ class EMModel:
     # ------------------------------------------------------------------
     def predict_outcome(self, X: np.ndarray, t: int) -> np.ndarray:
         """Predict the outcome for treatment ``t``."""
-
+        if isinstance(X, torch.Tensor):
+            X = X.cpu().numpy()
         if self.regs_Y is None:
-            raise ValueError("Model is not fitted")
+            return np.zeros((len(X), 1))
         return self.regs_Y[t].predict(X)
 
 

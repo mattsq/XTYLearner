@@ -90,6 +90,12 @@ class MultiTask(nn.Module):
         h_x = self.h(X)
         return self.head_Y(torch.cat([h_x, T_1h], dim=-1))
 
+    @torch.no_grad()
+    def predict_outcome(self, X: torch.Tensor, T: torch.Tensor) -> torch.Tensor:
+        """Wrapper around :meth:`forward` for API consistency."""
+
+        return self.forward(X, T)
+
     def loss(self, X, Y, T_obs):
         """Supervised loss that ignores missing treatment labels."""
 

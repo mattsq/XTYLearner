@@ -63,6 +63,12 @@ class CycleDual(nn.Module):
         T_1h = one_hot(T.to(torch.long), self.k).float()
         return self.G_Y(torch.cat([X, T_1h], dim=-1))
 
+    @torch.no_grad()
+    def predict_outcome(self, X: torch.Tensor, T: torch.Tensor) -> torch.Tensor:
+        """Wrapper around :meth:`forward` for API consistency."""
+
+        return self.forward(X, T)
+
     # ------------------------------------------------------------------
     def loss(self, X, Y, T_obs, λ_sup=1.0, λ_cyc=1.0, λ_ent=0.1):
         """

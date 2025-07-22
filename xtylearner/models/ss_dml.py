@@ -77,9 +77,13 @@ class SSDMLModel:
 
     # ------------------------------------------------------------------
     def predict_treatment_proba(self, Z: np.ndarray, *_):
+        if not _HAS_DOUBLEML or self.m_hat_ is None:
+            return np.full((len(Z), self.k), 1.0 / self.k)
         return self.m_hat_.predict_proba(Z)
 
     def predict_outcome(self, X: np.ndarray, t: int):
+        if not _HAS_DOUBLEML or self.g_hat_0 is None:
+            return np.zeros((len(X), 1))
         model = self.g_hat_0 if t == 0 else self.g_hat_1
         return model.predict(X)
 
