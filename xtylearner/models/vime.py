@@ -53,7 +53,7 @@ class VIME(nn.Module):
             norm_layer=norm_layer,
         )
         self.classifier = make_mlp(
-            [self.encoder.out_dim, *hidden_dims, d_y],
+            [self.encoder.out_dim, *hidden_dims, k],
             activation=activation,
             dropout=dropout,
             norm_layer=norm_layer,
