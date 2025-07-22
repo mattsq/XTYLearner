@@ -106,7 +106,8 @@ class SCGM(nn.Module):
 
         log_px = -F.mse_loss(out["x_hat"], x, reduction="none").sum(-1)
         log_pt = -F.cross_entropy(out["t_logits"], t_clean, reduction="none")
-        log_py = -F.mse_loss(out["y_hat"], y_filled, reduction="none").sum(-1)
+        log_py = -F.mse_loss(out["y_hat"], y_filled, reduction="none")
+        log_py = (mask_y.float() * log_py).sum(-1)
 
         zeros = torch.zeros_like(out["z_mu"])
         kl_z = kl_normal(out["z_mu"], out["z_logvar"], zeros, zeros)
@@ -119,7 +120,7 @@ class SCGM(nn.Module):
         elbo = (
             log_px
             + mask_t.float() * log_pt
-            + mask_y.float() * log_py
+            + log_py
             - kl_z
             - (1.0 - mask_t.float()) * kl_t
         )
