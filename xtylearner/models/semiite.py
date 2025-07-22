@@ -24,6 +24,8 @@ class SemiITE(nn.Module):
         mmd_beta: float = 1e-2,
     ) -> None:
         super().__init__()
+        if k != 2:
+            raise ValueError("SemiITE currently supports binary treatment (k=2) only")
         self.k = k
         self.lambda_u = lambda_u
         self.q_pseudo = q_pseudo
