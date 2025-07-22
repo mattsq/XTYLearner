@@ -43,5 +43,21 @@ class CTMT(nn.Module):
         t_logits = self.propensity(h.detach())
         return x_hat, t_logits
 
+    @torch.no_grad()
+    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Return :math:`p(t\mid x,y)` inferred by the propensity head."""
+        zeros = torch.zeros(x.size(0), 1, device=x.device)
+        x0 = torch.cat([x, y, zeros], dim=-1)
+        _, logits = self.forward(x0, zeros, zeros)
+        return logits.softmax(dim=-1)
+
+    @torch.no_grad()
+    def predict_outcome(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Predict outcome ``y`` for covariates ``x`` under treatment ``t``."""
+        zeros = torch.zeros(x.size(0), 1, device=x.device)
+        x0 = torch.cat([x, zeros, t.unsqueeze(-1).float()], dim=-1)
+        out, _ = self.forward(x0, zeros, zeros)
+        return out[:, x.size(1) : x.size(1) + 1]
+
 
 __all__ = ["CTMT"]
