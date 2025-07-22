@@ -80,6 +80,8 @@ class LP_KNN:
     # ------------------------------------------------------------------
     def predict_outcome(self, X, t):
         if self.regressor is None:
+            if isinstance(X, np.ndarray):
+                raise ValueError("regressor is required for outcome prediction")
             return np.zeros((len(X), 1))
         t_arr = np.asarray(t, dtype=int)
         X_reg = np.concatenate([X, self._one_hot(t_arr)], axis=1)
