@@ -80,7 +80,9 @@ class LP_KNN:
     # ------------------------------------------------------------------
     def predict_outcome(self, X, t):
         if self.regressor is None:
-            return np.zeros((len(X), 1))
+            if not hasattr(self.clf, "classes_"):
+                return np.zeros((len(X), 1))
+            raise ValueError("Outcome regressor not set")
         t_arr = np.asarray(t, dtype=int)
         X_reg = np.concatenate([X, self._one_hot(t_arr)], axis=1)
         return self.regressor.predict(X_reg)
