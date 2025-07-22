@@ -7,18 +7,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Normal
 
+from .layers import make_mlp
 from .registry import register_model
-
-
-class MLP(nn.Sequential):
-    """Simple two-layer MLP used for encoders/decoders."""
-
-    def __init__(self, in_dim: int, hidden: int, out_dim: int) -> None:
-        super().__init__(
-            nn.Linear(in_dim, hidden),
-            nn.ReLU(),
-            nn.Linear(hidden, out_dim),
-        )
 
 
 class CondDiagGaussian(nn.Module):
@@ -69,12 +59,12 @@ class CEVAE_M(nn.Module):
         self.k, self.tau = k, tau
         self.d_y = d_y
         # encoders
-        self.enc_logits_t = MLP(d_x + d_y, hidden, k)
+        self.enc_logits_t = make_mlp([d_x + d_y, hidden, k])
         self.enc_z = CondDiagGaussian(d_x + d_y + k, hidden, d_z)
         # decoders
-        self.dec_x = MLP(d_z, hidden, d_x)
-        self.dec_t = MLP(d_z, hidden, k)
-        self.dec_y = MLP(d_x + k + d_z, hidden, d_y)
+        self.dec_x = make_mlp([d_z, hidden, d_x])
+        self.dec_t = make_mlp([d_z, hidden, k])
+        self.dec_y = make_mlp([d_x + k + d_z, hidden, d_y])
 
     # --------------------------------------------------------------
     def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
