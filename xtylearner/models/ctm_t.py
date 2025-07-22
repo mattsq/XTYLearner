@@ -46,7 +46,7 @@ class CTMT(nn.Module):
 
     @torch.no_grad()
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Return :math:`p(t\mid x,y)` inferred by the propensity head."""
+        r"""Return :math:`p(t\mid x,y)` inferred by the propensity head."""
         zeros = torch.zeros(x.size(0), 1, device=x.device)
         x0 = torch.cat([x, y, zeros], dim=-1)
         _, logits = self.forward(x0, zeros, zeros)
