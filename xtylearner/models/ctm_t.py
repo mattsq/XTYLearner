@@ -30,6 +30,7 @@ class CTMT(nn.Module):
         super().__init__()
         self.d_in = d_in
         self.d_treat = d_treat
+        self.d_y = d_y if d_y is not None else 1
         self.backbone = UNet1D(d_in, hidden)
         self.time_emb = sinusoidal_time_embed(hidden)
         self.delta_emb = sinusoidal_time_embed(hidden)
@@ -54,10 +55,11 @@ class CTMT(nn.Module):
     @torch.no_grad()
     def predict_outcome(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """Predict outcome ``y`` for covariates ``x`` under treatment ``t``."""
-        zeros = torch.zeros(x.size(0), 1, device=x.device)
-        x0 = torch.cat([x, zeros, t.unsqueeze(-1).float()], dim=-1)
-        out, _ = self.forward(x0, zeros, zeros)
-        return out[:, x.size(1) : x.size(1) + 1]
+        zeros_y = torch.zeros(x.size(0), self.d_y, device=x.device)
+        zeros_t = torch.zeros(x.size(0), 1, device=x.device)
+        x0 = torch.cat([x, zeros_y, t.unsqueeze(-1).float()], dim=-1)
+        out, _ = self.forward(x0, zeros_t, zeros_t)
+        return out[:, x.size(1) : x.size(1) + self.d_y]
 
 
 __all__ = ["CTMT"]
