@@ -1,10 +1,9 @@
-"""Conditional normalising flow for joint modelling of ``(y, t) | x``.
+r"""Conditional normalising flow for ``p(y\mid x,t)``.
 
-The implementation uses masked autoregressive blocks from the ``nflows``
-library to parameterise an invertible mapping between ``(y, t)`` and a base
-Gaussian.  A small MLP produces conditioning features from ``x`` which are fed
-to each flow layer.  Missing treatment labels can be marginalised out during
-training by summing the likelihood over all possible treatments.
+The outcome ``y`` is transformed by a stack of masked autoregressive blocks
+while the treatment label ``t`` is injected as additional context alongside a
+learned representation of ``x``.  Missing treatments can be marginalised out by
+evaluating the likelihood for all classes and summing in the log domain.
 """
 
 from __future__ import annotations
@@ -17,7 +16,7 @@ from nflows.distributions import StandardNormal
 from nflows.transforms import (
     MaskedAffineAutoregressiveTransform,
     CompositeTransform,
-    IdentityTransform,
+    RandomPermutation,
 )
 
 from .registry import register_model
@@ -26,12 +25,11 @@ from .layers import make_mlp
 
 @register_model("cnflow")
 class CNFlowModel(nn.Module):
-    """Joint density model ``p(y, t | x)`` implemented with a conditional flow.
+    """Conditional flow estimating ``p(y|x,t)``.
 
-    The model concatenates the outcome ``y`` and treatment ``t`` into a single
-    vector which is transformed via a stack of masked autoregressive layers.
-    Conditioning features computed from ``x`` are injected into every layer.  A
-    negative log-likelihood objective marginalises over missing treatments when
+    The flow acts only on the continuous outcome.  Treatment is encoded as part
+    of the context together with an embedding of ``x``.  The negative
+    log-likelihood objective marginalises over missing treatment labels when
     necessary.
     """
 
@@ -53,33 +51,22 @@ class CNFlowModel(nn.Module):
 
     # ------------------------------------------------------------
     def _build_conditional_flow(self, hidden: int, n_layers: int) -> Flow:
-        """Return a conditional flow over ``(y, t)`` with context from ``x``."""
+        """Return a conditional flow over ``y`` conditioned on ``x`` and ``t``."""
 
         transforms = []
         for _ in range(n_layers):
             transforms.append(
                 MaskedAffineAutoregressiveTransform(
-                    features=self.d_y + self.k,
+                    features=self.d_y,
                     hidden_features=hidden,
-                    context_features=hidden,
+                    context_features=hidden + self.k,
                 )
             )
-            transforms.append(IdentityTransform())
+            transforms.append(RandomPermutation(features=self.d_y))
         transform = CompositeTransform(transforms)
-        base = StandardNormal([self.d_y + self.k])
+        base = StandardNormal([self.d_y])
         return Flow(transform, base)
 
-    # ------------------------------------------------------------
-    def _joint_log_prob(
-        self, x: torch.Tensor, y: torch.Tensor, t_onehot: torch.Tensor
-    ) -> torch.Tensor:
-        """Compute ``log p(y,t|x)`` for each sample."""
-
-        context = self.cond_net(x)
-        z = torch.cat([y, t_onehot], dim=-1)
-        return self.flow.log_prob(z, context)
-
-    # ------------------------------------------------------------
     def loss(
         self,
         x: torch.Tensor,
@@ -94,45 +81,35 @@ class CNFlowModel(nn.Module):
 
         y = y.float()
         t_onehot = nn.functional.one_hot(t_obs.clamp_min(0), num_classes=self.k).float()
-
+        ctx_x = self.cond_net(x)
         t_mask = t_obs != -1
 
         logp_obs = torch.tensor(0.0, device=x.device)
         if t_mask.any():
-            logp_obs = self._joint_log_prob(
-                x[t_mask], y[t_mask], t_onehot[t_mask]
-            )
+            context = torch.cat([ctx_x[t_mask], t_onehot[t_mask]], dim=-1)
+            logp_obs = self.flow.log_prob(y[t_mask], context)
 
         nll = -logp_obs.sum()
         if (~t_mask).any():
-            x_m = x[~t_mask]
             y_m = y[~t_mask]
-            all_t = torch.eye(self.k, device=x.device).repeat(len(x_m), 1)
-            rep_x = x_m.repeat_interleave(self.k, dim=0)
-            rep_y = y_m.repeat_interleave(self.k, dim=0)
-            logp_all = self._joint_log_prob(rep_x, rep_y, all_t)
-            logp_miss = torch.logsumexp(logp_all.view(len(x_m), self.k), dim=1)
+            ctx_x_m = ctx_x[~t_mask]
+            n_m = ctx_x_m.size(0)
+            logp_all = []
+            for j in range(self.k):
+                t_j = torch.zeros(n_m, self.k, device=x.device)
+                t_j[:, j] = 1.0
+                context = torch.cat([ctx_x_m, t_j], dim=-1)
+                logp_all.append(self.flow.log_prob(y_m, context))
+            logp_stack = torch.stack(logp_all, dim=-1)
+            logp_miss = torch.logsumexp(logp_stack, dim=1)
             nll += -logp_miss.sum()
         return nll / x.size(0)
 
     # ------------------------------------------------------------
     def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-        """Return outcome prediction ``E[y|x,t]`` from the flow."""
+        """Return ``E[y|x,t]`` estimated from flow samples."""
 
-        t_onehot = nn.functional.one_hot(t, num_classes=self.k).float()
-        context = self.cond_net(x)
-        n = self.eval_samples if not self.training else 1
-        z = self.flow.sample(n, context)
-        context_exp = context.unsqueeze(1).expand(-1, n, -1)
-        z[..., self.d_y :] = t_onehot.unsqueeze(1).expand(-1, n, -1)
-        z_flat = z.reshape(-1, self.d_y + self.k)
-        ctx_flat = context_exp.reshape(-1, context.size(-1))
-        try:
-            y_flat, _ = self.flow.inverse(z_flat, context=ctx_flat)
-        except AttributeError:
-            y_flat, _ = self.flow._transform.inverse(z_flat, ctx_flat)
-        y_samples = y_flat[..., : self.d_y].view(x.size(0), n, self.d_y)
-        return y_samples.mean(1)
+        return self.predict_outcome(x, t)
 
     # ------------------------------------------------------------
     @torch.no_grad()
@@ -140,19 +117,9 @@ class CNFlowModel(nn.Module):
         """Return ``E[y|x,t]`` estimated from flow samples."""
 
         t_onehot = nn.functional.one_hot(t, num_classes=self.k).float()
-        context = self.cond_net(x)
+        context = torch.cat([self.cond_net(x), t_onehot], dim=-1)
         n = self.eval_samples if not self.training else 1
-        z = self.flow.sample(n, context)  # (B, n, D+k)
-        context_exp = context.unsqueeze(1).expand(-1, n, -1)
-        z[..., self.d_y :] = t_onehot.unsqueeze(1).expand(-1, n, -1)
-        z_flat = z.reshape(-1, self.d_y + self.k)
-        ctx_flat = context_exp.reshape(-1, context.size(-1))
-        try:
-            y_flat, _ = self.flow.inverse(z_flat, context=ctx_flat)
-        except AttributeError:
-            # fall back for older nflows
-            y_flat, _ = self.flow._transform.inverse(z_flat, ctx_flat)
-        y_samples = y_flat[..., : self.d_y].view(x.size(0), n, self.d_y)
+        y_samples = self.flow.sample(n, context)
         return y_samples.mean(1)
 
     # ------------------------------------------------------------
@@ -161,11 +128,15 @@ class CNFlowModel(nn.Module):
         """Return posterior ``p(t|x,y)`` computed from the flow."""
 
         y = y.float()
-        all_t = torch.eye(self.k, device=x.device).repeat(len(x), 1)
-        rep_x = x.repeat_interleave(self.k, dim=0)
-        rep_y = y.repeat_interleave(self.k, dim=0)
-        logp = self._joint_log_prob(rep_x, rep_y, all_t)
-        return logp.view(len(x), self.k).softmax(dim=-1)
+        ctx_x = self.cond_net(x)
+        logp_all = []
+        for j in range(self.k):
+            t_j = torch.zeros(len(x), self.k, device=x.device)
+            t_j[:, j] = 1.0
+            context = torch.cat([ctx_x, t_j], dim=-1)
+            logp_all.append(self.flow.log_prob(y, context))
+        logp_stack = torch.stack(logp_all, dim=-1)
+        return logp_stack.softmax(dim=-1)
 
     # ------------------------------------------------------------
     @torch.no_grad()
@@ -178,14 +149,8 @@ class CNFlowModel(nn.Module):
             torch.as_tensor(t_star, device=x.device), self.k
         ).float()
         n = self.eval_samples if n is None else n
-        context = self.cond_net(x)
-        z = self.flow.sample(n, context)
-        z[..., self.d_y :] = t_star_oh
-        try:
-            x_inv, _ = self.flow.inverse(z, context=context)
-        except AttributeError:
-            x_inv, _ = self.flow._transform.inverse(z, context)
-        return x_inv[..., : self.d_y]
+        context = torch.cat([self.cond_net(x), t_star_oh], dim=-1)
+        return self.flow.sample(n, context)
 
 
 __all__ = ["CNFlowModel"]
