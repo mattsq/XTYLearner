@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .layers import make_mlp
 from .registry import register_model
 
 
@@ -17,16 +18,8 @@ class ScoreNet(nn.Module):
         self.t_embed = nn.Embedding(k, hidden)
         self.x_proj = nn.Linear(d_x, hidden)
         self.y_proj = nn.Linear(d_y, hidden)
-        self.time_fc = nn.Sequential(
-            nn.Linear(1, hidden),
-            nn.SiLU(),
-            nn.Linear(hidden, hidden),
-        )
-        self.trunk = nn.Sequential(
-            nn.Linear(hidden * 4, hidden),
-            nn.SiLU(),
-            nn.Linear(hidden, k),
-        )
+        self.time_fc = make_mlp([1, hidden, hidden], activation=nn.SiLU)
+        self.trunk = make_mlp([hidden * 4, hidden, k], activation=nn.SiLU)
 
     def forward(
         self,
@@ -52,12 +45,9 @@ class EnergyNet(nn.Module):
 
     def __init__(self, d_x: int, d_y: int, k: int, hidden: int = 128) -> None:
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(d_x + d_y, hidden),
-            nn.ReLU(),
-            nn.Linear(hidden, hidden),
-            nn.ReLU(),
-            nn.Linear(hidden, k),
+        self.net = make_mlp(
+            [d_x + d_y, hidden, hidden, k],
+            activation=nn.ReLU,
         )
 
     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
