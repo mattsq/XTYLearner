@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from xtylearner.data import load_synthetic_dataset
@@ -23,3 +24,26 @@ def test_cacore_shapes_and_trainer():
     trainer.fit(1)
     preds = trainer.predict(X[:5], T[:5])
     assert preds.shape == (5, 1)
+
+
+def test_cacore_custom_mlp_args():
+    model = CaCoRE(
+        d_x=2,
+        d_y=1,
+        k=2,
+        hidden_dims=[16],
+        activation=nn.Tanh,
+        dropout=0.1,
+        norm_layer=nn.BatchNorm1d,
+    )
+
+    layers = list(model.encoder)
+    assert isinstance(layers[1], nn.BatchNorm1d)
+    assert isinstance(layers[2], nn.Tanh)
+    assert any(isinstance(layer, nn.Dropout) for layer in layers)
+    assert layers[0].out_features == 16
+
+    out_layers = list(model.outcome_head)
+    assert isinstance(out_layers[1], nn.BatchNorm1d)
+    assert isinstance(out_layers[2], nn.Tanh)
+    assert any(isinstance(layer, nn.Dropout) for layer in out_layers)

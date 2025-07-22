@@ -1,3 +1,5 @@
+from typing import Callable, Sequence
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -21,9 +23,13 @@ class CaCoRE(nn.Module):
         d_x: int,
         d_y: int,
         k: int,
-        hidden: int = 128,
+        *,
+        hidden_dims: int | Sequence[int] = 128,
         rep_dim: int = 64,
         cpc_weight: float = 1.0,
+        activation: type[nn.Module] = nn.ReLU,
+        dropout: float | Sequence[float] | None = None,
+        norm_layer: Callable[[int], nn.Module] | None = None,
     ) -> None:
         """Initialize the CaCoRE networks.
 
@@ -35,12 +41,22 @@ class CaCoRE(nn.Module):
             Dimensionality of the outcome.
         k: int
             Number of treatment classes.
-        hidden: int, optional
-            Width of the hidden layers. Defaults to ``128``.
+        hidden_dims: int | Sequence[int], optional
+            Width and depth of the hidden layers. If an integer is provided
+            a single layer with that many units is used. Defaults to ``128``.
         rep_dim: int, optional
             Size of the latent representation ``h(x)``. Defaults to ``64``.
         cpc_weight: float, optional
             Weight of the InfoNCE regulariser. Defaults to ``1.0``.
+        activation: type[nn.Module], optional
+            Activation function inserted between linear layers. Defaults to
+            :class:`torch.nn.ReLU`.
+        dropout: float | Sequence[float] | None, optional
+            Dropout probability after each activation. ``None`` disables
+            dropout. A sequence can be used to specify different probabilities
+            per layer.
+        norm_layer: Callable[[int], nn.Module] | None, optional
+            Normalisation layer constructor applied to each hidden layer.
         """
 
         super().__init__()
@@ -49,33 +65,42 @@ class CaCoRE(nn.Module):
         self.cpc_weight = cpc_weight
 
         # Encoder mapping x -> h
-        self.encoder = make_mlp([d_x, hidden, rep_dim], activation=nn.ReLU)
+        if isinstance(hidden_dims, int):
+            hidden_dims = (hidden_dims,)
+
+        self.encoder = make_mlp(
+            [d_x, *hidden_dims, rep_dim],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
 
         # Outcome prediction head: (h, t) -> y
-        self.outcome_head = make_mlp([
-            rep_dim + k,
-            hidden,
-            d_y,
-        ], activation=nn.ReLU)
+        self.outcome_head = make_mlp(
+            [rep_dim + k, *hidden_dims, d_y],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
 
         # Propensity head: (h, y) -> t logits
-        self.propensity_head = make_mlp([
-            rep_dim + d_y,
-            hidden,
-            k,
-        ], activation=nn.ReLU)
+        self.propensity_head = make_mlp(
+            [rep_dim + d_y, *hidden_dims, k],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
 
         # Joint embedding for contrastive loss
-        self.joint_embed = make_mlp([
-            d_y + k,
-            hidden,
-            rep_dim,
-        ], activation=nn.ReLU)
+        self.joint_embed = make_mlp(
+            [d_y + k, *hidden_dims, rep_dim],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
 
     # ------------------------------------------------------------------
-    def forward(
-        self, x: torch.Tensor, t: torch.Tensor | None = None
-    ) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, t: torch.Tensor | None = None) -> torch.Tensor:
         """Return outcome prediction ``y`` or representation ``h(x)``.
 
         Parameters
