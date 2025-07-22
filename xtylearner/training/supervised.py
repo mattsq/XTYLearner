@@ -90,6 +90,8 @@ class SupervisedTrainer(BaseTrainer):
             "loss": float(loss_val),
             "treatment accuracy": float(metrics.get("accuracy", 0.0)),
             "outcome rmse": float(metrics.get("rmse", 0.0)),
+            "outcome rmse labelled": float(metrics.get("rmse_labelled", 0.0)),
+            "outcome rmse unlabelled": float(metrics.get("rmse_unlabelled", 0.0)),
         }
 
     def predict(self, *inputs: torch.Tensor):
