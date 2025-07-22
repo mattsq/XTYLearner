@@ -43,7 +43,9 @@ class OutcomeModel(nn.Module):
         t_onehot = F.one_hot(t.to(torch.long), num_classes=self.k).float()
         h = self.net(torch.cat([x, t_onehot], dim=-1))
         mu, log_sigma = h.chunk(2, dim=-1)
-        sigma = 0.1 + 0.9 * torch.sigmoid(log_sigma)
+        # ``softplus`` ensures strictly positive standard deviation without
+        # imposing an arbitrary floor.
+        sigma = F.softplus(log_sigma)
         return mu, sigma
 
 
@@ -98,6 +100,31 @@ class FlowNet(nn.Module):
         return self.fc(torch.cat([x, y], dim=-1)).squeeze(-1)
 
 
+class PriorNet(nn.Module):
+    """Treatment prior ``log p(t|x)`` modeled as a small MLP."""
+
+    def __init__(
+        self,
+        d_x: int,
+        k: int,
+        *,
+        hidden_dims: tuple[int, ...] | list[int] = (64,),
+        activation: type[nn.Module] = nn.ReLU,
+        dropout: float | None = None,
+        norm_layer: Callable[[int], nn.Module] | None = None,
+    ) -> None:
+        super().__init__()
+        self.net = make_mlp(
+            [d_x, *hidden_dims, k],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x)
+
+
 @register_model("gflownet_treatment")
 class GFlowNetTreatment(nn.Module):
     """Minimal GFlowNet that samples treatments in proportion to outcome likelihood."""
@@ -111,6 +138,8 @@ class GFlowNetTreatment(nn.Module):
         outcome_hidden: tuple[int, ...] | list[int] = (128,),
         policy_hidden: tuple[int, ...] | list[int] = (128,),
         flow_hidden: tuple[int, ...] | list[int] = (64,),
+        prior_hidden: tuple[int, ...] | list[int] = (64,),
+        entropy_coef: float = 0.0,
         activation: type[nn.Module] = nn.ReLU,
         dropout: float | None = None,
         norm_layer: Callable[[int], nn.Module] | None = None,
@@ -145,6 +174,15 @@ class GFlowNetTreatment(nn.Module):
             dropout=dropout,
             norm_layer=norm_layer,
         )
+        self.prior = PriorNet(
+            d_x,
+            k,
+            hidden_dims=prior_hidden,
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+        )
+        self.entropy_coef = entropy_coef
 
     # --------------------------------------------------------------
     def loss(
@@ -166,7 +204,7 @@ class GFlowNetTreatment(nn.Module):
         ll_all = torch.stack(ll_list, dim=1)
 
         # sample action from policy or use observed treatment
-        log_pi = self.policy(x, y)
+        log_pi = self.policy(x, y) + self.prior(x)
         act = torch.where(
             t_obs == -1,
             torch.multinomial(F.softmax(log_pi, dim=-1), 1).squeeze(-1),
@@ -174,24 +212,28 @@ class GFlowNetTreatment(nn.Module):
         )
         log_pi_a = log_pi.gather(1, act.unsqueeze(-1)).squeeze(-1)
 
-        # reward = outcome likelihood
+        # reward = outcome likelihood (detached for TB loss)
         R = ll_all.gather(1, act.unsqueeze(-1)).squeeze(-1).exp()
         R = torch.clamp(R, min=1e-6)
 
         # trajectory balance loss (one-step case)
         F_root = self.flow(x, y)
-        tb_loss = ((F_root + log_pi_a - R.log()) ** 2).mean()
+        tb_loss = ((F_root + log_pi_a - R.detach().log()) ** 2).mean()
 
         # supervised outcome loss for labelled rows
-        ll_obs = ll_all.gather(1, t_obs.clamp_min(0).unsqueeze(-1)).squeeze(-1)
         obs_mask = t_obs != -1
-        outcome_loss = (
-            -(ll_obs[obs_mask]).mean()
-            if obs_mask.any()
-            else torch.tensor(0.0, device=device)
-        )
+        if obs_mask.any():
+            ll_obs = ll_all[obs_mask].gather(1, t_obs[obs_mask].unsqueeze(-1)).squeeze(-1)
+            outcome_loss = -ll_obs.mean()
+        else:
+            outcome_loss = torch.tensor(0.0, device=device)
 
-        return tb_loss + outcome_loss
+        # entropy regularisation to encourage exploration
+        pi = F.softmax(log_pi, dim=-1)
+        entropy = -(pi * log_pi).sum(-1).mean()
+        entropy_reg = -self.entropy_coef * entropy
+
+        return tb_loss + outcome_loss + entropy_reg
 
     # --------------------------------------------------------------
     def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
@@ -221,7 +263,7 @@ class GFlowNetTreatment(nn.Module):
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Return posterior ``p(t|x,y)`` from the policy network."""
 
-        logits = self.policy(x, y)
+        logits = self.policy(x, y) + self.prior(x)
         return logits.softmax(dim=-1)
 
 
