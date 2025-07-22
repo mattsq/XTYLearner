@@ -38,19 +38,20 @@ class CoTrainTrainer(BaseTrainer):
             t_hat = logits_u.argmax(dim=-1)
             t1h_hat = F.one_hot(t_hat, k).float()
 
-            t0 = F.one_hot(
-                torch.zeros(len(z_u), dtype=torch.long, device=self.device), k
-            ).float()
-            t1 = F.one_hot(
-                torch.ones(len(z_u), dtype=torch.long, device=self.device), k
-            ).float()
+            t_all = [
+                F.one_hot(
+                    torch.full((len(z_u),), j, dtype=torch.long, device=self.device),
+                    k,
+                ).float()
+                for j in range(k)
+            ]
             preds = []
             disagree = []
             for head in self.model.outcome:
-                y0 = head(torch.cat([z_u, t0], dim=-1))
-                y1 = head(torch.cat([z_u, t1], dim=-1))
-                preds.append(torch.stack([y0, y1], dim=1))
-                disagree.append((y0 - y1).abs().mean(dim=-1))
+                y_all = [head(torch.cat([z_u, tj], dim=-1)) for tj in t_all]
+                y_all = torch.stack(y_all, dim=1)
+                preds.append(y_all)
+                disagree.append(y_all.var(dim=1).mean(dim=-1))
 
             q = min(self.model.q_pseudo, z_u.size(0))
             if q > 0:
