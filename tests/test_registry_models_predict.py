@@ -61,13 +61,8 @@ def test_all_registered_models_predict_and_proba():
         else:
             opt = _make_optimizer(model)
 
-        if name == "deconfounder_cfm":
-            t_onehot = torch.nn.functional.one_hot(T, 2).float()
-            loader = DataLoader(TensorDataset(X, Y, t_onehot), batch_size=4)
-            t_pred = t_onehot
-        else:
-            loader = base_loader
-            t_pred = T
+        loader = base_loader
+        t_pred = T
 
         trainer = Trainer(model, opt, loader)
         trainer.fit(1)
