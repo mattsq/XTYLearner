@@ -21,10 +21,10 @@ class CTMT(nn.Module):
         d_y: int | None = None,
         k: int | None = None,
     ) -> None:
-        if d_in is None and d_x is None:
-            raise TypeError("d_in or d_x must be specified")
-        if d_x is not None:
-            d_in = d_x
+        if d_in is None:
+            if d_x is None or d_y is None:
+                raise TypeError("d_in or both d_x and d_y must be specified")
+            d_in = d_x + d_y + 1
         if k is not None:
             d_treat = k
         super().__init__()
