@@ -54,4 +54,4 @@ def test_mean_teacher_logger_emits_rmse(capsys):
     trainer = Trainer(model, opt, loader, logger=ConsoleLogger(print_every=1))
     trainer.fit(1)
     out = capsys.readouterr().out
-    assert "rmse=" in out
+    assert "rmse_labelled=" in out

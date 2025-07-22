@@ -215,26 +215,64 @@ class BaseTrainer(ABC):
     def _outcome_metrics(
         self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
     ) -> Mapping[str, float]:
-        """Compute RMSE for observed outcomes if the model supports it."""
+        """Compute RMSE separately for labelled and unlabelled samples."""
 
-        mask = t_obs >= 0
-        if not mask.any():
-            return {}
+        mask_lab = t_obs >= 0
+        mask_unlab = ~mask_lab
+        metrics: dict[str, float] = {}
+        preds_all = []
+        targets_all = []
 
-        with torch.no_grad():
-            preds = self._predict_outcome(x[mask], t_obs[mask], y[mask])
-        if preds is None:
-            return {}
+        if mask_lab.any():
+            with torch.no_grad():
+                preds_lab = self._predict_outcome(x[mask_lab], t_obs[mask_lab], y[mask_lab])
+            if preds_lab is not None:
+                targets_lab = y[mask_lab]
+                if preds_lab.dim() != targets_lab.dim():
+                    if preds_lab.dim() + 1 == targets_lab.dim() and targets_lab.size(-1) == 1:
+                        targets_lab = targets_lab.squeeze(-1)
+                    elif preds_lab.dim() - 1 == targets_lab.dim() and preds_lab.size(-1) == 1:
+                        preds_lab = preds_lab.squeeze(-1)
+                rmse_lab = rmse_loss(preds_lab, targets_lab)
+                metrics["rmse_labelled"] = float(rmse_lab.item())
+                preds_all.append(preds_lab)
+                targets_all.append(targets_lab)
 
-        targets = y[mask]
-        if preds.dim() != targets.dim():
-            if preds.dim() + 1 == targets.dim() and targets.size(-1) == 1:
-                targets = targets.squeeze(-1)
-            elif preds.dim() - 1 == targets.dim() and preds.size(-1) == 1:
-                preds = preds.squeeze(-1)
+        if mask_unlab.any():
+            try:
+                probs = self.predict_treatment_proba(x[mask_unlab], y[mask_unlab])
+                if isinstance(probs, (list, tuple)):
+                    probs = probs[0]
+                t_pred = probs.argmax(dim=-1)
+            except Exception:
+                t_pred = None
 
-        rmse = rmse_loss(preds, targets)
-        return {"rmse": float(rmse.item())}
+            if t_pred is not None:
+                with torch.no_grad():
+                    preds_unlab = self._predict_outcome(x[mask_unlab], t_pred, y[mask_unlab])
+                if preds_unlab is not None:
+                    targets_unlab = y[mask_unlab]
+                    if preds_unlab.dim() != targets_unlab.dim():
+                        if preds_unlab.dim() + 1 == targets_unlab.dim() and targets_unlab.size(-1) == 1:
+                            targets_unlab = targets_unlab.squeeze(-1)
+                        elif preds_unlab.dim() - 1 == targets_unlab.dim() and preds_unlab.size(-1) == 1:
+                            preds_unlab = preds_unlab.squeeze(-1)
+                    rmse_unlab = rmse_loss(preds_unlab, targets_unlab)
+                    metrics["rmse_unlabelled"] = float(rmse_unlab.item())
+                    preds_all.append(preds_unlab)
+                    targets_all.append(targets_unlab)
+
+        if preds_all:
+            preds_cat = torch.cat(preds_all)
+            targets_cat = torch.cat(targets_all)
+            if preds_cat.dim() != targets_cat.dim():
+                if preds_cat.dim() + 1 == targets_cat.dim() and targets_cat.size(-1) == 1:
+                    targets_cat = targets_cat.squeeze(-1)
+                elif preds_cat.dim() - 1 == targets_cat.dim() and preds_cat.size(-1) == 1:
+                    preds_cat = preds_cat.squeeze(-1)
+            metrics["rmse"] = float(rmse_loss(preds_cat, targets_cat).item())
+
+        return metrics
 
     # --------------------------------------------------------------
     def _clip_grads(self) -> None:

@@ -113,5 +113,6 @@ def test_outcome_metrics():
     assert metrics["rmse"] == pytest.approx(0.0)
 
     metrics = trainer._outcome_metrics(x, y, torch.tensor([-1, -1]))
-    assert metrics == {}
+    assert metrics["rmse_unlabelled"] == pytest.approx(0.0)
+    assert metrics["rmse"] == pytest.approx(0.0)
 

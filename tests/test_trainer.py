@@ -27,7 +27,13 @@ def test_supervised_trainer_runs():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {
+        "loss",
+        "treatment accuracy",
+        "outcome rmse",
+        "outcome rmse labelled",
+        "outcome rmse unlabelled",
+    }
 
 
 def test_flow_model_runs():
@@ -38,7 +44,7 @@ def test_flow_model_runs():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
 
 
 def test_multitask_model_runs():
@@ -49,7 +55,7 @@ def test_multitask_model_runs():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
 
 
 def test_multitask_handles_missing_labels():
@@ -62,7 +68,7 @@ def test_multitask_handles_missing_labels():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
 
 
 def test_mean_teacher_outputs_rmse():
@@ -75,7 +81,7 @@ def test_mean_teacher_outputs_rmse():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
 
 
 def test_dragon_net_runs():
@@ -86,7 +92,7 @@ def test_dragon_net_runs():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
 
 
 def test_dragon_net_multi_outcome():
@@ -107,7 +113,7 @@ def test_dragon_net_multi_outcome():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
 
 
 def test_m2vae_trainer_runs():
@@ -118,7 +124,7 @@ def test_m2vae_trainer_runs():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
 
 
 def test_cevae_trainer_runs():
@@ -129,7 +135,7 @@ def test_cevae_trainer_runs():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
 
 
 def test_supervised_trainer_mixed_dataset():
@@ -140,7 +146,7 @@ def test_supervised_trainer_mixed_dataset():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
 
 
 def test_cevae_trainer_mixed_dataset():
@@ -151,7 +157,7 @@ def test_cevae_trainer_mixed_dataset():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
 
 
 def test_jsbf_trainer_runs():
@@ -162,7 +168,7 @@ def test_jsbf_trainer_runs():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
 
 
 def test_diffusion_cevae_trainer_runs():
@@ -173,7 +179,7 @@ def test_diffusion_cevae_trainer_runs():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
 
 
 def test_bridge_diff_trainer_runs():
@@ -184,7 +190,7 @@ def test_bridge_diff_trainer_runs():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
 
 
 def test_lt_flow_diff_trainer_runs():
@@ -197,7 +203,7 @@ def test_lt_flow_diff_trainer_runs():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
 
 
 def test_eg_ddi_trainer_runs():
@@ -210,7 +216,7 @@ def test_eg_ddi_trainer_runs():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
 
 
 def test_joint_ebm_trainer_runs():
@@ -223,7 +229,7 @@ def test_joint_ebm_trainer_runs():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
 
 
 def test_gflownet_treatment_trainer_runs():
@@ -236,7 +242,7 @@ def test_gflownet_treatment_trainer_runs():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
 
 
 def test_ganite_trainer_runs():
@@ -250,7 +256,7 @@ def test_ganite_trainer_runs():
     trainer = Trainer(model, (opt_g, opt_d), loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
 
 def test_ganite_with_schedulers():
     dataset = load_mixed_synthetic_dataset(
@@ -349,7 +355,7 @@ def test_labelprop_trainer_runs():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
 
 
 def test_ctm_trainer_runs():
@@ -363,7 +369,7 @@ def test_ctm_trainer_runs():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
 
 
 def test_ccl_cpc_trainer_runs():
@@ -376,4 +382,4 @@ def test_ccl_cpc_trainer_runs():
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
     metrics = trainer.evaluate(loader)
-    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse"}
+    assert set(metrics) >= {"loss", "treatment accuracy", "outcome rmse", "outcome rmse labelled", "outcome rmse unlabelled"}
