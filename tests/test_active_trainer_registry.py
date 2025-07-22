@@ -43,12 +43,7 @@ def test_active_trainer_runs_for_all_models():
 
         model = get_model(name, **kwargs)
 
-        if name == "deconfounder_cfm":
-            t = torch.nn.functional.one_hot(T.clamp_min(0), 2).float()
-            t[T < 0] = float("nan")
-            loader = DataLoader(TensorDataset(X, Y, t), batch_size=4)
-        else:
-            loader = base_loader
+        loader = base_loader
 
         if hasattr(model, "loss_G") and hasattr(model, "loss_D"):
             opt = _make_gan_optimizer(model)
