@@ -13,9 +13,11 @@ class SCGM(nn.Module):
     def __init__(self, d_x: int, d_y: int = 1, k: int = 2, z_dim: int = 32, h: int = 128) -> None:
         super().__init__()
         self.k = k
+        self.d_y = d_y
         # inference networks
+        enc_z_in = d_x + k + 1 + 2 * d_y
         self.enc_z = nn.Sequential(
-            nn.Linear(d_x + d_y + k + 2, h),
+            nn.Linear(enc_z_in, h),
             nn.ReLU(),
             nn.Linear(h, h),
             nn.ReLU(),
@@ -23,8 +25,9 @@ class SCGM(nn.Module):
         self.z_mu = nn.Linear(h, z_dim)
         self.z_logvar = nn.Linear(h, z_dim)
 
+        enc_t_in = d_x + 2 * d_y
         self.enc_t = nn.Sequential(
-            nn.Linear(d_x + d_y + 1, h),
+            nn.Linear(enc_t_in, h),
             nn.ReLU(),
             nn.Linear(h, k),
         )
