@@ -78,11 +78,18 @@ class DragonNet(nn.Module):
 
     # ------------------------------------------------------------------
     @torch.no_grad()
-    def predict_outcome(self, x: torch.Tensor, t: int) -> torch.Tensor:
+    def predict_outcome(self, x: torch.Tensor, t: int | torch.Tensor) -> torch.Tensor:
         """Predict outcome for all rows in ``x`` under treatment ``t``."""
 
         phi = self.encoder(x)
         mu = self.outcome_head(phi).view(-1, self.k, self.d_y)
+
+        if isinstance(t, torch.Tensor):
+            if t.dim() == 0:
+                return mu[:, int(t.item()), :].squeeze(-1)
+            idx = t.view(-1, 1, 1).expand(-1, 1, self.d_y)
+            return mu.gather(1, idx).squeeze(1)
+
         return mu[:, t, :].squeeze(-1)
 
     @torch.no_grad()

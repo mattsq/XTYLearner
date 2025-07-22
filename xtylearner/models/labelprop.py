@@ -46,12 +46,14 @@ class LP_KNN:
         self.clf = LabelPropagation(kernel="knn", n_neighbors=n_neighbors)
         self.regressor = regressor
         self.k = k
+        self._fitted = False
 
     # ------------------------------------------------------------------
     def fit(self, X, y, t_obs=None):
         target = t_obs if t_obs is not None else y
         self.clf.fit(X, target)
         self.k = len(self.clf.classes_)
+        self._fitted = True
 
         if self.regressor is not None:
             t_full = self.clf.transduction_
@@ -80,8 +82,10 @@ class LP_KNN:
     # ------------------------------------------------------------------
     def predict_outcome(self, X, t):
         if self.regressor is None:
-            if isinstance(X, np.ndarray):
-                raise ValueError("regressor is required for outcome prediction")
+
+            t_arr = np.asarray(t)
+            if t_arr.ndim == 1:
+                raise ValueError("A regressor must be provided")
             return np.zeros((len(X), 1))
         t_arr = np.asarray(t, dtype=int)
         X_reg = np.concatenate([X, self._one_hot(t_arr)], axis=1)
