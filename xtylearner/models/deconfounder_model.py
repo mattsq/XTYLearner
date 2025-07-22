@@ -52,6 +52,11 @@ class DeconfounderCFM(nn.Module):
 
     # --------------------------------------------------------------
     def loss(self, x: torch.Tensor, y: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        if t.dim() == 1 or t.size(-1) == 1:
+            t_int = t.to(torch.long)
+            mask = t_int < 0
+            t = F.one_hot(t_int.clamp_min(0), self.vae_t.k_t).float()
+            t[mask] = float("nan")
         if self.epoch.item() < self.pretrain_epochs:
             return self.vae_t.elbo(t)
         elbo_t = self.vae_t.elbo(t)
@@ -64,6 +69,11 @@ class DeconfounderCFM(nn.Module):
     # --------------------------------------------------------------
     @torch.no_grad()
     def predict_outcome(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        if t.dim() == 1 or t.size(-1) == 1:
+            t_int = t.to(torch.long)
+            mask = t_int < 0
+            t = F.one_hot(t_int.clamp_min(0), self.vae_t.k_t).float()
+            t[mask] = float("nan")
         z = self.vae_t.encode(t, sample=False)
         inp = torch.cat([x, torch.nan_to_num(t.float(), 0.0), z], 1)
         return self.out_net(inp)
@@ -88,6 +98,11 @@ class DeconfounderCFM(nn.Module):
     def on_epoch_end(self, t: torch.Tensor | None = None) -> None:
         self.epoch += 1
         if t is not None and self.epoch.item() % self.ppc_freq == 0:
+            if t.dim() == 1 or t.size(-1) == 1:
+                t_int = t.to(torch.long)
+                mask = t_int < 0
+                t = F.one_hot(t_int.clamp_min(0), self.vae_t.k_t).float()
+                t[mask] = float("nan")
             z = self.vae_t.encode(t, sample=False)
             ppc = _hsic(torch.nan_to_num(t.float(), 0.0), z)
             if hasattr(self, "logger"):

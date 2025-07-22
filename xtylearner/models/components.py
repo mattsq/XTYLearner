@@ -13,6 +13,7 @@ class VAE_T(nn.Module):
 
     def __init__(self, k_t: int, d_z: int, hidden: int = 64) -> None:
         super().__init__()
+        self.k_t = k_t
         self.enc_mu = make_mlp([k_t, hidden, hidden, d_z])
         self.enc_log = make_mlp([k_t, hidden, hidden, d_z])
         self.dec = make_mlp([d_z, hidden, hidden, k_t])
@@ -38,6 +39,11 @@ class VAE_T(nn.Module):
             Latent representation ``z`` with dimension ``d_z``.
         """
 
+        if t.dim() == 1 or t.size(-1) == 1:
+            t_int = t.to(torch.long)
+            mask = t_int < 0
+            t = torch.nn.functional.one_hot(t_int.clamp_min(0), self.k_t).float()
+            t[mask] = float("nan")
         t = t.float()
         t_filled = torch.nan_to_num(t, 0.0)
         mu = self.enc_mu(t_filled)
@@ -52,6 +58,11 @@ class VAE_T(nn.Module):
     # ------------------------------------------------------------------
     def elbo(self, t: torch.Tensor) -> torch.Tensor:
         """Return the evidence lower bound for a batch of treatments."""
+        if t.dim() == 1 or t.size(-1) == 1:
+            t_int = t.to(torch.long)
+            mask = t_int < 0
+            t = torch.nn.functional.one_hot(t_int.clamp_min(0), self.k_t).float()
+            t[mask] = float("nan")
         t = t.float()
         mask = torch.isfinite(t)
         t_filled = torch.nan_to_num(t, 0.0)
