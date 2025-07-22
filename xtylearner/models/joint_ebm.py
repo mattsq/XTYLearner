@@ -64,5 +64,13 @@ class JointEBM(nn.Module):
         energies = self.energy_net(torch.cat([x, y], dim=-1))
         return F.softmax(-energies, dim=-1)
 
+    @torch.no_grad()
+    def predict_outcome(
+        self, x: torch.Tensor, t: torch.Tensor, steps: int = 20, lr: float = 0.1
+    ) -> torch.Tensor:
+        """Wrapper around :meth:`forward` for compatibility."""
+
+        return self.forward(x, t, steps=steps, lr=lr)
+
 
 __all__ = ["JointEBM"]

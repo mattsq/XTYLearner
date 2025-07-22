@@ -280,5 +280,12 @@ class DiffusionCEVAE(nn.Module):
         logits = self.dec_t(x, mu)
         return logits.softmax(dim=-1)
 
+    @torch.no_grad()
+    def predict_outcome(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Return ``p(y|x,t)`` approximated by the decoder."""
+
+        u = torch.randn(x.size(0), self.d_u, device=x.device)
+        return self.dec_y(x, t, u)
+
 
 __all__ = ["DiffusionCEVAE"]

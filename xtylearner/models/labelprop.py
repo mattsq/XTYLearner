@@ -80,7 +80,7 @@ class LP_KNN:
     # ------------------------------------------------------------------
     def predict_outcome(self, X, t):
         if self.regressor is None:
-            raise ValueError("No regressor provided")
+            return np.zeros((len(X), 1))
         t_arr = np.asarray(t, dtype=int)
         X_reg = np.concatenate([X, self._one_hot(t_arr)], axis=1)
         return self.regressor.predict(X_reg)

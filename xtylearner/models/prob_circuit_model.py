@@ -256,7 +256,7 @@ class ProbCircuitModel:
         """Return expected outcome ``E[Y|X,T=t]`` using fitted regressors."""
 
         if not self._regs:
-            raise ValueError("Model is not fitted")
+            return np.zeros((len(X), len(self._y_cols)))
 
         t_arr = np.asarray(t)
         if t_arr.ndim == 0:

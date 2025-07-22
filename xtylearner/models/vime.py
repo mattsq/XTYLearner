@@ -129,6 +129,12 @@ class VIME(nn.Module):
 
         return self.predict_proba(x)
 
+    @torch.no_grad()
+    def predict_outcome(self, x: torch.Tensor, _t: torch.Tensor) -> torch.Tensor:
+        """Dummy outcome prediction returning zeros."""
+
+        return torch.zeros(x.size(0), self.d_y, device=x.device)
+
     # --------------------------------------------------------------
     def predict(self, X: torch.Tensor | list) -> torch.Tensor:
         return self.predict_proba(X).argmax(dim=1)

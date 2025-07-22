@@ -233,5 +233,16 @@ class LTFlowDiff(nn.Module):
         logits = self.classifier(x, y)
         return logits.softmax(dim=-1)
 
+    @torch.no_grad()
+    def predict_outcome(
+        self, x: torch.Tensor, t: torch.Tensor, n_steps: int = 30
+    ) -> torch.Tensor:
+        """Generate outcome predictions using the flow-based sampler."""
+
+        y_all = self.paired_sample(x, n_steps=n_steps)
+        y_stack = torch.stack(y_all, dim=1)
+        t_long = t.view(-1, 1, 1).long()
+        return y_stack.gather(1, t_long.expand(-1, 1, self.d_y)).squeeze(1)
+
 
 __all__ = ["LTFlowDiff"]
