@@ -32,7 +32,7 @@ def make_conditional_flow(
 ) -> Flow:
     """Real-NVP with context (one-hot T) injected in every coupling net."""
     transforms = []
-    mask = torch.arange(dim_xy) % 2
+    mask = (torch.arange(dim_xy) % 2).bool()
     for _ in range(n_layers):
         transforms += [
             AffineCouplingTransform(
@@ -43,7 +43,7 @@ def make_conditional_flow(
             ),
             ReversePermutation(dim_xy),
         ]
-        mask = 1 - mask  # flip mask each block
+        mask = ~mask  # flip mask each block
     return Flow(CompositeTransform(transforms), StandardNormal([dim_xy]))
 
 
@@ -66,11 +66,15 @@ class MixtureOfFlows(nn.Module):
         norm_layer: Callable[[int], nn.Module] | None = None,
         flow_layers: int = 6,
         flow_hidden: int = 128,
+        gamma: float = 1.0,
+        eval_samples: int = 100,
     ) -> None:
         super().__init__()
         self.d_x = d_x
         self.d_y = d_y
         self.k = k
+        self.gamma = gamma
+        self.eval_samples = eval_samples
         self.flow = make_conditional_flow(
             d_x + d_y, k, n_layers=flow_layers, hidden=flow_hidden
         )
@@ -82,20 +86,10 @@ class MixtureOfFlows(nn.Module):
         )
 
     # --------------------------------------------------------
-    def forward(
-        self, X: torch.Tensor, T: torch.Tensor, *, steps: int = 20, lr: float = 0.1
-    ) -> torch.Tensor:
-        """Approximate ``p(y|x,t)`` via gradient-based MAP estimation."""
+    def forward(self, X: torch.Tensor, T: torch.Tensor) -> torch.Tensor:
+        """Return ``E[y|t]`` estimated from flow samples."""
 
-        ctx = F.one_hot(T.to(torch.long), self.k).float()
-        Y = torch.zeros(X.size(0), self.d_y, device=X.device, requires_grad=True)
-        with torch.enable_grad():
-            for _ in range(steps):
-                xy = torch.cat([X, Y], dim=-1)
-                ll = self.flow.log_prob(xy, context=ctx)
-                grad = torch.autograd.grad(ll.sum(), Y, create_graph=False)[0]
-                Y = (Y + lr * grad).detach().requires_grad_(True)
-        return Y.detach()
+        return self.predict_outcome(X, T)
 
     # ---------- log-likelihood for a minibatch --------------------------
     def loss(self, X, Y, T_obs):
@@ -112,7 +106,7 @@ class MixtureOfFlows(nn.Module):
 
             ll_flow = self.flow.log_prob(xy_lab, context=ctx_lab)
             ce_clf = cross_entropy_loss(self.clf(X[t_lab_mask]), t_lab)
-            loss_lab = -(ll_flow.mean() - ce_clf)  # maximise ll_flow
+            loss_lab = -ll_flow.mean() + ce_clf
 
         # ---- un-labelled part -----------------------------------------
         loss_ulb = torch.tensor(0.0, device=X.device)
@@ -139,7 +133,7 @@ class MixtureOfFlows(nn.Module):
             lse = torch.logsumexp(log_p_t + ll, dim=-1)
             loss_ulb = -lse.mean()  # maximise log-evidence
 
-        return loss_lab + loss_ulb
+        return loss_lab + self.gamma * loss_ulb
 
     # ------------------------------------------------------------------
     @torch.no_grad()
@@ -158,11 +152,15 @@ class MixtureOfFlows(nn.Module):
     # ------------------------------------------------------------------
     @torch.no_grad()
     def predict_outcome(self, X: torch.Tensor, T: int | torch.Tensor) -> torch.Tensor:
-        """Return predicted outcome ``y`` for inputs ``x`` and treatment ``t``."""
+        """Return ``E[y|t]`` estimated from flow samples."""
 
         if isinstance(T, int):
             T = torch.full((X.size(0),), T, dtype=torch.long, device=X.device)
-        return self.forward(X, T)
+        ctx = F.one_hot(T, self.k).float()
+        n = self.eval_samples if not self.training else 1
+        xy_samples = self.flow.sample(n, context=ctx)
+        y_samples = xy_samples[..., self.d_x :]
+        return y_samples.mean(1)
 
 
 __all__ = ["MixtureOfFlows"]
