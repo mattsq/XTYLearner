@@ -30,12 +30,14 @@ class SemiITE(nn.Module):
         lambda_u: float = 0.5,
         q_pseudo: int = 32,
         mmd_beta: float = 1e-2,
+        lambda_kl: float = 1.0,
     ) -> None:
         super().__init__()
         self.k = k
         self.lambda_u = lambda_u
         self.q_pseudo = q_pseudo
         self.mmd_beta = mmd_beta
+        self.lambda_kl = lambda_kl
 
         self.enc = mlp_constructor(
             [d_x, *enc_hidden_dims, rep_dim],
@@ -44,6 +46,7 @@ class SemiITE(nn.Module):
             norm_layer=norm_layer,
         )
         self.prop = nn.Linear(rep_dim, k)
+        self.prop_y = nn.Linear(rep_dim + d_y, k)
         self.outcome = nn.ModuleList(
             [
                 mlp_constructor(
@@ -72,7 +75,10 @@ class SemiITE(nn.Module):
         self, x: torch.Tensor, y: torch.Tensor | None = None
     ) -> torch.Tensor:
         z = self.encode(x)
-        return self.prop(z).softmax(dim=-1)
+        if y is None:
+            return self.prop(z).softmax(dim=-1)
+        zy = torch.cat([z, y], dim=-1)
+        return self.prop_y(zy).softmax(dim=-1)
 
     # --------------------------------------------------------------
     @torch.no_grad()

@@ -86,7 +86,7 @@ The model registry exposes a variety of architectures grouped below by type.
 - ``MaskedTabularTransformer`` – a transformer encoder for tabular data using a
   masked-token training objective.
 - ``SemiITE`` – a co-training network for semi-supervised treatment effect
-  estimation.
+  estimation with a reconstruction head for ``p(t\|x,y)``.
 - ``CCL_CPCModel`` – a contrastive predictive coding model for sequential
   covariates and partially observed labels.
 
