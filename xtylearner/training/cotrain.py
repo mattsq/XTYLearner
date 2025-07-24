@@ -15,6 +15,7 @@ class CoTrainTrainer(BaseTrainer):
         x, y, t_obs = self._extract_batch(batch)
         z = self.model.encode(x)
         logits = self.model.prop(z)
+        logits_xy = self.model.prop_y(torch.cat([z, y], dim=-1))
         k = self.model.k
 
         labelled = t_obs >= 0
@@ -28,10 +29,19 @@ class CoTrainTrainer(BaseTrainer):
                 pred = head(torch.cat([z_lab, t1h_lab], dim=-1))
                 loss = loss + F.mse_loss(pred, y[labelled])
             loss = loss + F.cross_entropy(logits[labelled], t_lab)
+            loss = loss + F.cross_entropy(logits_xy[labelled], t_lab)
             if self.model.mmd_beta > 0:
                 loss = loss + self.model.mmd_beta * self.model.compute_mmd(z_lab, t_lab)
 
         unlabelled = ~labelled
+        if unlabelled.any():
+            kl = F.kl_div(
+                F.log_softmax(logits[unlabelled], dim=-1),
+                F.softmax(logits_xy[unlabelled].detach(), dim=-1),
+                reduction="batchmean",
+            )
+            loss = loss + self.model.lambda_kl * kl
+
         if unlabelled.any() and self.model.lambda_u > 0 and self.model.q_pseudo > 0:
             z_u = z[unlabelled]
             logits_u = logits[unlabelled]
