@@ -14,6 +14,11 @@ def _sigma(tau: torch.Tensor, sigma_min: float, sigma_max: float) -> torch.Tenso
     return sigma_min * (sigma_max / sigma_min) ** tau
 
 
+def _one_hot(t: torch.Tensor, k: int) -> torch.Tensor:
+    """Convenience wrapper around ``F.one_hot`` returning ``float``."""
+    return F.one_hot(t, k).float()
+
+
 class Coupling(nn.Module):
     """
     Conditional coupling layer modelling p(y | x, z, t).
@@ -44,8 +49,9 @@ class Coupling(nn.Module):
         t: torch.Tensor,
         reverse: bool = False,
     ):
-        ctx = torch.cat([x, z, F.one_hot(t, self.k).float()], dim=-1)
-        s, t_shift = self.scale(ctx), self.shift(ctx)
+        ctx = torch.cat([x, z, _one_hot(t, self.k)], dim=-1)
+        s = 3.0 * self.scale(ctx)
+        t_shift = self.shift(ctx)
         if reverse:
             y_new = (y - t_shift) * torch.exp(-s)
             logdet = (-s).sum(-1)
@@ -74,16 +80,19 @@ class CondFlow(nn.Module):
             else:
                 h, ld = tr(x, h, z, t, reverse=False)
             logdet = logdet + ld
+        h = h - self.base_mu
         return h, logdet
 
-    def inverse(self, u: torch.Tensor, x: torch.Tensor, z: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-        h = u
+    def inverse(self, u: torch.Tensor, x: torch.Tensor, z: torch.Tensor, t: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        logdet = 0.0
+        h = u + self.base_mu
         for tr in reversed(self.transforms):
             if isinstance(tr, RandomPermutation):
-                h, _ = tr.inverse(h)
+                h, ld = tr.inverse(h)
             else:
-                h, _ = tr(x, h, z, t, reverse=True)
-        return h
+                h, ld = tr(x, h, z, t, reverse=True)
+            logdet = logdet + ld
+        return h, logdet
 
 
 class Encoder(nn.Module):
@@ -193,20 +202,21 @@ class LTFlowDiff(nn.Module):
         eps = torch.randn_like(std)
         z = mu + std * eps
 
-        obs_mask = t_obs != -1
-        t_in = t_obs.clone()
+        obs_mask_orig = t_obs != -1
+        t_used = t_obs.clone()
         confident = torch.tensor([], device=device)
         idx_u = torch.tensor([], dtype=torch.long, device=device)
         probs_u = None
-        if (~obs_mask).any():
-            idx_u = (~obs_mask).nonzero(as_tuple=True)[0]
+        if (~obs_mask_orig).any():
+            idx_u = (~obs_mask_orig).nonzero(as_tuple=True)[0]
             with torch.no_grad():
                 pseudo_logits = self.classifier(x[idx_u], y[idx_u])
                 probs_u = pseudo_logits.softmax(-1)
                 probs_u = (probs_u ** 2) / probs_u.sum(dim=-1, keepdim=True)
                 confident = probs_u.max(-1).values > 0.7
-            t_in[idx_u] = probs_u.argmax(dim=-1)
-        u, logdet = self.flow(y, x, z, t_in.clamp_min(0))
+            t_used[idx_u[confident]] = probs_u[confident].argmax(dim=-1)
+        obs_mask = t_used != -1
+        u, logdet = self.flow(y, x, z, t_used.clamp_min(0))
         log_pxy = (
             -0.5 * u.pow(2).sum(-1) - 0.5 * u.size(1) * math.log(2 * math.pi) + logdet
         )
@@ -226,31 +236,34 @@ class LTFlowDiff(nn.Module):
         mse_all = torch.stack(mse_all, dim=1)
 
         w = torch.full_like(mse_all, 1 / self.k)
-        if obs_mask.any():
-            w[obs_mask] = F.one_hot(t_obs[obs_mask], self.k).float()
+        if obs_mask_orig.any():
+            w[obs_mask_orig] = _one_hot(t_obs[obs_mask_orig], self.k)
         if idx_u.numel() > 0 and confident.any():
             w[idx_u[confident]] = probs_u[confident]
         score_loss = (w * mse_all).sum(dim=1).mean()
 
         ce_loss = torch.tensor(0.0, device=device)
         logits = self.classifier(x, y)
-        if obs_mask.any():
-            ce_loss = F.cross_entropy(logits[obs_mask], t_obs[obs_mask].clamp_min(0))
+        if obs_mask_orig.any():
+            ce_loss = F.cross_entropy(logits[obs_mask_orig], t_obs[obs_mask_orig].clamp_min(0))
         if idx_u.numel() > 0 and confident.any():
-            ce_loss = ce_loss + F.cross_entropy(logits[idx_u[confident]], probs_u[confident].argmax(dim=-1))
+            log_probs = F.log_softmax(logits[idx_u[confident]], dim=-1)
+            ce_loss = ce_loss + F.kl_div(log_probs, probs_u[confident], reduction="batchmean")
 
         recon = log_pxy.mean()
-        return -recon + self.lambda_score * score_loss + ce_loss
+        reg = 1e-3 * mu.pow(2).mean()
+        return -recon + self.lambda_score * score_loss + ce_loss + reg
 
     # ----- sampler -----
     @torch.no_grad()
     def sample_z(self, t_val: int, batch_size: int, n_steps: int = 30, step_size: float = 0.02) -> torch.Tensor:
         z = torch.randn(batch_size, self.d_z, device=self.score.t_emb.weight.device)
         tau = torch.ones(batch_size, 1, device=z.device)
+        noise_scale = math.sqrt(2 * step_size)
         for _ in range(n_steps):
             sig = self._sigma(tau)
             grad = self.score(z, torch.full((batch_size,), t_val, device=z.device, dtype=torch.long), tau)
-            z = z + 0.5 * step_size * grad + torch.sqrt(torch.tensor(step_size, device=z.device)) * torch.randn_like(z)
+            z = z + 0.5 * step_size * grad + noise_scale * torch.randn_like(z)
             tau = tau - 1.0 / n_steps
         return z
 
@@ -263,7 +276,7 @@ class LTFlowDiff(nn.Module):
         for t_val in range(self.k):
             z = self.sample_z(t_val, b, n_steps, step_size=0.02)
             eps = torch.randn(b, self.d_y, device=x.device)
-            y_t = self.flow.inverse(eps, x, z, torch.full((b,), t_val, device=x.device))
+            y_t, _ = self.flow.inverse(eps, x, z, torch.full((b,), t_val, device=x.device))
             y_all.append(y_t)
         return tuple(y_all)
 
