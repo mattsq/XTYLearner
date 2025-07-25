@@ -69,29 +69,31 @@ class CondFlow(nn.Module):
         self.transforms = nn.ModuleList(
             sum([[RandomPermutation(d_y), Coupling(d_x, d_y, d_z, k, hidden)] for _ in range(n_layers)], [])
         )
-        self.register_buffer("base_mu", torch.zeros(d_y))
+        self.register_buffer("base_mu", torch.zeros(d_y, requires_grad=False))
 
     def forward(self, y: torch.Tensor, x: torch.Tensor, z: torch.Tensor, t: torch.Tensor):
         logdet = 0.0
-        h = y
+        h = y - self.base_mu
         for tr in self.transforms:
             if isinstance(tr, RandomPermutation):
                 h, ld = tr(h)
+                logdet = logdet + ld.squeeze(-1)
             else:
                 h, ld = tr(x, h, z, t, reverse=False)
-            logdet = logdet + ld
-        h = h - self.base_mu
+                logdet = logdet + ld
         return h, logdet
 
     def inverse(self, u: torch.Tensor, x: torch.Tensor, z: torch.Tensor, t: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         logdet = 0.0
-        h = u + self.base_mu
+        h = u
         for tr in reversed(self.transforms):
             if isinstance(tr, RandomPermutation):
                 h, ld = tr.inverse(h)
+                logdet = logdet + ld.squeeze(-1)
             else:
                 h, ld = tr(x, h, z, t, reverse=True)
-            logdet = logdet + ld
+                logdet = logdet + ld
+        h = h + self.base_mu
         return h, logdet
 
 
@@ -204,7 +206,6 @@ class LTFlowDiff(nn.Module):
 
         obs_mask_orig = t_obs != -1
         t_used = t_obs.clone()
-        confident = torch.tensor([], device=device)
         idx_u = torch.tensor([], dtype=torch.long, device=device)
         probs_u = None
         if (~obs_mask_orig).any():
@@ -213,8 +214,7 @@ class LTFlowDiff(nn.Module):
                 pseudo_logits = self.classifier(x[idx_u], y[idx_u])
                 probs_u = pseudo_logits.softmax(-1)
                 probs_u = (probs_u ** 2) / probs_u.sum(dim=-1, keepdim=True)
-                confident = probs_u.max(-1).values > 0.7
-            t_used[idx_u[confident]] = probs_u[confident].argmax(dim=-1)
+            t_used[idx_u] = probs_u.argmax(dim=-1)
         obs_mask = t_used != -1
         u, logdet = self.flow(y, x, z, t_used.clamp_min(0))
         log_pxy = (
@@ -231,50 +231,61 @@ class LTFlowDiff(nn.Module):
         mse_all = []
         for t_val in range(self.k):
             s_t = self.score(z_tau, torch.full_like(t_obs, t_val), tau.unsqueeze(-1))
-            weight = sig.squeeze() ** 2
+            weight = sig.pow(2).squeeze()
             mse_all.append(weight * ((s_t + noise / sig) ** 2).mean(dim=-1))
         mse_all = torch.stack(mse_all, dim=1)
 
         w = torch.full_like(mse_all, 1 / self.k)
         if obs_mask_orig.any():
             w[obs_mask_orig] = _one_hot(t_obs[obs_mask_orig], self.k)
-        if idx_u.numel() > 0 and confident.any():
-            w[idx_u[confident]] = probs_u[confident]
+        if idx_u.numel() > 0:
+            w[idx_u] = probs_u
         score_loss = (w * mse_all).sum(dim=1).mean()
 
         ce_loss = torch.tensor(0.0, device=device)
         logits = self.classifier(x, y)
         if obs_mask_orig.any():
             ce_loss = F.cross_entropy(logits[obs_mask_orig], t_obs[obs_mask_orig].clamp_min(0))
-        if idx_u.numel() > 0 and confident.any():
-            log_probs = F.log_softmax(logits[idx_u[confident]], dim=-1)
-            ce_loss = ce_loss + F.kl_div(log_probs, probs_u[confident], reduction="batchmean")
+        if idx_u.numel() > 0:
+            log_probs = F.log_softmax(logits[idx_u], dim=-1)
+            ce_loss = ce_loss + 0.5 * F.kl_div(log_probs, probs_u, reduction="batchmean")
 
         recon = log_pxy.mean()
-        reg = 1e-3 * mu.pow(2).mean()
+        reg = 1e-3 * (mu.pow(2) + (logv.exp() - 1).pow(2)).mean()
         return -recon + self.lambda_score * score_loss + ce_loss + reg
 
     # ----- sampler -----
     @torch.no_grad()
-    def sample_z(self, t_val: int, batch_size: int, n_steps: int = 30, step_size: float = 0.02) -> torch.Tensor:
+    def sample_z(
+        self,
+        t_val: int,
+        batch_size: int,
+        n_steps: int = 30,
+        step_size: float = 0.02,
+    ) -> torch.Tensor:
         z = torch.randn(batch_size, self.d_z, device=self.score.t_emb.weight.device)
-        tau = torch.ones(batch_size, 1, device=z.device)
+        tau_start = 0.9 + 0.1 * torch.rand(batch_size, 1, device=z.device)
+        base_schedule = torch.linspace(1.0, 0.0, n_steps + 1, device=z.device)[:-1].view(1, n_steps, 1)
+        taus = tau_start.unsqueeze(1) * base_schedule
         noise_scale = math.sqrt(2 * step_size)
-        for _ in range(n_steps):
-            sig = self._sigma(tau)
-            grad = self.score(z, torch.full((batch_size,), t_val, device=z.device, dtype=torch.long), tau)
+        t_long = torch.full((batch_size,), t_val, device=z.device, dtype=torch.long)
+        for i in range(n_steps):
+            tau_i = taus[:, i]
+            grad = self.score(z, t_long, tau_i)
             z = z + 0.5 * step_size * grad + noise_scale * torch.randn_like(z)
-            tau = tau - 1.0 / n_steps
         return z
 
     @torch.no_grad()
     def paired_sample(
-        self, x: torch.Tensor, n_steps: int = 30
+        self,
+        x: torch.Tensor,
+        n_steps: int = 30,
+        step_size: float = 0.02,
     ) -> tuple[torch.Tensor, ...]:
         b = x.size(0)
         y_all = []
         for t_val in range(self.k):
-            z = self.sample_z(t_val, b, n_steps, step_size=0.02)
+            z = self.sample_z(t_val, b, n_steps=n_steps, step_size=step_size)
             eps = torch.randn(b, self.d_y, device=x.device)
             y_t, _ = self.flow.inverse(eps, x, z, torch.full((b,), t_val, device=x.device))
             y_all.append(y_t)
@@ -290,11 +301,15 @@ class LTFlowDiff(nn.Module):
 
     @torch.no_grad()
     def predict_outcome(
-        self, x: torch.Tensor, t: torch.Tensor, n_steps: int = 30
+        self,
+        x: torch.Tensor,
+        t: torch.Tensor,
+        n_steps: int = 30,
+        step_size: float = 0.02,
     ) -> torch.Tensor:
         """Generate outcome predictions using the flow-based sampler."""
 
-        y_all = self.paired_sample(x, n_steps=n_steps)
+        y_all = self.paired_sample(x, n_steps=n_steps, step_size=step_size)
         y_stack = torch.stack(y_all, dim=1)
         t_long = t.view(-1, 1, 1).long()
         return y_stack.gather(1, t_long.expand(-1, 1, self.d_y)).squeeze(1)
