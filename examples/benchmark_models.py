@@ -54,6 +54,8 @@ def run_benchmark(output_path: str = "benchmark_results.md") -> None:
             metrics = trainer.evaluate(loader)
             results.append({"dataset": ds_name, "model": model_name, **metrics})
     df = pd.DataFrame(results)
+    if "outcome rmse" in df.columns:
+        df = df.sort_values("outcome rmse")
     df.to_markdown(output_path, index=False)
     print(f"Results written to {output_path}")
 
