@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 from .trainer import Trainer
-from .logger import TrainerLogger
+from .logger import TrainerLogger, ConsoleLogger
 from ..active import QueryStrategy
 
 
@@ -43,6 +43,15 @@ class ActiveTrainer:
         self.queries = 0
 
     # --------------------------------------------------------------
+    def _log_status(self, L: TensorDataset, U: TensorDataset, action: str | None = None) -> None:
+        """Print current dataset sizes and budget usage when using ``ConsoleLogger``."""
+        if isinstance(self._trainer.logger, ConsoleLogger):
+            msg = f"labelled={len(L)} unlabelled={len(U)} budget={self.queries}/{self.budget}"
+            if action:
+                msg = f"{action}: " + msg
+            print(msg)
+
+    # --------------------------------------------------------------
     def _budget_left(self) -> bool:
         return self.queries < self.budget
 
@@ -58,6 +67,8 @@ class ActiveTrainer:
             labelled = torch.isfinite(T).all(-1)
         L = TensorDataset(X[labelled], Y[labelled], T[labelled])
         U = TensorDataset(X[~labelled], Y[~labelled], T[~labelled])
+
+        self._log_status(L, U, action="start")
 
         while self._budget_left() and len(U) > 0:
             loader_L = DataLoader(
@@ -89,10 +100,12 @@ class ActiveTrainer:
                 U.tensors[2][mask],
             )
             self.queries += len(topk)
+            self._log_status(L, U, action="query")
 
         self._trainer.train_loader = DataLoader(
             L, batch_size=self._trainer.train_loader.batch_size, shuffle=True
         )
+        self._log_status(L, U, action="final")
         self._trainer.fit(num_epochs)
 
     # --------------------------------------------------------------
