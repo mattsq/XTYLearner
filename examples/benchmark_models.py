@@ -29,10 +29,13 @@ def run_benchmark(output_path: str = "benchmark_results.md") -> None:
     results = []
     for ds_name in dataset_names:
         if ds_name == "synthetic_mixed":
-            ds = get_dataset(ds_name, n_samples=50, d_x=2, label_ratio=0.5)
+            ds = get_dataset(ds_name, n_samples=50, d_x=2, label_ratio=0.5, seed=0)
+            val_ds = get_dataset(ds_name, n_samples=50, d_x=2, label_ratio=0.5, seed=1)
         else:
-            ds = get_dataset(ds_name, n_samples=50, d_x=2)
+            ds = get_dataset(ds_name, n_samples=50, d_x=2, seed=0)
+            val_ds = get_dataset(ds_name, n_samples=50, d_x=2, seed=1)
         loader = DataLoader(ds, batch_size=10, shuffle=True)
+        val_loader = DataLoader(val_ds, batch_size=10)
         x_dim = ds.tensors[0].size(1)
         y_dim = ds.tensors[1].size(1)
         for model_name in get_model_names():
@@ -50,13 +53,19 @@ def run_benchmark(output_path: str = "benchmark_results.md") -> None:
             else:
                 opt = _make_optimizer(model)
             logger = ConsoleLogger(print_every=1)
-            trainer = Trainer(model, opt, loader, logger=logger)
+            trainer = Trainer(model, opt, loader, val_loader=val_loader, logger=logger)
             trainer.fit(10)
             metrics = trainer.evaluate(loader)
-            results.append({"dataset": ds_name, "model": model_name, **metrics})
+            val_metrics = trainer.evaluate(val_loader)
+            row = {"dataset": ds_name, "model": model_name}
+            row.update({f"train {k}": v for k, v in metrics.items()})
+            row.update({f"val {k}": v for k, v in val_metrics.items()})
+            results.append(row)
     df = pd.DataFrame(results)
-    if "outcome rmse" in df.columns:
-        df = df.sort_values("outcome rmse")
+    if "val outcome rmse" in df.columns:
+        df = df.sort_values("val outcome rmse")
+    elif "train outcome rmse" in df.columns:
+        df = df.sort_values("train outcome rmse")
     df.to_markdown(output_path, index=False)
     print(f"Results written to {output_path}")
 
