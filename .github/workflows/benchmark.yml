@@ -13,7 +13,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
+          ref: ${{ github.head_ref }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -62,7 +63,7 @@ jobs:
           git add benchmark_results.md
           if ! git diff --cached --quiet; then
             git commit -m "Update benchmark results"
-            git push origin HEAD:${{ github.ref }}
+            git push origin HEAD:${{ github.head_ref }}
           fi
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
