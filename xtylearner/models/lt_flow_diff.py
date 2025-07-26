@@ -222,11 +222,12 @@ class LTFlowDiff(nn.Module):
         d_z: int = 4,
         hidden: int = 128,
         timesteps: int = 1000,
-        sigma_min: float = 0.002,
+        sigma_min: float = 0.02,
         sigma_max: float = 1.0,
         k: int = 2,
         lambda_score: float = 0.1,
-        logv_clip: float = 5.0,
+        logv_clip: float = 2.0,
+        warmup_steps: int = 1000,
     ) -> None:
         super().__init__()
         self.d_x = d_x
@@ -237,6 +238,8 @@ class LTFlowDiff(nn.Module):
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         self.lambda_score = lambda_score
+        self.warmup_steps = warmup_steps
+        self.current_step = 0
         dim_xy = d_x + d_y
         self.encoder = Encoder(dim_xy, d_z, hidden, logv_clip)
         self.flow = CondFlow(d_x, d_y, d_z, k, hidden)
@@ -247,11 +250,24 @@ class LTFlowDiff(nn.Module):
     def _sigma(self, tau: torch.Tensor) -> torch.Tensor:
         return sigma_schedule(tau, self.sigma_min, self.sigma_max)
 
+    def _sigma_with_warmup(self, tau: torch.Tensor) -> torch.Tensor:
+        """Noise schedule with warmup to prevent early explosion."""
+        base_sigma = sigma_schedule(tau, self.sigma_min, self.sigma_max)
+        if self.current_step < self.warmup_steps:
+            warmup_progress = self.current_step / self.warmup_steps
+            warmup_sigma_min = 0.1 * (1 - warmup_progress) + self.sigma_min * warmup_progress
+            base_sigma = sigma_schedule(tau, warmup_sigma_min, self.sigma_max)
+        return base_sigma
+
     # ----- training objective -----
     def loss(
-        self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
+        self,
+        x: torch.Tensor,
+        y: torch.Tensor,
+        t_obs: torch.Tensor,
+        step: int | None = None,
     ) -> torch.Tensor:
-        """Training objective.
+        """Training objective with clipped score targets and warmup noise schedule.
 
         Parameters
         ----------
@@ -260,6 +276,8 @@ class LTFlowDiff(nn.Module):
         t_obs : LongTensor of shape (B,) with ``-1`` for missing treatments
         """
         assert t_obs.dtype == torch.long
+        if step is not None:
+            self.current_step = step
         device = x.device
         xy = torch.cat([x, y], dim=-1)
         mu, logv = self.encoder(xy)
@@ -287,7 +305,7 @@ class LTFlowDiff(nn.Module):
         b = x.size(0)
         t_idx = torch.randint(1, self.timesteps + 1, (b,), device=device)
         tau = t_idx.float() / self.timesteps
-        sig = self._sigma(tau).unsqueeze(-1)
+        sig = self._sigma_with_warmup(tau).unsqueeze(-1)
         noise = torch.randn_like(z)
         z_tau = z + sig * noise
 
@@ -295,7 +313,9 @@ class LTFlowDiff(nn.Module):
         for t_val in range(self.k):
             s_t = self.score(z_tau, torch.full_like(t_obs, t_val), tau.unsqueeze(-1))
             weight = sig.pow(2).squeeze()
-            mse_all.append(weight * ((s_t + noise / sig) ** 2).mean(dim=-1))
+            score_target = noise / sig
+            score_target = torch.clamp(score_target, min=-10.0, max=10.0)
+            mse_all.append(weight * ((s_t + score_target) ** 2).mean(dim=-1))
         mse_all = torch.stack(mse_all, dim=1)
 
         w = torch.full_like(mse_all, 1 / self.k)
