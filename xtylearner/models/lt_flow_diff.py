@@ -30,7 +30,7 @@ class Coupling(nn.Module):
         super().__init__()
         self.d_y = d_y
         self.k = k
-        self.SCALE_MAX = 3.0  # limit after Tanh to stabilise training
+        self.SCALE_MAX = 0.5  # limit after Tanh to stabilise training
         self.scale = nn.Sequential(
             nn.Linear(d_x + d_z + k, hidden),
             nn.ReLU(),
@@ -42,6 +42,11 @@ class Coupling(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden, d_y),
         )
+        # Start close to the identity transform to avoid exploding outputs
+        nn.init.zeros_(self.scale[2].weight)
+        nn.init.zeros_(self.scale[2].bias)
+        nn.init.zeros_(self.shift[2].weight)
+        nn.init.zeros_(self.shift[2].bias)
 
     def forward(
         self,
