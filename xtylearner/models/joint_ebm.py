@@ -134,14 +134,13 @@ class JointEBM(nn.Module):
             Unused but kept for backwards compatibility.
         """
 
-        y = self.init_y(x, t).detach().requires_grad_(True)
-        opt = torch.optim.Adam([y], lr=lr)
+        y = self.init_y(x, t)
         for _ in range(steps):
-            opt.zero_grad(set_to_none=True)
+            y = y.detach().requires_grad_(True)
             e = self.energy(x, y).gather(1, t.view(-1, 1)).sum()
-            e.backward()
-            opt.step()
-            if y.grad is not None and y.grad.norm() < 1e-3:
+            (grad,) = torch.autograd.grad(e, y)
+            y = y - lr * grad
+            if grad.norm() < 1e-3:
                 break
         return y.detach()
 
@@ -199,7 +198,17 @@ class JointEBM(nn.Module):
     ) -> torch.Tensor:
         """Predict the outcome by minimising the energy for the given treatment."""
 
-        return self.forward(x, t, steps=steps, lr=lr)
+        with torch.enable_grad():
+            return self.forward(x, t, steps=steps, lr=lr)
+
+    # ------------------------------------------------------------------
+    @torch.no_grad()
+    def predict(
+        self, x: torch.Tensor, t: torch.Tensor, steps: int = 20, lr: float = 0.1
+    ) -> torch.Tensor:
+        """Alias of :meth:`predict_outcome` used by :class:`Trainer`."""
+
+        return self.predict_outcome(x, t, steps=steps, lr=lr)
 
 
 __all__ = ["JointEBM"]
