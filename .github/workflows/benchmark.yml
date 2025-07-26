@@ -49,9 +49,9 @@ jobs:
         run: |
           . .venv/bin/activate
           python - <<'PY'
-from examples.benchmark_models import run_benchmark
-run_benchmark('benchmark_results.md')
-PY
+            from examples.benchmark_models import run_benchmark
+            run_benchmark('benchmark_results.md')
+          PY
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
         with:
