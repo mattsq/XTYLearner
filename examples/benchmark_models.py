@@ -24,7 +24,7 @@ def _make_gan_optimizer(model: torch.nn.Module):
 
 
 def run_benchmark(output_path: str = "benchmark_results.md") -> None:
-    """Train every model for one epoch and record metrics."""
+    """Train every model for ten epochs and record metrics."""
     dataset_names = ["synthetic", "synthetic_mixed"]
     results = []
     for ds_name in dataset_names:
@@ -50,7 +50,7 @@ def run_benchmark(output_path: str = "benchmark_results.md") -> None:
                 opt = _make_optimizer(model)
             logger = ConsoleLogger(print_every=1)
             trainer = Trainer(model, opt, loader, logger=logger)
-            trainer.fit(1)
+            trainer.fit(10)
             metrics = trainer.evaluate(loader)
             results.append({"dataset": ds_name, "model": model_name, **metrics})
     df = pd.DataFrame(results)
