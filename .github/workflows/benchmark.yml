@@ -1,11 +1,12 @@
 name: Benchmark Models
 
 on:
-  push:
   pull_request:
+    types: [opened, synchronize]
 
 jobs:
   benchmark:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: write
