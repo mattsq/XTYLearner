@@ -38,6 +38,7 @@ def run_benchmark(output_path: str = "benchmark_results.md") -> None:
         for model_name in get_model_names():
             if model_name == "ss_dml" and not _HAS_DOUBLEML:
                 continue
+            print(f"Running {model_name} on {ds_name}")
             kwargs = {"d_x": x_dim, "d_y": y_dim, "k": 2}
             if model_name == "lp_knn":
                 kwargs["n_neighbors"] = 3
