@@ -7,10 +7,11 @@ import torch.nn.functional as F
 
 from .registry import register_model
 from nflows.transforms import RandomPermutation
+from itertools import chain
 
 
-def _sigma(tau: torch.Tensor, sigma_min: float, sigma_max: float) -> torch.Tensor:
-    """Noise schedule used for the latent diffusion prior."""
+def sigma_schedule(tau: torch.Tensor, sigma_min: float, sigma_max: float) -> torch.Tensor:
+    """Noise schedule :math:`\sigma(\tau)` used for the diffusion prior."""
     return sigma_min * (sigma_max / sigma_min) ** tau
 
 
@@ -29,6 +30,7 @@ class Coupling(nn.Module):
         super().__init__()
         self.d_y = d_y
         self.k = k
+        self.SCALE_MAX = 3.0  # limit after Tanh to stabilise training
         self.scale = nn.Sequential(
             nn.Linear(d_x + d_z + k, hidden),
             nn.ReLU(),
@@ -48,15 +50,32 @@ class Coupling(nn.Module):
         z: torch.Tensor,
         t: torch.Tensor,
         reverse: bool = False,
-    ):
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Apply the coupling transformation.
+
+        Parameters
+        ----------
+        x : Tensor of shape (B, d_x)
+        y : Tensor of shape (B, d_y)
+        z : Tensor of shape (B, d_z)
+        t : Tensor of shape (B,)
+        reverse : bool, optional
+            Whether to apply the inverse transformation.
+
+        Returns
+        -------
+        Tuple containing transformed ``y`` and per-sample log-determinant.
+        """
         ctx = torch.cat([x, z, _one_hot(t, self.k)], dim=-1)
-        s = 3.0 * self.scale(ctx)
+        # diagonal scale is bounded in [-SCALE_MAX, SCALE_MAX]
+        s = self.SCALE_MAX * self.scale(ctx)
         t_shift = self.shift(ctx)
         if reverse:
             y_new = (y - t_shift) * torch.exp(-s)
             logdet = (-s).sum(-1)
         else:
             y_new = y * torch.exp(s) + t_shift
+            # only the diagonal scaling contributes to the log-Jacobian
             logdet = s.sum(-1)
         return y_new, logdet
 
@@ -66,33 +85,47 @@ class CondFlow(nn.Module):
 
     def __init__(self, d_x: int, d_y: int, d_z: int, k: int, hidden: int, n_layers: int = 6):
         super().__init__()
-        self.transforms = nn.ModuleList(
-            sum([[RandomPermutation(d_y), Coupling(d_x, d_y, d_z, k, hidden)] for _ in range(n_layers)], [])
+        layers = (
+            (RandomPermutation(d_y), Coupling(d_x, d_y, d_z, k, hidden))
+            for _ in range(n_layers)
         )
+        self.transforms = nn.ModuleList(list(chain.from_iterable(layers)))
         self.register_buffer("base_mu", torch.zeros(d_y, requires_grad=False))
 
-    def forward(self, y: torch.Tensor, x: torch.Tensor, z: torch.Tensor, t: torch.Tensor):
+    def forward(self, y: torch.Tensor, x: torch.Tensor, z: torch.Tensor, t: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Transform ``y`` to latent space.
+
+        Parameters
+        ----------
+        y : Tensor of shape (B, d_y)
+        x : Tensor of shape (B, d_x)
+        z : Tensor of shape (B, d_z)
+        t : Tensor of shape (B,)
+
+        Returns
+        -------
+        Tuple of latent representation and log-determinant.
+        """
         logdet = 0.0
         h = y - self.base_mu
         for tr in self.transforms:
             if isinstance(tr, RandomPermutation):
                 h, ld = tr(h)
-                logdet = logdet + ld.squeeze(-1)
             else:
                 h, ld = tr(x, h, z, t, reverse=False)
-                logdet = logdet + ld
+            logdet = logdet + ld.view(h.size(0))
         return h, logdet
 
     def inverse(self, u: torch.Tensor, x: torch.Tensor, z: torch.Tensor, t: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Inverse transform from latent ``u`` to output space."""
         logdet = 0.0
         h = u
         for tr in reversed(self.transforms):
             if isinstance(tr, RandomPermutation):
                 h, ld = tr.inverse(h)
-                logdet = logdet + ld.squeeze(-1)
             else:
                 h, ld = tr(x, h, z, t, reverse=True)
-                logdet = logdet + ld
+            logdet = logdet + ld.view(h.size(0))
         h = h + self.base_mu
         return h, logdet
 
@@ -100,7 +133,7 @@ class CondFlow(nn.Module):
 class Encoder(nn.Module):
     """Gaussian encoder ``q(z|x,y)``."""
 
-    def __init__(self, dim_xy: int, d_z: int, hidden: int) -> None:
+    def __init__(self, dim_xy: int, d_z: int, hidden: int, logv_clip: float = 5.0) -> None:
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(dim_xy, hidden),
@@ -110,10 +143,21 @@ class Encoder(nn.Module):
         )
         self.mu = nn.Linear(hidden, d_z)
         self.logv = nn.Linear(hidden, d_z)
+        self.logv_clip = logv_clip
 
     def forward(self, xy: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return mean and log-variance for ``q(z|x,y)``.
+
+        Parameters
+        ----------
+        xy : Tensor of shape (B, d_x + d_y)
+
+        Returns
+        -------
+        (mu, logv) tensors of shape (B, d_z).
+        """
         h = self.net(xy)
-        return self.mu(h), self.logv(h).clamp(-5, 5)
+        return self.mu(h), self.logv(h).clamp(-self.logv_clip, self.logv_clip)
 
 
 class ScoreNet(nn.Module):
@@ -138,6 +182,14 @@ class ScoreNet(nn.Module):
     def forward(
         self, z: torch.Tensor, t: torch.Tensor, tau: torch.Tensor
     ) -> torch.Tensor:
+        """Evaluate score at noise level ``tau``.
+
+        Parameters
+        ----------
+        z : Tensor of shape (B, d_z)
+        t : Tensor of shape (B,)
+        tau : Tensor of shape (B, 1)
+        """
         h = torch.cat([z, self.t_emb(t), self.time(tau)], dim=-1)
         return self.trunk(h)
 
@@ -154,6 +206,7 @@ class Classifier(nn.Module):
         )
 
     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Return logits for ``p(t|x,y)``."""
         return self.net(torch.cat([x, y], dim=-1))
 
 
@@ -173,6 +226,7 @@ class LTFlowDiff(nn.Module):
         sigma_max: float = 1.0,
         k: int = 2,
         lambda_score: float = 0.1,
+        logv_clip: float = 5.0,
     ) -> None:
         super().__init__()
         self.d_x = d_x
@@ -184,19 +238,28 @@ class LTFlowDiff(nn.Module):
         self.sigma_max = sigma_max
         self.lambda_score = lambda_score
         dim_xy = d_x + d_y
-        self.encoder = Encoder(dim_xy, d_z, hidden)
+        self.encoder = Encoder(dim_xy, d_z, hidden, logv_clip)
         self.flow = CondFlow(d_x, d_y, d_z, k, hidden)
         self.score = ScoreNet(d_z, k, hidden)
         self.classifier = Classifier(d_x, d_y, k, hidden)
 
     # ----- utilities -----
     def _sigma(self, tau: torch.Tensor) -> torch.Tensor:
-        return _sigma(tau, self.sigma_min, self.sigma_max)
+        return sigma_schedule(tau, self.sigma_min, self.sigma_max)
 
     # ----- training objective -----
     def loss(
         self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
     ) -> torch.Tensor:
+        """Training objective.
+
+        Parameters
+        ----------
+        x : Tensor of shape (B, d_x)
+        y : Tensor of shape (B, d_y)
+        t_obs : LongTensor of shape (B,) with ``-1`` for missing treatments
+        """
+        assert t_obs.dtype == torch.long
         device = x.device
         xy = torch.cat([x, y], dim=-1)
         mu, logv = self.encoder(xy)
@@ -248,9 +311,11 @@ class LTFlowDiff(nn.Module):
             ce_loss = F.cross_entropy(logits[obs_mask_orig], t_obs[obs_mask_orig].clamp_min(0))
         if idx_u.numel() > 0:
             log_probs = F.log_softmax(logits[idx_u], dim=-1)
+            # heuristic agreement penalty with pseudo-label distribution
             ce_loss = ce_loss + 0.5 * F.kl_div(log_probs, probs_u, reduction="batchmean")
 
         recon = log_pxy.mean()
+        # simple prior matching term
         reg = 1e-3 * (mu.pow(2) + (logv.exp() - 1).pow(2)).mean()
         return -recon + self.lambda_score * score_loss + ce_loss + reg
 

@@ -3,7 +3,7 @@ import pytest
 from torch.utils.data import DataLoader, TensorDataset
 
 from xtylearner.configs import load as load_config
-from xtylearner.models.lt_flow_diff import _sigma
+from xtylearner.models.lt_flow_diff import sigma_schedule
 from xtylearner.training import ArrayTrainer
 
 
@@ -21,8 +21,8 @@ def test_config_load(tmp_path):
 
 def test_sigma_schedule_bounds():
     smin, smax = 0.1, 1.0
-    assert _sigma(torch.tensor(0.0), smin, smax).item() == pytest.approx(smin)
-    assert _sigma(torch.tensor(1.0), smin, smax).item() == pytest.approx(smax)
+    assert sigma_schedule(torch.tensor(0.0), smin, smax).item() == pytest.approx(smin)
+    assert sigma_schedule(torch.tensor(1.0), smin, smax).item() == pytest.approx(smax)
 
 
 def test_collect_arrays_shapes():
