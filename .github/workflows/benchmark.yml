@@ -18,14 +18,18 @@ jobs:
           cache-dependency-path: |
             pyproject.toml
             requirements.txt
-      - name: Restore venv
-        id: restore-venv
-        uses: actions/cache/restore@v4
+      - name: Restore or save venv
+        id: cache-venv
+        uses: actions/cache@v4
         with:
           path: .venv
           key: venv-${{ runner.os }}-py3.11-${{ hashFiles('requirements.txt') }}
+
+      - name: Ensure .venv on PATH
+        if: steps.cache-venv.outputs.cache-hit == 'true'
+        run: echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
       - name: Build venv if needed
-        if: steps.restore-venv.outputs.cache-hit != 'true'
+        if: steps.cache-venv.outputs.cache-hit != 'true'
         env:
           PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
         run: |
@@ -37,8 +41,9 @@ jobs:
         env:
           PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
         run: |
+          source .venv/bin/activate
           python -m pip install --upgrade pip
-          pip install 'torch==2.3.1+cpu' -f https://download.pytorch.org/whl/cpu/torch_stable.html
+          pip install torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu
           pip install -e .
       - name: Run benchmark
         run: |
