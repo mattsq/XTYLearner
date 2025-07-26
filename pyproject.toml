@@ -17,6 +17,7 @@ dependencies = [
     "pyyaml",
     "pandas",
     "scipy",
+    "tabulate",
 ]
 
 [project.optional-dependencies]
