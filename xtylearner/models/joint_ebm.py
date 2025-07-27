@@ -15,6 +15,7 @@ import torch.nn.functional as F
 
 from .layers import make_mlp
 from .registry import register_model
+from .utils import centre_per_row
 
 
 @register_model("joint_ebm")
@@ -36,6 +37,7 @@ class JointEBM(nn.Module):
         temperature: float = 1.0,
         learn_tau: bool = False,
         beta_reg: float = 1e-4,
+        ulb_weight: float = 0.1,
     ) -> None:
         """Create a JointEBM instance.
 
@@ -59,6 +61,8 @@ class JointEBM(nn.Module):
         self.k = k
         self.d_y = d_y
         self.beta_reg = beta_reg
+        self._base_ulb_w = ulb_weight
+        self._ulb_w = ulb_weight
         net = make_mlp([d_x + d_y, hidden, hidden, k])
         if spectral_norm:
             for m in net.modules():
@@ -73,6 +77,12 @@ class JointEBM(nn.Module):
             self.register_buffer("log_tau", tau.log())
 
         self.aux_mu = make_mlp([d_x + k, hidden, hidden, d_y])
+
+    def set_epoch(self, epoch: int, total_epochs: int) -> None:
+        """Update curriculum weight for unlabelled loss."""
+
+        ramp = 0.3 * total_epochs
+        self._ulb_w = self._base_ulb_w * min(1.0, epoch / ramp)
 
     @torch.no_grad()
     def init_y(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
@@ -102,8 +112,13 @@ class JointEBM(nn.Module):
     def energy(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         inp = torch.cat([x, y], dim=-1)
         base_E = self.energy_net(inp)
-        reg = (y**2).mean(-1, keepdim=True) * self.beta_reg
-        return base_E + reg
+        l2 = (y ** 2).mean(-1, keepdim=True)
+        if torch.is_grad_enabled() and y.requires_grad:
+            (grad_y,) = torch.autograd.grad(l2.sum(), y, create_graph=True)
+            grad_pen = (grad_y ** 2).mean()
+        else:
+            grad_pen = torch.tensor(0.0, device=y.device)
+        return base_E + self.beta_reg * l2 + 1e-4 * grad_pen
 
     # --------------------------------------------------------------
     def forward(
@@ -139,7 +154,7 @@ class JointEBM(nn.Module):
             y = y.detach().requires_grad_(True)
             e = self.energy(x, y).gather(1, t.view(-1, 1)).sum()
             (grad,) = torch.autograd.grad(e, y)
-            y = y - lr * grad
+            y = (y - lr * grad).clamp(-10.0, 10.0)
             if grad.norm() < 1e-3:
                 break
         return y.detach()
@@ -155,34 +170,36 @@ class JointEBM(nn.Module):
         w_con: float = 1.0,
         alpha_aux: float = 0.1,
     ) -> torch.Tensor:
-        """Compute the contrastive training loss.
+        """Compute the contrastive training loss."""
 
-        The energies are scaled by the temperature parameter before applying the
-        labelled or marginal objectives.
-        """
-
-        energies = self.energy(x, y)  # (B,k)
-        tau = self.log_tau.exp()
-        energies = energies / tau
+        E = centre_per_row(self.energy(x, y)) / self.log_tau.exp()
         labelled = t_obs >= 0
-        loss_lab = torch.tensor(0.0, device=x.device)
-        if labelled.any():
-            t_lab = t_obs[labelled]
-            loss_lab = F.cross_entropy(-energies[labelled], t_lab)
-        unlabelled = ~labelled
-        loss_ulb = torch.tensor(0.0, device=x.device)
-        if unlabelled.any():
-            lse = torch.logsumexp(-energies[unlabelled], dim=-1)
-            loss_ulb = -lse.mean()
-        loss_con = torch.tensor(0.0, device=x.device)
-        loss_aux = torch.tensor(0.0, device=x.device)
-        if labelled.any():
-            loss_con = self.contrastive_y_loss(x[labelled], y[labelled], t_lab)
-            loss_aux = F.mse_loss(self.init_y(x[labelled], t_lab), y[labelled])
 
-        total = w_lab * loss_lab + w_ulb * loss_ulb + w_con * loss_con
-        total = total + alpha_aux * loss_aux
-        return total
+        loss_lab = (
+            F.cross_entropy(-E[labelled], t_obs[labelled]) if labelled.any() else 0.0
+        )
+
+        unlab_idx = ~labelled
+        if unlab_idx.any():
+            probs_ulb = F.softmax(-E[unlab_idx], dim=-1)
+            target = probs_ulb.new_full(probs_ulb.shape, 1.0 / self.k)
+            loss_ulb = F.kl_div(probs_ulb.log(), target, reduction="batchmean")
+        else:
+            loss_ulb = 0.0
+
+        if labelled.any():
+            loss_con = self.contrastive_y_loss(x[labelled], y[labelled], t_obs[labelled])
+            loss_aux = F.mse_loss(self.init_y(x[labelled], t_obs[labelled]), y[labelled])
+        else:
+            loss_con = 0.0
+            loss_aux = 0.0
+
+        return (
+            w_lab * loss_lab
+            + self._ulb_w * loss_ulb
+            + w_con * loss_con
+            + alpha_aux * loss_aux
+        )
 
     @torch.no_grad()
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
@@ -200,6 +217,22 @@ class JointEBM(nn.Module):
 
         with torch.enable_grad():
             return self.forward(x, t, steps=steps, lr=lr)
+
+    @torch.no_grad()
+    def predict_marginal_y(
+        self, x: torch.Tensor, y_obs: torch.Tensor, steps: int = 20, lr: float = 0.1
+    ) -> torch.Tensor:
+        """Predict outcome marginalising over unknown treatment."""
+
+        p_t = self.predict_treatment_proba(x, y_obs)
+        y_t = torch.stack(
+            [
+                self.predict_outcome(x, torch.full_like(y_obs[:, :1], t), steps, lr)
+                for t in range(self.k)
+            ],
+            dim=-2,
+        )
+        return (p_t.unsqueeze(-1) * y_t).sum(dim=-2)
 
     # ------------------------------------------------------------------
     @torch.no_grad()
