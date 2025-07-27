@@ -131,6 +131,22 @@ def log_categorical(t: torch.Tensor, logits: torch.Tensor) -> torch.Tensor:
     return (t * F.log_softmax(logits, 1)).sum(1)
 
 
+def mmd(x_a: torch.Tensor, x_b: torch.Tensor, sigma: float = 1.0) -> torch.Tensor:
+    """Gaussian-kernel MMD^2 between two embeddings sets."""
+
+    def _pairwise_sq_dists(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        xx = (x**2).sum(1, keepdim=True)
+        yy = (y**2).sum(1, keepdim=True)
+        return xx + yy.T - 2 * (x @ y.T)
+
+    K_aa = torch.exp(-_pairwise_sq_dists(x_a, x_a) / (2 * sigma**2))
+    K_bb = torch.exp(-_pairwise_sq_dists(x_b, x_b) / (2 * sigma**2))
+    K_ab = torch.exp(-_pairwise_sq_dists(x_a, x_b) / (2 * sigma**2))
+    m = x_a.size(0)
+    n = x_b.size(0)
+    return K_aa.sum() / (m * (m - 1)) + K_bb.sum() / (n * (n - 1)) - 2 * K_ab.mean()
+
+
 def sinusoidal_time_embed(dim: int):
     """Return a function embedding scalar timesteps with sinusoids."""
 
@@ -177,6 +193,7 @@ __all__ = [
     "kl_normal",
     "gumbel_softmax",
     "log_categorical",
+    "mmd",
     "sinusoidal_time_embed",
     "UNet1D",
 ]
