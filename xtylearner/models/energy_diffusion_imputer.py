@@ -77,17 +77,36 @@ class EnergyDiffusionImputer(nn.Module):
 
     # --------------------------------------------------------------
     def forward(
-        self, x: torch.Tensor, t: torch.Tensor, *, steps: int = 20, lr: float = 0.1
+        self,
+        x: torch.Tensor,
+        t: torch.Tensor,
+        *,
+        steps: int = 20,
+        lr: float = 0.1,
+        reg: float = 0.01,
+        noise: float = 0.0,
     ) -> torch.Tensor:
-        """Approximate ``p(y|x,t)`` via gradient-based energy minimisation."""
+        """Approximate ``p(y|x,t)`` via gradient-based energy minimisation.
+
+        The procedure now includes optional L2 regularisation of ``y`` and
+        terminates early when the gradient becomes small.  ``noise`` can be
+        used to perform Langevin-style updates.
+        """
 
         y = torch.zeros(x.size(0), self.d_y, device=x.device, requires_grad=True)
         with torch.enable_grad():
             for _ in range(steps):
                 e_all = self.energy_net(x, y)
                 e = e_all.gather(1, t.view(-1, 1).clamp_min(0))
-                grad = torch.autograd.grad(e.sum(), y, create_graph=False)[0]
-                y = (y - lr * grad).detach().requires_grad_(True)
+                reg_term = reg * (y ** 2).sum(dim=1, keepdim=True)
+                loss = e + reg_term
+                grad = torch.autograd.grad(loss.sum(), y, create_graph=False)[0]
+                if grad.norm() < 1e-3:
+                    break
+                y = (y - lr * grad).detach()
+                if noise > 0.0:
+                    y += noise * torch.randn_like(y)
+                y.requires_grad_(True)
         return y.detach()
 
     # --------------------------------------------------------------
@@ -121,7 +140,14 @@ class EnergyDiffusionImputer(nn.Module):
 
     # ----- training objective -----
     def loss(
-        self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
+        self,
+        x: torch.Tensor,
+        y: torch.Tensor,
+        t_obs: torch.Tensor,
+        *,
+        w_obs: float = 1.0,
+        w_unobs: float = 1.0,
+        w_align: float = 1.0,
     ) -> torch.Tensor:
         b = x.size(0)
         device = x.device
@@ -150,18 +176,27 @@ class EnergyDiffusionImputer(nn.Module):
             loss_unobs = (w * (-log_probs)).sum(dim=-1).mean()
 
         E_all = self.energy_net(x, y)
-        t_pos = torch.where(obs_mask, t_obs, logits.argmax(dim=-1))
-        E_pos = E_all.gather(1, t_pos.unsqueeze(-1)).squeeze(-1)
-        cd_loss = (E_pos + torch.logsumexp(-E_all, dim=-1)).mean()
+        log_p_score = F.log_softmax(logits, dim=-1)
+        log_p_energy = F.log_softmax(-E_all, dim=-1)
+        kl_div = F.kl_div(log_p_score, log_p_energy.exp(), reduction="batchmean")
 
-        return loss_obs + loss_unobs + cd_loss
+        total = w_obs * loss_obs + w_unobs * loss_unobs + w_align * kl_div
+        return total
 
     # ----- simple sampler -----
     @torch.no_grad()
     def sample_T(
-        self, x: torch.Tensor, y: torch.Tensor, steps: int = 30
+        self,
+        x: torch.Tensor,
+        y: torch.Tensor,
+        steps: int = 30,
+        lambda_energy: float = 1.0,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Draw labels ``t`` and return their final probabilities."""
+        """Draw labels ``t`` and return their final probabilities.
+
+        ``lambda_energy`` controls the influence of the energy guidance during
+        sampling.
+        """
 
         b = x.size(0)
         t = torch.randint(0, self.k, (b,), device=x.device)
@@ -170,7 +205,7 @@ class EnergyDiffusionImputer(nn.Module):
             tau = torch.full((b, 1), step_idx / steps, device=x.device)
             logits = self.score_net(x, y, t, tau)
             energy = self.energy_net(x, y)
-            guided = logits - energy
+            guided = logits - lambda_energy * energy
             probs = F.softmax(guided, dim=-1)
             t = torch.multinomial(probs, 1).squeeze(-1)
         return t, probs
