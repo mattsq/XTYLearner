@@ -15,12 +15,14 @@ from nflows.flows import Flow
 from nflows.distributions import StandardNormal
 from nflows.transforms import (
     MaskedAffineAutoregressiveTransform,
+    MaskedPiecewiseRationalQuadraticAutoregressiveTransform,
     CompositeTransform,
     RandomPermutation,
 )
 
 from .registry import register_model
 from .layers import make_mlp
+from .utils import mmd
 
 
 @register_model("cnflow")
@@ -41,6 +43,7 @@ class CNFlowModel(nn.Module):
         hidden: int = 128,
         n_layers: int = 5,
         eval_samples: int = 100,
+        lambda_mmd: float = 0.0,
     ) -> None:
         super().__init__()
         self.k = k
@@ -48,21 +51,35 @@ class CNFlowModel(nn.Module):
         self.cond_net = make_mlp([d_x, hidden, hidden], activation=nn.ReLU)
         self.flow = self._build_conditional_flow(hidden, n_layers)
         self.eval_samples = eval_samples
+        self.lambda_mmd = lambda_mmd
 
     # ------------------------------------------------------------
     def _build_conditional_flow(self, hidden: int, n_layers: int) -> Flow:
         """Return a conditional flow over ``y`` conditioned on ``x`` and ``t``."""
 
         transforms = []
-        for _ in range(n_layers):
-            transforms.append(
-                MaskedAffineAutoregressiveTransform(
-                    features=self.d_y,
-                    hidden_features=hidden,
-                    context_features=hidden + self.k,
+        if self.d_y == 1:
+            for _ in range(n_layers):
+                transforms.append(
+                    MaskedPiecewiseRationalQuadraticAutoregressiveTransform(
+                        features=self.d_y,
+                        hidden_features=hidden,
+                        context_features=hidden + self.k,
+                        num_bins=8,
+                        tails="linear",
+                    )
                 )
-            )
-            transforms.append(RandomPermutation(features=self.d_y))
+                transforms.append(RandomPermutation(features=self.d_y))
+        else:
+            for _ in range(n_layers):
+                transforms.append(
+                    MaskedAffineAutoregressiveTransform(
+                        features=self.d_y,
+                        hidden_features=hidden,
+                        context_features=hidden + self.k,
+                    )
+                )
+                transforms.append(RandomPermutation(features=self.d_y))
         transform = CompositeTransform(transforms)
         base = StandardNormal([self.d_y])
         return Flow(transform, base)
@@ -72,6 +89,7 @@ class CNFlowModel(nn.Module):
         x: torch.Tensor,
         y: torch.Tensor,
         t_obs: torch.Tensor,
+        propensity: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Return the average negative log-likelihood for a mini-batch.
 
@@ -80,16 +98,35 @@ class CNFlowModel(nn.Module):
         """
 
         y = y.float()
+        if self.training:
+            y = y + 0.01 * torch.randn_like(y)
         t_onehot = nn.functional.one_hot(t_obs.clamp_min(0), num_classes=self.k).float()
         ctx_x = self.cond_net(x)
         t_mask = t_obs != -1
+
+        mmd_penalty = torch.tensor(0.0, device=x.device)
+        if self.lambda_mmd > 0:
+            vals = t_obs[t_mask].unique()
+            pairs = []
+            for i in range(len(vals)):
+                for j in range(i + 1, len(vals)):
+                    idx_i = (t_obs == vals[i]) & t_mask
+                    idx_j = (t_obs == vals[j]) & t_mask
+                    if idx_i.any() and idx_j.any():
+                        pairs.append(mmd(ctx_x[idx_i], ctx_x[idx_j]))
+            if pairs:
+                mmd_penalty = torch.stack(pairs).mean()
 
         logp_obs = torch.tensor(0.0, device=x.device)
         if t_mask.any():
             context = torch.cat([ctx_x[t_mask], t_onehot[t_mask]], dim=-1)
             logp_obs = self.flow.log_prob(y[t_mask], context)
 
-        nll = -logp_obs.sum()
+        nll_obs = -logp_obs
+        if propensity is not None and t_mask.any():
+            w = 1.0 / propensity[t_mask, t_obs[t_mask]]
+            nll_obs = -(w * logp_obs)
+        nll = nll_obs.sum()
         if (~t_mask).any():
             y_m = y[~t_mask]
             ctx_x_m = ctx_x[~t_mask]
@@ -103,7 +140,7 @@ class CNFlowModel(nn.Module):
             logp_stack = torch.stack(logp_all, dim=-1)
             logp_miss = torch.logsumexp(logp_stack, dim=1)
             nll += -logp_miss.sum()
-        return nll / x.size(0)
+        return nll / x.size(0) + self.lambda_mmd * mmd_penalty
 
     # ------------------------------------------------------------
     def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
