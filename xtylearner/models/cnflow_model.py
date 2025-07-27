@@ -104,7 +104,7 @@ class CNFlowModel(nn.Module):
         ctx_x = self.cond_net(x)
         t_mask = t_obs != -1
 
-        mmd_penalty = torch.tensor(0.0, device=x.device)
+        mmd_penalty = torch.tensor(0.0, device=x.device, requires_grad=True)
         if self.lambda_mmd > 0:
             vals = t_obs[t_mask].unique()
             pairs = []
@@ -117,7 +117,7 @@ class CNFlowModel(nn.Module):
             if pairs:
                 mmd_penalty = torch.stack(pairs).mean()
 
-        logp_obs = torch.tensor(0.0, device=x.device)
+        logp_obs = torch.tensor(0.0, device=x.device, requires_grad=True)
         if t_mask.any():
             context = torch.cat([ctx_x[t_mask], t_onehot[t_mask]], dim=-1)
             logp_obs = self.flow.log_prob(y[t_mask], context)
