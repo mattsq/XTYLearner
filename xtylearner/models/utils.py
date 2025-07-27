@@ -6,6 +6,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+def centre_per_row(E: torch.Tensor) -> torch.Tensor:
+    """Subtract mean per row to stabilise energy magnitudes."""
+
+    return E - E.mean(dim=-1, keepdim=True)
+
+
 def ramp_up_sigmoid(epoch: int, ramp: int, max_val: float = 1.0) -> float:
     """Smoothly increase a scaling factor during training.
 
@@ -165,6 +171,7 @@ class UNet1D(nn.Module):
 
 
 __all__ = [
+    "centre_per_row",
     "ramp_up_sigmoid",
     "reparameterise",
     "kl_normal",
