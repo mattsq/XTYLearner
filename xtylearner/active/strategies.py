@@ -22,6 +22,13 @@ class EntropyT(QueryStrategy):
 
     @staticmethod
     def _treatment_proba(model: nn.Module, x: torch.Tensor) -> torch.Tensor:
+        """Return ``p(t\mid x)`` predicted by ``model``.
+
+        The helper tries ``predict_treatment_proba`` if available and falls
+        back to common attribute names such as ``cls_t`` or ``head_T``.  When
+        these heads expect concatenated outcome inputs the function appends
+        zero-outcome tensors automatically.
+        """
         if hasattr(model, "predict_treatment_proba"):
             try:
                 return model.predict_treatment_proba(x)
@@ -66,6 +73,11 @@ class DeltaCATE(QueryStrategy):
     def _predict_outcome(
         self, model: nn.Module, x: torch.Tensor, t: torch.Tensor
     ) -> torch.Tensor:
+        """Return ``y`` predictions for covariates ``x`` and treatment ``t``.
+
+        The method first checks for a ``predict_outcome`` implementation and
+        otherwise tries a combination of ``head_Y`` and ``h`` attributes.
+        """
         if hasattr(model, "predict_outcome"):
             return model.predict_outcome(x, int(t[0].item()) if t.numel() == 1 else t)
         k = getattr(model, "k", 2)
@@ -104,9 +116,11 @@ class FCCMRadius(QueryStrategy):
         self._X_lab: torch.Tensor | None = None
 
     def update_labeled(self, X_lab: torch.Tensor) -> None:
+        """Store labelled covariates for future radius computations."""
         self._X_lab = X_lab
 
     def _radius(self, rep_u: torch.Tensor, rep_l: torch.Tensor) -> torch.Tensor:
+        """Minimum pairwise distance from unlabelled to labelled representations."""
         dists = torch.cdist(rep_u, rep_l)
         return dists.min(dim=1).values
 
