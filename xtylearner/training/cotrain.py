@@ -12,6 +12,8 @@ class CoTrainTrainer(BaseTrainer):
     """Trainer implementing the SemiITE co-training loop."""
 
     def step(self, batch: Iterable[torch.Tensor]) -> torch.Tensor:
+        """Compute the loss on a single batch."""
+
         x, y, t_obs = self._extract_batch(batch)
         z = self.model.encode(x)
         logits = self.model.prop(z)
@@ -79,6 +81,8 @@ class CoTrainTrainer(BaseTrainer):
         return loss
 
     def fit(self, num_epochs: int) -> None:
+        """Train the model for ``num_epochs`` epochs."""
+
         for epoch in range(num_epochs):
             self.model.train()
             num_batches = len(self.train_loader)
@@ -105,6 +109,8 @@ class CoTrainTrainer(BaseTrainer):
                 self.logger.end_epoch(epoch + 1)
 
     def evaluate(self, data_loader: Iterable) -> Mapping[str, float]:
+        """Return evaluation metrics on ``data_loader``."""
+
         metrics = self._eval_metrics(data_loader)
         loss_val = metrics.get("loss", next(iter(metrics.values()), 0.0))
         return {
@@ -116,6 +122,8 @@ class CoTrainTrainer(BaseTrainer):
         }
 
     def predict(self, *inputs: torch.Tensor):
+        """Return model predictions for ``inputs``."""
+
         self.model.eval()
         with torch.no_grad():
             inputs = [i.to(self.device) for i in inputs]

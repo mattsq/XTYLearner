@@ -12,11 +12,47 @@ from ..noise_schedules import add_noise
 class CTMTrainer(BaseTrainer):
     """Trainer for the CTMT model."""
 
-    def __init__(self, model, optimizer, train_loader, val_loader=None, device="cpu", logger=None, scheduler=None, grad_clip_norm=None, cfg=None):
+    def __init__(
+        self,
+        model,
+        optimizer,
+        train_loader,
+        val_loader=None,
+        device="cpu",
+        logger=None,
+        scheduler=None,
+        grad_clip_norm=None,
+        cfg=None,
+    ):
+        """Create a trainer for a ``CTMT`` model.
+
+        Parameters
+        ----------
+        model : nn.Module
+            Model instance to train.
+        optimizer : torch.optim.Optimizer
+            Optimiser used for parameter updates.
+        train_loader : Iterable
+            Loader providing training batches ``(X, Y, T)``.
+        val_loader : Iterable, optional
+            Optional validation set loader.
+        device : str, default ``"cpu"``
+            Device on which to run training.
+        logger : TrainerLogger, optional
+            Optional training logger.
+        scheduler : torch.optim.lr_scheduler._LRScheduler or tuple, optional
+            Learning rate scheduler(s).
+        grad_clip_norm : float, optional
+            Gradient clipping norm.
+        cfg : dict, optional
+            Extra configuration parameters controlling pseudo labelling.
+        """
         super().__init__(model, optimizer, train_loader, val_loader, device, logger, scheduler, grad_clip_norm)
         self.cfg = cfg or {}
 
     def step(self, batch: Iterable[torch.Tensor]) -> torch.Tensor:
+        """Compute a single optimisation step on ``batch``."""
+
         x, y, t_obs = self._extract_batch(batch)
         x0 = torch.cat([x, y, t_obs.clamp_min(0).unsqueeze(-1).float()], dim=-1)
 
@@ -42,6 +78,8 @@ class CTMTrainer(BaseTrainer):
         return loss_ctm + self.cfg.get("lmb_t", 1.0) * loss_prop
 
     def fit(self, num_epochs: int) -> None:
+        """Run the training loop for ``num_epochs`` epochs."""
+
         for epoch in range(num_epochs):
             self.model.train()
             num_batches = len(self.train_loader)
@@ -68,6 +106,8 @@ class CTMTrainer(BaseTrainer):
                 self.logger.end_epoch(epoch + 1)
 
     def evaluate(self, data_loader: Iterable) -> Mapping[str, float]:
+        """Return evaluation metrics averaged over ``data_loader``."""
+
         metrics = self._eval_metrics(data_loader)
         loss_val = metrics.get("loss", next(iter(metrics.values()), 0.0))
         return {
@@ -79,6 +119,8 @@ class CTMTrainer(BaseTrainer):
         }
 
     def predict(self, *args):
+        """Predict outcomes for covariates ``x`` under treatment ``t``."""
+
         self.model.eval()
         with torch.no_grad():
             if len(args) == 1 and isinstance(args[0], int):
@@ -96,12 +138,18 @@ class CTMTrainer(BaseTrainer):
                 [x, torch.zeros(x.size(0), 1, device=self.device), t_tensor.unsqueeze(-1).float()],
                 dim=-1,
             )
-            out, _ = self.model(x0, torch.zeros_like(t_tensor, dtype=torch.float32).unsqueeze(-1), torch.zeros_like(t_tensor, dtype=torch.float32).unsqueeze(-1))
+            out, _ = self.model(
+                x0,
+                torch.zeros_like(t_tensor, dtype=torch.float32).unsqueeze(-1),
+                torch.zeros_like(t_tensor, dtype=torch.float32).unsqueeze(-1),
+            )
             y_hat = out[:, x.size(1) : x.size(1) + 1]
             return y_hat
 
     @torch.no_grad()
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Return ``p(t\mid x,y)`` estimated by the model."""
+
         self.model.eval()
         x = x.to(self.device)
         y = y.to(self.device)
