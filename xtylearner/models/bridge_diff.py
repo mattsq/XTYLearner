@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -11,7 +12,13 @@ class ScoreBridge(nn.Module):
     """Score network predicting ``\nabla_y log q(y_\tau | x,t)``."""
 
     def __init__(
-        self, d_x: int, d_y: int, k: int, hidden: int = 256, embed_dim: int = 64
+        self,
+        d_x: int,
+        d_y: int,
+        k: int,
+        hidden: int = 256,
+        embed_dim: int = 64,
+        n_blocks: int = 3,
     ) -> None:
         super().__init__()
         self.t_embed = nn.Embedding(k, embed_dim)
@@ -21,12 +28,12 @@ class ScoreBridge(nn.Module):
             nn.Linear(embed_dim, embed_dim),
         )
         self.x_proj = nn.Linear(d_x, embed_dim)
-        self.trunk = nn.Sequential(
-            nn.Linear(embed_dim * 3 + d_y, hidden),
-            nn.SiLU(),
-            nn.Linear(hidden, hidden),
-            nn.SiLU(),
-        )
+        layers = []
+        in_dim = embed_dim * 3 + d_y
+        for _ in range(n_blocks):
+            layers += [nn.Linear(in_dim, hidden), nn.SiLU()]
+            in_dim = hidden
+        self.trunk = nn.Sequential(*layers)
         self.score_head = nn.Linear(hidden, d_y)
 
     def forward(
@@ -66,17 +73,20 @@ class BridgeDiff(nn.Module):
         hidden: int = 256,
         timesteps: int = 1000,
         sigma_min: float = 0.002,
-        sigma_max: float = 1.0,
+        sigma_max: float | None = None,
         k: int = 2,
         embed_dim: int = 64,
+        n_blocks: int = 3,
     ) -> None:
         super().__init__()
         self.d_y = d_y
         self.k = k
         self.timesteps = timesteps
         self.sigma_min = sigma_min
+        if sigma_max is None:
+            sigma_max = 10.0
         self.sigma_max = sigma_max
-        self.score_net = ScoreBridge(d_x, d_y, k, hidden, embed_dim)
+        self.score_net = ScoreBridge(d_x, d_y, k, hidden, embed_dim, n_blocks)
         self.classifier = Classifier(d_x, d_y, k)
 
     # ----- utilities -----
@@ -85,13 +95,20 @@ class BridgeDiff(nn.Module):
 
     # ----- training objective -----
     def loss(
-        self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
+        self,
+        x: torch.Tensor,
+        y: torch.Tensor,
+        t_obs: torch.Tensor,
+        warmup: int = 10,
     ) -> torch.Tensor:
         b = x.size(0)
         device = x.device
-        t_idx = torch.randint(1, self.timesteps + 1, (b,), device=device)
-        tau = t_idx.float() / self.timesteps
-        sig = self._sigma(tau).unsqueeze(-1)
+        u = torch.rand(b, device=device)
+        tau = (
+            u * (math.log(self.sigma_max) - math.log(self.sigma_min))
+            + math.log(self.sigma_min)
+        ).exp()
+        sig = tau.unsqueeze(-1)
         eps = torch.randn_like(y)
         y_noisy = y + sig * eps
 
@@ -107,11 +124,13 @@ class BridgeDiff(nn.Module):
                 t_obs[obs_mask].clamp_min(0),
                 tau[obs_mask].unsqueeze(-1),
             )
-            loss_obs = ((s_obs + eps[obs_mask] / sig[obs_mask]) ** 2).mean()
+            mse = (s_obs + eps[obs_mask] / sig[obs_mask]) ** 2
+            loss_obs = (sig[obs_mask] ** 2 * mse).mean()
 
         unobs_mask = obs_mask.logical_not()
         loss_unobs = torch.tensor(0.0, device=device)
         if unobs_mask.any():
+            sig_unobs = sig[unobs_mask]
             mse_all = []
             for t_val in range(self.k):
                 s_t = self.score_net(
@@ -120,10 +139,15 @@ class BridgeDiff(nn.Module):
                     torch.full_like(t_obs[unobs_mask], t_val),
                     tau[unobs_mask].unsqueeze(-1),
                 )
-                mse = ((s_t + eps[unobs_mask] / sig[unobs_mask]) ** 2).mean(dim=-1)
+                mse = ((s_t + eps[unobs_mask] / sig_unobs) ** 2).mean(dim=-1)
                 mse_all.append(mse)
             mse_all = torch.stack(mse_all, dim=1)
-            loss_unobs = (p_post[unobs_mask] * mse_all).sum(dim=1).mean()
+            loss_unobs = (
+                p_post[unobs_mask] * (sig_unobs ** 2) * mse_all
+            ).sum(dim=1).mean()
+
+        if warmup > 0:
+            loss_unobs = torch.tensor(0.0, device=device)
 
         ce_loss = torch.tensor(0.0, device=device)
         if obs_mask.any():
@@ -169,14 +193,32 @@ class BridgeDiff(nn.Module):
 
     @torch.no_grad()
     def predict_outcome(
-        self, x: torch.Tensor, t: torch.Tensor, n_steps: int = 50
+        self,
+        x: torch.Tensor,
+        t: torch.Tensor,
+        n_steps: int = 50,
+        n_samples: int = 32,
+        return_mean: bool = True,
     ) -> torch.Tensor:
-        """Generate outcome predictions for covariates ``x`` and treatment ``t``."""
+        """Generate ``n_samples`` draws and optionally average them."""
 
-        y_all = self.paired_sample(x, n_steps=n_steps)
-        y_stack = torch.stack(y_all, dim=1)
+        draws = []
+        for _ in range(n_samples):
+            y_all = self.paired_sample(x, n_steps)
+            draws.append(torch.stack(y_all, dim=1))  # [B, k, d_y]
+        y_stack = torch.stack(draws, dim=0)  # [n_samples, B, k, d_y]
         t_long = t.view(-1, 1, 1).long()
-        return y_stack.gather(1, t_long.expand(-1, 1, self.d_y)).squeeze(1)
+
+        if return_mean:
+            y_mean = y_stack.mean(dim=0)  # [B, k, d_y]
+            return y_mean.gather(1, t_long.expand(-1, 1, self.d_y)).squeeze(1)
+
+        # return all draws, selecting the desired treatment index
+        y_stack = y_stack.transpose(0, 1)  # [B, n_samples, k, d_y]
+        gathered = y_stack.gather(
+            2, t_long.unsqueeze(1).expand(-1, n_samples, 1, self.d_y)
+        )
+        return gathered.squeeze(2)
 
 
 __all__ = ["BridgeDiff"]
