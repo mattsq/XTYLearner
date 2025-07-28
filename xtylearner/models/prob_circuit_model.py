@@ -176,6 +176,19 @@ class ProbCircuitModel:
 
     # ------------------------------------------------------------------
     def _posterior_row(self, row: Iterable[float]) -> float:
+        """Compute ``p(T=1|row)`` for a single ``(X,T,Y)`` record.
+
+        Parameters
+        ----------
+        row:
+            Sequence containing covariates, treatment (may be ``nan``) and
+            outcome values in the order used by the circuit.
+
+        Returns
+        -------
+        float
+            Posterior probability that the treatment equals ``1``.
+        """
         if _HAS_SPFLOW:
             assert self.root is not None
             row0 = np.array(row, copy=True)

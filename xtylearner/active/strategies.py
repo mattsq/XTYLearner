@@ -22,6 +22,26 @@ class EntropyT(QueryStrategy):
 
     @staticmethod
     def _treatment_proba(model: nn.Module, x: torch.Tensor) -> torch.Tensor:
+        """Return ``p(t|x)`` using any available treatment head.
+
+        The helper first tries ``model.predict_treatment_proba``.  If that
+        fails it falls back to common attribute names such as ``cls_t``,
+        ``head_T`` or ``C`` which are expected to output logits.  When these
+        heads require outcome features, zero-filled outcomes are appended
+        automatically.
+
+        Parameters
+        ----------
+        model:
+            Model exposing a treatment prediction head.
+        x:
+            Covariate matrix of shape ``(n, d)``.
+
+        Returns
+        -------
+        torch.Tensor
+            Matrix of treatment probabilities with shape ``(n, k)``.
+        """
         if hasattr(model, "predict_treatment_proba"):
             try:
                 return model.predict_treatment_proba(x)
@@ -66,6 +86,7 @@ class DeltaCATE(QueryStrategy):
     def _predict_outcome(
         self, model: nn.Module, x: torch.Tensor, t: torch.Tensor
     ) -> torch.Tensor:
+        """Return outcome predictions for covariates ``x`` and treatment ``t``."""
         if hasattr(model, "predict_outcome"):
             return model.predict_outcome(x, int(t[0].item()) if t.numel() == 1 else t)
         k = getattr(model, "k", 2)
@@ -104,9 +125,11 @@ class FCCMRadius(QueryStrategy):
         self._X_lab: torch.Tensor | None = None
 
     def update_labeled(self, X_lab: torch.Tensor) -> None:
+        """Store covariates of labelled points for radius computation."""
         self._X_lab = X_lab
 
     def _radius(self, rep_u: torch.Tensor, rep_l: torch.Tensor) -> torch.Tensor:
+        """Distance of unlabelled points to the labelled set in representation space."""
         dists = torch.cdist(rep_u, rep_l)
         return dists.min(dim=1).values
 
