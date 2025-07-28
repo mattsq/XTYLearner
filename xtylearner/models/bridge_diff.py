@@ -117,7 +117,7 @@ class BridgeDiff(nn.Module):
         p_post = F.softmax(logits.detach(), dim=-1)
 
         obs_mask = t_obs != -1
-        loss_obs = torch.tensor(0.0, device=device)
+        loss_obs = torch.tensor(0.0, device=device, requires_grad=True)
         if obs_mask.any():
             s_obs = self.score_net(
                 y_noisy[obs_mask],
@@ -129,7 +129,7 @@ class BridgeDiff(nn.Module):
             loss_obs = (sig[obs_mask] ** 2 * mse).mean()
 
         unobs_mask = obs_mask.logical_not()
-        loss_unobs = torch.tensor(0.0, device=device)
+        loss_unobs = torch.tensor(0.0, device=device, requires_grad=True)
         if unobs_mask.any():
             sig_unobs = sig[unobs_mask]
             mse_all = []
@@ -144,13 +144,13 @@ class BridgeDiff(nn.Module):
                 mse_all.append(mse)
             mse_all = torch.stack(mse_all, dim=1)
             loss_unobs = (
-                p_post[unobs_mask] * (sig_unobs ** 2) * mse_all
-            ).sum(dim=1).mean()
+                (p_post[unobs_mask] * (sig_unobs**2) * mse_all).sum(dim=1).mean()
+            )
 
         if warmup > 0:
-            loss_unobs = torch.tensor(0.0, device=device)
+            loss_unobs = torch.tensor(0.0, device=device, requires_grad=True)
 
-        ce_loss = torch.tensor(0.0, device=device)
+        ce_loss = torch.tensor(0.0, device=device, requires_grad=True)
         if obs_mask.any():
             ce_loss = F.cross_entropy(logits[obs_mask], t_obs[obs_mask].clamp_min(0))
 
