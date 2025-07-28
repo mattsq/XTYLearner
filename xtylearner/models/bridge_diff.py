@@ -84,7 +84,8 @@ class BridgeDiff(nn.Module):
         self.timesteps = timesteps
         self.sigma_min = sigma_min
         if sigma_max is None:
-            sigma_max = 10.0
+            # use the same default scale as other diffusion models
+            sigma_max = 1.0
         self.sigma_max = sigma_max
         self.score_net = ScoreBridge(d_x, d_y, k, hidden, embed_dim, n_blocks)
         self.classifier = Classifier(d_x, d_y, k)
