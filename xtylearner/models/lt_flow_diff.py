@@ -253,6 +253,18 @@ class LTFlowDiff(nn.Module):
 
     # ----- utilities -----
     def _sigma(self, tau: torch.Tensor) -> torch.Tensor:
+        """Standard deviation of the diffusion noise at timestep ``tau``.
+
+        Parameters
+        ----------
+        tau:
+            Normalised timestep in ``[0, 1]``.
+
+        Returns
+        -------
+        torch.Tensor
+            Noise scale computed from ``sigma_min`` and ``sigma_max``.
+        """
         return sigma_schedule(tau, self.sigma_min, self.sigma_max)
 
     def _sigma_with_warmup(self, tau: torch.Tensor) -> torch.Tensor:
