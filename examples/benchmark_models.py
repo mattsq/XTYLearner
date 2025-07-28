@@ -2,7 +2,7 @@
 
 import pandas as pd
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 
 from xtylearner.data import get_dataset
 from xtylearner.models import get_model, get_model_names
@@ -29,11 +29,14 @@ def run_benchmark(output_path: str = "benchmark_results.md") -> None:
     results = []
     for ds_name in dataset_names:
         if ds_name == "synthetic_mixed":
-            ds = get_dataset(ds_name, n_samples=50, d_x=2, label_ratio=0.5, seed=0)
-            val_ds = get_dataset(ds_name, n_samples=50, d_x=2, label_ratio=0.5, seed=0)
+            full_ds = get_dataset(
+                ds_name, n_samples=100, d_x=2, label_ratio=0.5, seed=0
+            )
         else:
-            ds = get_dataset(ds_name, n_samples=50, d_x=2, seed=0)
-            val_ds = get_dataset(ds_name, n_samples=50, d_x=2, seed=0)
+            full_ds = get_dataset(ds_name, n_samples=100, d_x=2, seed=0)
+        half = len(full_ds) // 2
+        ds = TensorDataset(*(t[:half] for t in full_ds.tensors))
+        val_ds = TensorDataset(*(t[half:] for t in full_ds.tensors))
         loader = DataLoader(ds, batch_size=10, shuffle=True)
         val_loader = DataLoader(val_ds, batch_size=10)
         x_dim = ds.tensors[0].size(1)
