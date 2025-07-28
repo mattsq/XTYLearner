@@ -30,10 +30,10 @@ def run_benchmark(output_path: str = "benchmark_results.md") -> None:
     for ds_name in dataset_names:
         if ds_name == "synthetic_mixed":
             ds = get_dataset(ds_name, n_samples=50, d_x=2, label_ratio=0.5, seed=0)
-            val_ds = get_dataset(ds_name, n_samples=50, d_x=2, label_ratio=0.5, seed=1)
+            val_ds = get_dataset(ds_name, n_samples=50, d_x=2, label_ratio=0.5, seed=0)
         else:
             ds = get_dataset(ds_name, n_samples=50, d_x=2, seed=0)
-            val_ds = get_dataset(ds_name, n_samples=50, d_x=2, seed=1)
+            val_ds = get_dataset(ds_name, n_samples=50, d_x=2, seed=0)
         loader = DataLoader(ds, batch_size=10, shuffle=True)
         val_loader = DataLoader(val_ds, batch_size=10)
         x_dim = ds.tensors[0].size(1)
