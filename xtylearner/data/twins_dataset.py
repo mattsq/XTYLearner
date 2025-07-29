@@ -20,18 +20,27 @@ from urllib.request import urlretrieve
 URL = "https://raw.githubusercontent.com/py-why/benchmark-datasets/main/twins/twin_pairs.csv"
 
 
-def load_twins(data_dir: str = "~/.xtylearner/data") -> TensorDataset:
+def load_twins(
+    data_dir: str = "~/.xtylearner/data",
+    *,
+    continuous_treatment: bool = False,
+) -> TensorDataset:
     """Load the Twins dataset, downloading a processed CSV if needed.
 
     Parameters
     ----------
     data_dir:
         Location used to cache the dataset file.
+    continuous_treatment:
+        If ``True`` keep the treatment array as ``np.float32`` and return a
+        floating-point tensor. By default integer labels are returned.
 
     Returns
     -------
     TensorDataset
         Dataset ``(X, Y, T)`` with shapes ``(N, d_x)``, ``(N, 1)`` and ``(N,)``.
+        When ``continuous_treatment=True`` the treatment tensor has dtype
+        ``torch.float32``.
     """
 
     path = Path(data_dir).expanduser()
@@ -41,7 +50,11 @@ def load_twins(data_dir: str = "~/.xtylearner/data") -> TensorDataset:
         urlretrieve(URL, file_path.as_posix())
 
     data = np.genfromtxt(file_path, delimiter=",", names=True)
-    T = data["treatment"].astype(np.int64)
+    T = data["treatment"]
+    if continuous_treatment:
+        T = T.astype(np.float32)
+    else:
+        T = T.astype(np.int64)
     Y = data["outcome"].astype(np.float32)
     cov_names = [n for n in data.dtype.names if n not in {"treatment", "outcome"}]
     X = np.vstack([data[n] for n in cov_names]).T.astype(np.float32)

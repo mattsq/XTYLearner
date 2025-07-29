@@ -128,18 +128,42 @@ def test_load_tabular_with_string_treatments():
     assert T.dtype == torch.int64
     assert getattr(ds, "treatment_mapping") == {"a": 0, "b": 1}
 
+
 # Additional tests
+
 
 def test_load_tabular_invalid_type():
     with pytest.raises(TypeError):
         load_tabular_dataset(123)
+
 
 def test_load_tabular_missing_columns():
     df = pd.DataFrame({"x1": [0.0, 1.0], "x2": [0.0, 1.0]})
     with pytest.raises(ValueError):
         load_tabular_dataset(df)
 
+
 def test_load_tabular_bad_numpy_shape():
     arr = np.zeros((2, 2), dtype=np.float32)
     with pytest.raises(ValueError):
         load_tabular_dataset(arr, outcome_col=1)
+
+
+def test_continuous_treatment_toy_dataset():
+    ds = load_toy_dataset(n_samples=4, d_x=2, seed=0, continuous_treatment=True)
+    _, _, T = ds.tensors
+    assert T.dtype == torch.float32
+
+
+def test_load_tabular_float_treatment():
+    rng = np.random.default_rng(0)
+    df = pd.DataFrame(
+        {
+            "x1": rng.normal(size=3).astype(np.float32),
+            "outcome": rng.normal(size=3).astype(np.float32),
+            "treatment": rng.normal(size=3).astype(np.float32),
+        }
+    )
+    ds = load_tabular_dataset(df, outcome_col="outcome", treatment_dtype=float)
+    _, _, T = ds.tensors
+    assert T.dtype == torch.float32

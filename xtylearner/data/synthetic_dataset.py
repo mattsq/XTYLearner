@@ -18,6 +18,8 @@ def load_synthetic_dataset(
     n_samples: int = 1000,
     d_x: int = 5,
     seed: int = 0,
+    *,
+    continuous_treatment: bool = False,
 ) -> TensorDataset:
     """Generate the default synthetic benchmark dataset used in examples.
 
@@ -29,12 +31,16 @@ def load_synthetic_dataset(
         Dimensionality of the covariates ``X``.
     seed:
         Random seed controlling reproducibility.
+    continuous_treatment:
+        If ``True`` keep the treatment array as ``np.float32`` and return a
+        floating-point tensor. By default integer labels are returned.
 
     Returns
     -------
     TensorDataset
         Dataset ``(X, Y, T)`` with shapes ``(n_samples, d_x)``, ``(n_samples, 1)``
-        and ``(n_samples,)``.
+        and ``(n_samples,)``. When ``continuous_treatment=True`` the treatment
+        tensor has dtype ``torch.float32``.
     """
 
     rng = np.random.default_rng(seed)
@@ -46,7 +52,11 @@ def load_synthetic_dataset(
     w_t = rng.normal(size=d_x)
     logits_t = X @ w_t
     p_t = 1.0 / (1.0 + np.exp(-logits_t))
-    T = rng.binomial(1, p_t).astype(np.int64)
+    T = rng.binomial(1, p_t)
+    if continuous_treatment:
+        T = T.astype(np.float32)
+    else:
+        T = T.astype(np.int64)
 
     w_y = rng.normal(size=d_x)
     Y = X @ w_y + 2.0 * T + rng.normal(scale=0.1, size=n_samples)

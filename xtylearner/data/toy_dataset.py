@@ -19,6 +19,8 @@ def load_toy_dataset(
     n_samples: int = 100,
     d_x: int = 2,
     seed: int = 0,
+    *,
+    continuous_treatment: bool = False,
 ) -> TensorDataset:
     """Generate a tiny synthetic dataset for quick experiments.
 
@@ -30,17 +32,25 @@ def load_toy_dataset(
         Dimensionality of the covariates.
     seed:
         Random seed used for reproducibility.
+    continuous_treatment:
+        If ``True`` keep the treatment array as ``np.float32`` and return a
+        floating-point tensor. By default integer labels are returned.
 
     Returns
     -------
     TensorDataset
         Dataset of shape ``(n_samples, d_x)``, outcome vector ``Y`` and
-        binary treatment ``T``.
+        treatment ``T``. When ``continuous_treatment=True`` the treatment
+        tensor has dtype ``torch.float32``.
     """
 
     rng = np.random.default_rng(seed)
     X = rng.normal(size=(n_samples, d_x)).astype(np.float32)
-    T = rng.integers(0, 2, size=n_samples).astype(np.int64)
+    T = rng.integers(0, 2, size=n_samples)
+    if continuous_treatment:
+        T = T.astype(np.float32)
+    else:
+        T = T.astype(np.int64)
 
     beta = rng.normal(size=d_x)
     Y = X @ beta + 0.5 * T + rng.normal(scale=0.1, size=n_samples)

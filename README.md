@@ -45,7 +45,10 @@ data frames and CSV files the names of the outcome and treatment columns can be
 specified via ``outcome_col`` and ``treatment_col`` (defaulting to ``"outcome"``
 and ``"treatment"``).  When a NumPy array is provided ``outcome_col`` indicates
 how many outcome columns appear immediately before the treatment column.  All
-remaining columns are treated as covariates.
+remaining columns are treated as covariates.  All built-in loaders accept a
+``continuous_treatment`` flag to return floating-point treatments rather than
+integer labels.  For :func:`load_tabular_dataset` the same effect can be
+achieved by passing ``treatment_dtype=float``.
 
 Example usage with a ``DataLoader``:
 
