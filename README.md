@@ -78,8 +78,8 @@ The model registry exposes a variety of architectures grouped below by type.
 
 #### Discriminative
 
-- ``CycleDual`` – a cycle-consistent dual network that imputes missing
-  treatment labels.
+ - ``CycleDual`` – a cycle-consistent dual network that imputes missing
+   treatment labels and also works with continuous treatments when ``k=None``.
 - ``MultiTask`` – a discriminative network trained with self-training on
   pseudo-labels for partially observed treatments.
 - ``DragonNet`` – shared encoder with outcome and propensity heads plus

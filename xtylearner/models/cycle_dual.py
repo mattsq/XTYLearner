@@ -23,14 +23,14 @@ class CycleDual(nn.Module):
     """
     G_Y : (X ⊕ onehot(T)) → Ŷ
     G_X : (onehot(T) ⊕ Y) → X̂
-    C   : (X ⊕ Y) → logits(T)
+    C   : (X ⊕ Y) → logits(T) or regression output
     """
 
     def __init__(
         self,
         d_x,
         d_y,
-        k,
+        k: int | None = None,
         *,
         hidden_dims=(128, 128),
         activation=nn.ReLU,
@@ -42,31 +42,36 @@ class CycleDual(nn.Module):
         super().__init__()
         self.k = k
         self.lowrank_head = lowrank_head
+        d_t = k if k is not None else 1
+
         if lowrank_head:
             self.G_Y = make_mlp(
-                [d_x + k, *hidden_dims],
+                [d_x + d_t, *hidden_dims],
                 activation=activation,
                 dropout=dropout,
                 norm_layer=norm_layer,
             )
-            in_dim = hidden_dims[-1] if hidden_dims else d_x + k
+            in_dim = hidden_dims[-1] if hidden_dims else d_x + d_t
             self.G_Y_head = LowRankDiagHead(in_dim, d_y, rank)
         else:
             self.G_Y = make_mlp(
-                [d_x + k, *hidden_dims, d_y],
+                [d_x + d_t, *hidden_dims, d_y],
                 activation=activation,
                 dropout=dropout,
                 norm_layer=norm_layer,
             )
             self.G_Y_head = None
+
         self.G_X = make_mlp(
-            [k + d_y, *hidden_dims, d_x],
+            [d_t + d_y, *hidden_dims, d_x],
             activation=activation,
             dropout=dropout,
             norm_layer=norm_layer,
         )
+
+        out_dim_C = k if k is not None else 1
         self.C = make_mlp(
-            [d_x + d_y, *hidden_dims, k],
+            [d_x + d_y, *hidden_dims, out_dim_C],
             activation=activation,
             dropout=dropout,
             norm_layer=norm_layer,
@@ -76,7 +81,10 @@ class CycleDual(nn.Module):
     def forward(self, X: torch.Tensor, T: torch.Tensor):
         """Predict outcome ``Y`` from covariates ``X`` and treatment ``T``."""
 
-        T_1h = one_hot(T.to(torch.long), self.k).float()
+        if self.k is not None:
+            T_1h = one_hot(T.to(torch.long), self.k).float()
+        else:
+            T_1h = T.unsqueeze(-1).float()
         h = self.G_Y(torch.cat([X, T_1h], dim=-1))
         if self.lowrank_head:
             return self.G_Y_head(h)
@@ -97,16 +105,21 @@ class CycleDual(nn.Module):
     def loss(self, X, Y, T_obs, λ_sup=1.0, λ_cyc=1.0, λ_ent=0.1):
         """
         X : (B, d_x)     Y : (B, d_y)
-        T_obs : (B,) int in [0,K-1] if labelled, −1 if unknown
+        T_obs : (B,) int in ``[0, K-1]`` or float if labelled, ``-1`` if unknown
         """
         labelled = T_obs >= 0
         unlabelled = ~labelled
 
         # === STEP 1 : make *some* treatment for every row =============
-        logits_T = self.C(torch.cat([X, Y], -1))  # (B,K)
-        T_pred = logits_T.argmax(-1)
-        T_use = torch.where(labelled, T_obs, T_pred)  # int64
-        T_1h = one_hot(T_use, self.k).float()  # (B,K)
+        logits_T = self.C(torch.cat([X, Y], -1))
+        if self.k is not None:
+            T_pred = logits_T.argmax(-1)
+            T_use = torch.where(labelled, T_obs.to(torch.long), T_pred)
+            T_1h = one_hot(T_use, self.k).float()
+        else:
+            T_pred = logits_T.squeeze(-1)
+            T_use = torch.where(labelled, T_obs.float(), T_pred)
+            T_1h = T_use.unsqueeze(-1)
 
         # === STEP 2 : forward + backward generators ===================
         if self.lowrank_head:
@@ -142,11 +155,18 @@ class CycleDual(nn.Module):
         else:
             L_sup_Y = mse(Y_hat[labelled], Y[labelled]) if labelled.any() else 0.0
         L_sup_X = mse(X_hat[labelled], X[labelled]) if labelled.any() else 0.0
-        L_sup_T = (
-            cross_entropy_loss(logits_T[labelled], T_obs[labelled])
-            if labelled.any()
-            else 0.0
-        )
+        if self.k is not None:
+            L_sup_T = (
+                cross_entropy_loss(logits_T[labelled], T_obs[labelled].to(torch.long))
+                if labelled.any()
+                else 0.0
+            )
+        else:
+            L_sup_T = (
+                mse(logits_T[labelled].squeeze(-1), T_obs[labelled].float())
+                if labelled.any()
+                else 0.0
+            )
 
         # unsupervised recon on ALL rows (helps stabilise)
         if self.lowrank_head:
@@ -163,7 +183,7 @@ class CycleDual(nn.Module):
             L_cyc_Y = mse(Y_cyc, Y)
 
         # entropy regulariser – push classifier to be confident on unlabelled
-        if unlabelled.any():
+        if unlabelled.any() and self.k is not None:
             P_ulb = logits_T[unlabelled].softmax(-1)
             L_ent = -(P_ulb * P_ulb.log()).sum(-1).mean()
         else:
@@ -185,6 +205,8 @@ class CycleDual(nn.Module):
         """Return posterior ``p(t|x,y)`` from the classifier ``C``."""
 
         logits = self.C(torch.cat([X, Y], dim=-1))
+        if self.k is None:
+            return logits.squeeze(-1)
         return logits.softmax(dim=-1)
 
 
