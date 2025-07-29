@@ -10,6 +10,8 @@ import torch.nn as nn
 from torch.nn.functional import one_hot
 
 from .layers import make_mlp
+from .heads import LowRankDiagHead
+from ..losses import nll_lowrank_diag
 
 from .registry import register_model
 from ..training.metrics import cross_entropy_loss, mse_loss
@@ -34,15 +36,29 @@ class CycleDual(nn.Module):
         activation=nn.ReLU,
         dropout=None,
         norm_layer=None,
+        lowrank_head: bool = False,
+        rank: int = 4,
     ):
         super().__init__()
         self.k = k
-        self.G_Y = make_mlp(
-            [d_x + k, *hidden_dims, d_y],
-            activation=activation,
-            dropout=dropout,
-            norm_layer=norm_layer,
-        )
+        self.lowrank_head = lowrank_head
+        if lowrank_head:
+            self.G_Y = make_mlp(
+                [d_x + k, *hidden_dims],
+                activation=activation,
+                dropout=dropout,
+                norm_layer=norm_layer,
+            )
+            in_dim = hidden_dims[-1] if hidden_dims else d_x + k
+            self.G_Y_head = LowRankDiagHead(in_dim, d_y, rank)
+        else:
+            self.G_Y = make_mlp(
+                [d_x + k, *hidden_dims, d_y],
+                activation=activation,
+                dropout=dropout,
+                norm_layer=norm_layer,
+            )
+            self.G_Y_head = None
         self.G_X = make_mlp(
             [k + d_y, *hidden_dims, d_x],
             activation=activation,
@@ -57,17 +73,25 @@ class CycleDual(nn.Module):
         )
 
     # ------------------------------------------------------------------
-    def forward(self, X: torch.Tensor, T: torch.Tensor) -> torch.Tensor:
+    def forward(self, X: torch.Tensor, T: torch.Tensor):
         """Predict outcome ``Y`` from covariates ``X`` and treatment ``T``."""
 
         T_1h = one_hot(T.to(torch.long), self.k).float()
-        return self.G_Y(torch.cat([X, T_1h], dim=-1))
+        h = self.G_Y(torch.cat([X, T_1h], dim=-1))
+        if self.lowrank_head:
+            return self.G_Y_head(h)
+        else:
+            return h
 
     @torch.no_grad()
     def predict_outcome(self, X: torch.Tensor, T: torch.Tensor) -> torch.Tensor:
         """Wrapper around :meth:`forward` for API consistency."""
 
-        return self.forward(X, T)
+        out = self.forward(X, T)
+        if self.lowrank_head:
+            return out[0]
+        else:
+            return out
 
     # ------------------------------------------------------------------
     def loss(self, X, Y, T_obs, λ_sup=1.0, λ_cyc=1.0, λ_ent=0.1):
@@ -85,18 +109,38 @@ class CycleDual(nn.Module):
         T_1h = one_hot(T_use, self.k).float()  # (B,K)
 
         # === STEP 2 : forward + backward generators ===================
-        Y_hat = self.G_Y(torch.cat([X, T_1h], -1))
+        if self.lowrank_head:
+            h_y = self.G_Y(torch.cat([X, T_1h], -1))
+            mu, Fmat, sigma2 = self.G_Y_head(h_y)
+            Y_hat = mu
+        else:
+            Y_hat = self.G_Y(torch.cat([X, T_1h], -1))
+            mu = Fmat = sigma2 = None
         X_hat = self.G_X(torch.cat([T_1h, Y], -1))
 
         # cycles
         X_cyc = self.G_X(torch.cat([T_1h, Y_hat.detach()], -1))
-        Y_cyc = self.G_Y(torch.cat([X_hat.detach(), T_1h], -1))
+        if self.lowrank_head:
+            h_cyc = self.G_Y(torch.cat([X_hat.detach(), T_1h], -1))
+            mu_cyc, F_cyc, sigma2_cyc = self.G_Y_head(h_cyc)
+            Y_cyc = mu_cyc
+        else:
+            Y_cyc = self.G_Y(torch.cat([X_hat.detach(), T_1h], -1))
 
         # === STEP 3 : losses ==========================================
         mse = mse_loss
 
         # supervised parts (labelled rows only)
-        L_sup_Y = mse(Y_hat[labelled], Y[labelled]) if labelled.any() else 0.0
+        if self.lowrank_head:
+            L_sup_Y = (
+                nll_lowrank_diag(
+                    Y[labelled], mu[labelled], Fmat[labelled], sigma2[labelled]
+                ).mean()
+                if labelled.any()
+                else 0.0
+            )
+        else:
+            L_sup_Y = mse(Y_hat[labelled], Y[labelled]) if labelled.any() else 0.0
         L_sup_X = mse(X_hat[labelled], X[labelled]) if labelled.any() else 0.0
         L_sup_T = (
             cross_entropy_loss(logits_T[labelled], T_obs[labelled])
@@ -105,12 +149,18 @@ class CycleDual(nn.Module):
         )
 
         # unsupervised recon on ALL rows (helps stabilise)
-        L_rec_Y = mse(Y_hat, Y)
+        if self.lowrank_head:
+            L_rec_Y = nll_lowrank_diag(Y, mu, Fmat, sigma2).mean()
+        else:
+            L_rec_Y = mse(Y_hat, Y)
         L_rec_X = mse(X_hat, X)
 
         # cycle consistency  (ALL rows)
         L_cyc_X = mse(X_cyc, X)
-        L_cyc_Y = mse(Y_cyc, Y)
+        if self.lowrank_head:
+            L_cyc_Y = nll_lowrank_diag(Y, mu_cyc, F_cyc, sigma2_cyc).mean()
+        else:
+            L_cyc_Y = mse(Y_cyc, Y)
 
         # entropy regulariser – push classifier to be confident on unlabelled
         if unlabelled.any():
