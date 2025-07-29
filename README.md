@@ -216,10 +216,13 @@ Utilities in :mod:`xtylearner.active` implement common query strategies for
 selecting the most informative unlabelled points:
 
 - ``EntropyT`` – rank samples by the entropy of the model's treatment
-  predictions.
+  predictions.  When ``model.k`` is ``None`` (continuous treatments) the
+  strategy uses the variance of ``log p(t\mid x)`` estimated from Monte Carlo
+  samples instead.
 - ``DeltaCATE`` – prioritise points with high variance in predicted treatment
-  effects.
-- ``FCCMRadius`` – a weighted combination of entropy, effect variance and the
+  effects.  For continuous treatments it draws multiple treatment samples
+  directly without one-hot encoding.
+- ``FCCMRadius`` – a weighted combination of these uncertainty scores and the
   coverage radius around labelled data.
 
 The :class:`xtylearner.training.ActiveTrainer` wraps a standard trainer with an
@@ -253,3 +256,6 @@ xtylearner-train --model m2_vae --dataset toy
 This command loads the default configuration from
 ``xtylearner/configs/default.yaml``.  A custom YAML config file may be supplied
 with ``--config`` to override any settings.
+The repository also provides ``configs/continuous.yaml`` as an example
+training setup for :class:`~xtylearner.models.GNN_SCM` with continuous
+treatments and active learning.

@@ -18,7 +18,7 @@ class QueryStrategy(nn.Module):
 
 
 class EntropyT(QueryStrategy):
-    """Query points with high treatment entropy."""
+    """Query points with high treatment entropy or log-density variance."""
 
     @staticmethod
     def _treatment_proba(model: nn.Module, x: torch.Tensor) -> torch.Tensor:
@@ -62,6 +62,20 @@ class EntropyT(QueryStrategy):
         batch_size: int,
     ) -> torch.Tensor:
         with torch.no_grad():
+            k = getattr(model, "k", None)
+            if k is None:
+                samples = []
+                for _ in range(5):
+                    if hasattr(model, "sample_T") and hasattr(model, "log_p_t"):
+                        t = model.sample_T(X_unlab)
+                        samples.append(model.log_p_t(X_unlab, t).unsqueeze(1))
+                    else:
+                        raise ValueError(
+                            "Model must implement sample_T and log_p_t for continuous treatments"
+                        )
+                logp = torch.cat(samples, dim=1)
+                return logp.var(dim=1)
+
             probs = self._treatment_proba(model, X_unlab)
             log_p = probs.clamp_min(1e-12).log()
             return -(probs * log_p).sum(dim=-1)
@@ -80,13 +94,16 @@ class DeltaCATE(QueryStrategy):
         """
         if hasattr(model, "predict_outcome"):
             return model.predict_outcome(x, int(t[0].item()) if t.numel() == 1 else t)
-        k = getattr(model, "k", 2)
-        t1h = torch.nn.functional.one_hot(t.to(torch.long), k).float()
+        k = getattr(model, "k", None)
+        if k is not None:
+            t_in = torch.nn.functional.one_hot(t.to(torch.long), k).float()
+        else:
+            t_in = t.unsqueeze(-1) if t.dim() == 1 else t
         if hasattr(model, "head_Y"):
             if hasattr(model, "h"):
                 h = model.h(x)
-                return model.head_Y(torch.cat([h, t1h], dim=-1))
-            return model.head_Y(torch.cat([x, t1h], dim=-1))
+                return model.head_Y(torch.cat([h, t_in], dim=-1))
+            return model.head_Y(torch.cat([x, t_in], dim=-1))
         return model(x, t)
 
     def forward(
@@ -96,12 +113,20 @@ class DeltaCATE(QueryStrategy):
         rep_fn: Callable[[torch.Tensor], torch.Tensor] | None,
         batch_size: int,
     ) -> torch.Tensor:
-        k = getattr(model, "k", 2)
+        k = getattr(model, "k", None)
         with torch.no_grad():
             preds = []
-            for t_val in range(k):
-                t = torch.full((len(X_unlab),), t_val, device=X_unlab.device)
-                preds.append(self._predict_outcome(model, X_unlab, t).unsqueeze(1))
+            if k is None:
+                for _ in range(5):
+                    if hasattr(model, "sample_T"):
+                        t = model.sample_T(X_unlab)
+                    else:
+                        raise ValueError("Model must implement sample_T for continuous treatments")
+                    preds.append(self._predict_outcome(model, X_unlab, t).unsqueeze(1))
+            else:
+                for t_val in range(k):
+                    t = torch.full((len(X_unlab),), t_val, device=X_unlab.device)
+                    preds.append(self._predict_outcome(model, X_unlab, t).unsqueeze(1))
             pred = torch.cat(preds, dim=1)
             var = pred.var(dim=1)
             return var.mean(dim=-1)

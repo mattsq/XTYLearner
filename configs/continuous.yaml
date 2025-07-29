@@ -1,0 +1,27 @@
+# Example configuration for continuous treatments with ActiveTrainer
+
+dataset:
+  name: tabular
+  params:
+    data: path/to/data.csv
+    outcome_col: outcome
+    treatment_col: treatment
+
+model:
+  name: gnn_scm
+  params:
+    d_x: 4
+    d_y: 1
+    k: null
+
+training:
+  trainer: ActiveTrainer
+  batch_size: 32
+  learning_rate: 0.001
+  epochs: 5
+
+active:
+  strategy: fccm
+  budget: 20
+  batch: 5
+  lambdas: [0.5, 0.3, 0.2]
