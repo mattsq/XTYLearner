@@ -74,7 +74,10 @@ class GNN_SCM(nn.Module):
     def sample_Y(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """Sample an outcome ``y`` conditional on ``x`` and treatment ``t``."""
         eps = torch.randn(x.size(0), self.noise_dim, device=x.device)
-        t_in = F.one_hot(t, self.k).float() if self.k is not None else t.unsqueeze(-1)
+        if self.k is not None:
+            t_in = F.one_hot(t, self.k).float()
+        else:
+            t_in = t if t.dim() == 2 else t.unsqueeze(-1)
         mu, log_sigma = self.f_Y(torch.cat([x, t_in, eps], -1)).chunk(2, -1)
         return mu + torch.exp(log_sigma) * torch.randn_like(mu)
 
@@ -88,15 +91,22 @@ class GNN_SCM(nn.Module):
         mu, log_sigma = pars.chunk(2, -1)
         return -0.5 * ((t - mu) / log_sigma.exp()).pow(2) - log_sigma
 
-    def log_p_y(self, x: torch.Tensor, t: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def log_p_y(
+        self, x: torch.Tensor, t: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
         """Log-probability of outcomes given ``x`` and ``t``."""
-        t_in = F.one_hot(t, self.k).float() if self.k is not None else t.unsqueeze(-1)
+        if self.k is not None:
+            t_in = F.one_hot(t, self.k).float()
+        else:
+            t_in = t if t.dim() == 2 else t.unsqueeze(-1)
         eps = torch.zeros(x.size(0), self.noise_dim, device=x.device)
         mu, log_sigma = self.f_Y(torch.cat([x, t_in, eps], -1)).chunk(2, -1)
         return -0.5 * ((y - mu) / log_sigma.exp()).pow(2) - log_sigma
 
     # --------------------------------------------------------------
-    def loss(self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor) -> torch.Tensor:
+    def loss(
+        self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
+    ) -> torch.Tensor:
         A = self._A()
         acyc = notears_acyclicity(A)
         labelled = t_obs >= 0
@@ -116,21 +126,35 @@ class GNN_SCM(nn.Module):
     def predict_outcome(self, x: torch.Tensor, t: int | torch.Tensor) -> torch.Tensor:
         """Return the mean outcome for covariates ``x`` under treatment ``t``."""
         if isinstance(t, int):
-            t = torch.full((x.size(0),), t, dtype=torch.long if self.k is not None else torch.float32, device=x.device)
+            t = torch.full(
+                (x.size(0),),
+                t,
+                dtype=torch.long if self.k is not None else torch.float32,
+                device=x.device,
+            )
         t_in = F.one_hot(t, self.k).float() if self.k is not None else t.unsqueeze(-1)
         eps = torch.zeros(x.size(0), self.noise_dim, device=x.device)
         mu, _ = self.f_Y(torch.cat([x, t_in, eps], -1)).chunk(2, -1)
         return mu.squeeze(-1)
 
     @torch.no_grad()
-    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor | None = None) -> torch.Tensor:
-        """Compute ``p(t|x)`` (or parameters of the treatment distribution)."""
+    def predict_treatment_params(
+        self, x: torch.Tensor, y: torch.Tensor | None = None
+    ) -> torch.Tensor:
+        """Parameters of ``p(t|x)``.
+
+        Returns treatment probabilities when ``k`` is set and a two-column
+        tensor ``(mu, sigma)`` otherwise.
+        """
         eps = torch.zeros(x.size(0), self.noise_dim, device=x.device)
         pars = self.f_T(torch.cat([x, eps], -1))
         if self.k is None:
             mu, log_sigma = pars.chunk(2, -1)
             return torch.cat([mu, log_sigma.exp()], dim=-1)
         return F.softmax(pars, dim=-1)
+
+    # Backwards compatibility
+    predict_treatment_proba = predict_treatment_params
 
     @torch.no_grad()
     def predict(self, x: torch.Tensor, t: int | torch.Tensor) -> torch.Tensor:

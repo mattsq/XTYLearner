@@ -18,6 +18,8 @@ simpler graphs.
 * `lambda_acyc` controls the strength of the acyclicity penalty.
 * `gamma_l1` sets the L1 regularisation weight on the adjacency matrix.
 * Set `forbid_y_to_x=True` (default) to exclude edges from `Y` to any `X_i`.
+* Use `predict_treatment_params` to obtain either discrete probabilities or
+  the mean and variance of the continuous treatment distribution.
 
 ## References
 

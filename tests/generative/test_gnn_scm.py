@@ -19,3 +19,17 @@ def test_gnn_scm_learns_acyclic():
     final_acyc = float((torch.trace(torch.matrix_exp(A * A)) - A.size(0)))
     assert final_acyc <= init_acyc
     assert final_acyc < 1.0
+
+
+def test_gnn_scm_continuous_treatment():
+    ds = load_toy_dataset(n_samples=30, d_x=2, seed=5, continuous=True)
+    loader = DataLoader(ds, batch_size=10)
+    model = GNN_SCM(d_x=2, d_y=1, k=None)
+    opt = torch.optim.Adam(model.parameters(), lr=0.01)
+    trainer = Trainer(model, opt, loader)
+    trainer.fit(1)
+
+    X, _, _ = ds.tensors
+    params = model.predict_treatment_params(X)
+    assert params.shape == (30, 2)
+    assert (params[:, 1] > 0).all()
