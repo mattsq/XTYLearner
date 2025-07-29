@@ -117,7 +117,11 @@ class BaseTrainer(ABC):
         inputs = [b.to(self.device) for b in batch]
         if len(inputs) == 2:
             x, y = inputs
-            t_obs = torch.full((x.size(0),), -1, dtype=torch.long, device=self.device)
+            dtype = torch.long
+            k = getattr(self.model, "k", None)
+            if k is None:
+                dtype = torch.float32
+            t_obs = torch.full((x.size(0),), -1, dtype=dtype, device=self.device)
         else:
             x, y, t_obs = inputs
         return x, y, t_obs
@@ -145,6 +149,10 @@ class BaseTrainer(ABC):
             if len(probs) == 0:
                 return {}
             probs = probs[0]
+
+        k = getattr(self.model, "k", "missing")
+        if k is None:
+            return {}
 
         log_probs = probs.clamp_min(1e-12).log()
         if t_obs.dim() > 1 and t_obs.size(-1) == 1:
@@ -174,23 +182,25 @@ class BaseTrainer(ABC):
         if hasattr(self.model, "head_Y"):
             try:
                 k = getattr(self.model, "k", None)
-                if k is None:
-                    return None
-                t1h = torch.nn.functional.one_hot(t.to(torch.long), k).float()
+                if t.is_floating_point() or k is None:
+                    t_in = t if t.dim() > 1 else t.unsqueeze(-1)
+                else:
+                    t_in = torch.nn.functional.one_hot(t.to(torch.long), k).float()
                 if hasattr(self.model, "h"):
                     h = self.model.h(x)
-                    return self.model.head_Y(torch.cat([h, t1h], dim=-1))
-                return self.model.head_Y(torch.cat([x, t1h], dim=-1))
+                    return self.model.head_Y(torch.cat([h, t_in], dim=-1))
+                return self.model.head_Y(torch.cat([x, t_in], dim=-1))
             except Exception:
                 return None
 
         if hasattr(self.model, "G_Y"):
             try:
                 k = getattr(self.model, "k", None)
-                if k is None:
-                    return None
-                t1h = torch.nn.functional.one_hot(t.to(torch.long), k).float()
-                return self.model.G_Y(torch.cat([x, t1h], dim=-1))
+                if t.is_floating_point() or k is None:
+                    t_in = t if t.dim() > 1 else t.unsqueeze(-1)
+                else:
+                    t_in = torch.nn.functional.one_hot(t.to(torch.long), k).float()
+                return self.model.G_Y(torch.cat([x, t_in], dim=-1))
             except Exception:
                 return None
 
