@@ -26,6 +26,8 @@ URLS = {
 def load_ihdp(
     split: Literal["train", "test"] = "train",
     data_dir: str = "~/.xtylearner/data",
+    *,
+    continuous_treatment: bool = False,
 ) -> TensorDataset:
     """Load the IHDP dataset provided with the CEVAE benchmark.
 
@@ -35,11 +37,16 @@ def load_ihdp(
         Which portion of the dataset to load, ``"train"`` or ``"test"``.
     data_dir:
         Directory where the ``.npz`` files are stored or should be downloaded to.
+    continuous_treatment:
+        If ``True`` keep the treatment array as ``np.float32`` and return a
+        floating-point tensor. By default integer labels are returned.
 
     Returns
     -------
     TensorDataset
         TensorDataset with covariates ``X``, outcomes ``Y`` and treatment ``T``.
+        When ``continuous_treatment=True`` the treatment tensor has dtype
+        ``torch.float32``.
     """
 
     url = URLS[split]
@@ -52,7 +59,13 @@ def load_ihdp(
     data = np.load(file_path)
     X = torch.from_numpy(data["x"]).float()
     Y = torch.from_numpy(data["yf"]).float().unsqueeze(-1)
-    T = torch.from_numpy(data["t"]).long()
+    t_np = data["t"]
+    if continuous_treatment:
+        t_np = t_np.astype(np.float32)
+        T = torch.from_numpy(t_np).float()
+    else:
+        t_np = t_np.astype(np.int64)
+        T = torch.from_numpy(t_np).long()
 
     return TensorDataset(X, Y, T)
 

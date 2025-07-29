@@ -15,6 +15,8 @@ def load_tabular_dataset(
     data: Union[str, Path, np.ndarray, pd.DataFrame],
     outcome_col: Union[str, Sequence[str], int] = "outcome",
     treatment_col: str = "treatment",
+    *,
+    treatment_dtype: type = int,
 ) -> TensorDataset:
     """Convert CSV, NumPy array or ``pandas.DataFrame`` into a ``TensorDataset``.
 
@@ -31,6 +33,9 @@ def load_tabular_dataset(
         columns are assumed to appear immediately before the treatment column.
     treatment_col:
         Name of the treatment column for ``DataFrame``/CSV inputs.
+    treatment_dtype:
+        ``int`` by default to cast the treatment column to integers. Pass
+        ``float`` to keep a floating-point treatment column.
 
     Returns
     -------
@@ -39,6 +44,8 @@ def load_tabular_dataset(
         treatment become covariates ``X`` in the original order. When ``T``
         contains string categories, a ``treatment_mapping`` attribute on the
         returned dataset stores the category-to-index mapping.
+        When ``treatment_dtype=float`` the treatment tensor has dtype
+        ``torch.float32``.
     """
 
     if isinstance(data, (str, Path)):
@@ -58,7 +65,10 @@ def load_tabular_dataset(
 
         X = data[:, : -(n_outcomes + 1)].astype(np.float32)
         Y = data[:, -(n_outcomes + 1) : -1].astype(np.float32)
-        T = data[:, -1].astype(np.int64)
+        if treatment_dtype is float:
+            T = data[:, -1].astype(np.float32)
+        else:
+            T = data[:, -1].astype(np.int64)
         return TensorDataset(
             torch.from_numpy(X),
             torch.from_numpy(Y).reshape(-1, n_outcomes),
@@ -92,7 +102,10 @@ def load_tabular_dataset(
         treatment_mapping = {c: i for i, c in enumerate(categories)}
         T = treatment_series.map(treatment_mapping).to_numpy(dtype=np.int64)
     else:
-        T = treatment_series.to_numpy(dtype=np.int64)
+        if treatment_dtype is float:
+            T = treatment_series.to_numpy(dtype=np.float32)
+        else:
+            T = treatment_series.to_numpy(dtype=np.int64)
 
     dataset = TensorDataset(
         torch.from_numpy(X),

@@ -13,6 +13,8 @@ def load_mixed_synthetic_dataset(
     d_x: int = 5,
     seed: int = 0,
     label_ratio: float = 0.5,
+    *,
+    continuous_treatment: bool = False,
 ) -> TensorDataset:
     """Generate a synthetic dataset with partially missing treatments.
 
@@ -26,14 +28,24 @@ def load_mixed_synthetic_dataset(
         Seed controlling both dataset generation and label masking.
     label_ratio:
         Fraction of samples with observed treatment labels.
+    continuous_treatment:
+        If ``True`` keep the treatment array as ``np.float32`` and return a
+        floating-point tensor. By default integer labels are returned.
 
     Returns
     -------
     TensorDataset
         Dataset ``(X, Y, T_obs)`` where unobserved ``T`` entries are ``-1``.
+        When ``continuous_treatment=True`` the treatment tensor has dtype
+        ``torch.float32``.
     """
 
-    base = load_synthetic_dataset(n_samples=n_samples, d_x=d_x, seed=seed)
+    base = load_synthetic_dataset(
+        n_samples=n_samples,
+        d_x=d_x,
+        seed=seed,
+        continuous_treatment=continuous_treatment,
+    )
     X, Y, T = base.tensors
     rng = np.random.default_rng(seed + 1)
     unlab = rng.random(n_samples) >= label_ratio
