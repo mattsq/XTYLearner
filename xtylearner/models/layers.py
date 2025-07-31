@@ -1,5 +1,6 @@
 from typing import Callable, Sequence, Iterable, Optional
 
+import torch
 import torch.nn as nn
 
 
@@ -55,3 +56,36 @@ def make_mlp(
                 layers.append(nn.Dropout(p))
 
     return nn.Sequential(*layers)
+
+
+class ColumnEmbedder(nn.Module):
+    """Embed numeric columns and treatment tokens into a sequence."""
+
+    def __init__(self, d_x, d_y, k, d_embed):
+        super().__init__()
+        self.proj_x = nn.Linear(d_x, d_embed)
+        self.proj_y = nn.Linear(d_y, d_embed)
+        if k is None:
+            self.proj_t = nn.Linear(1, d_embed)
+        else:
+            self.proj_t = nn.Linear(k, d_embed)
+
+    def forward(self, X, T_tok):
+        B = X.size(0)
+        y_placeholder = torch.zeros(
+            B, self.proj_y.in_features, device=X.device, dtype=X.dtype
+        )
+        toks = torch.stack(
+            [self.proj_x(X), self.proj_t(T_tok), self.proj_y(y_placeholder)],
+            dim=1,
+        )
+        return toks
+
+
+def apply_column_mask(tokens: torch.Tensor, ratio: float):
+    """Mask random columns with the given ratio."""
+    B, N, D = tokens.shape
+    mask = torch.rand(B, N, device=tokens.device) < ratio
+    masked_tokens = tokens.clone()
+    masked_tokens[mask] = 0.0
+    return masked_tokens, mask

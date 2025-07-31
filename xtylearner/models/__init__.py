@@ -19,6 +19,7 @@ from .dragon_net import DragonNet
 from .cacore_model import CaCoRE
 from .gnn_scm import GNN_SCM
 from .diffusion_gnn_scm import DiffusionGNN_SCM
+from .tab_jepa import TabJEPA
 from .em_model import EMModel
 from .labelprop import LP_KNN
 from .mean_teacher import MeanTeacher
@@ -73,6 +74,7 @@ __all__ = [
     "SemiITE",
     "CTMT",
     "SCGM",
+    "TabJEPA",
     "get_model",
     "get_model_names",
     "get_model_args",
