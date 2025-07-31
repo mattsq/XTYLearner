@@ -32,6 +32,7 @@ from xtylearner.models import (
     CTMT,
     SCGM,
     CCL_CPCModel,
+    TabJEPA,
 )
 
 
@@ -70,6 +71,7 @@ from xtylearner.models import (
         ("ctm_t", CTMT, {"d_in": 4}),
         ("scgm", SCGM, {"d_x": 2, "d_y": 1, "k": 2}),
         ("ccl_cpc", CCL_CPCModel, {"d_x": 2, "d_y": 1, "k": 2}),
+        ("tab_jepa", TabJEPA, {"d_x": 2, "d_y": 1, "k": 2}),
     ],
 )
 def test_get_model_valid(name, cls, kwargs):
