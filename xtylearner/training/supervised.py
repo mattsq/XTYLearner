@@ -66,15 +66,21 @@ class SupervisedTrainer(BaseTrainer):
                     self.logger.log_step(epoch + 1, batch_idx, num_batches, metrics)
             if self.scheduler is not None:
                 self.scheduler.step()
-            if self.logger and self.val_loader is not None:
+
+            val_metrics = None
+            if self.val_loader is not None:
                 val_metrics = self._eval_metrics(self.val_loader)
-                self.logger.log_validation(epoch + 1, val_metrics)
+                if self.logger:
+                    self.logger.log_validation(epoch + 1, val_metrics)
+
             if self.logger:
                 self.logger.end_epoch(epoch + 1)
-            if self.optuna_trial is not None:
-                self.trial.report(val_metrics)
-                if self.trial.should_prune():
-                    raise optuna.exceptions.TrialPruned()        
+
+            if self.optuna_trial is not None and val_metrics is not None:
+                metric = val_metrics.get("loss", next(iter(val_metrics.values()), 0.0))
+                self.optuna_trial.report(metric, step=epoch + 1)
+                if self.optuna_trial.should_prune():
+                    raise optuna.exceptions.TrialPruned()
 
     def evaluate(self, data_loader: Iterable) -> Mapping[str, float]:
         """Return averaged metrics on ``data_loader``.
@@ -115,8 +121,7 @@ class SupervisedTrainer(BaseTrainer):
         self.model.eval()
         with torch.no_grad():
             inputs = [
-                i.to(self.device) if isinstance(i, torch.Tensor) else i
-                for i in inputs
+                i.to(self.device) if isinstance(i, torch.Tensor) else i for i in inputs
             ]
             if hasattr(self.model, "predict"):
                 return self.model.predict(*inputs)

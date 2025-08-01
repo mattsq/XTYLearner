@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Mapping
 
 import torch
 import optuna
@@ -40,7 +40,7 @@ class Trainer:
             | None
         ) = None,
         grad_clip_norm: float | None = None,
-        optuna_trial: None | optuna.Trial = None
+        optuna_trial: None | optuna.Trial = None,
     ) -> None:
         """Instantiate a concrete trainer and delegate all calls to it.
 
@@ -63,7 +63,7 @@ class Trainer:
         grad_clip_norm:
             Optional gradient clipping norm.
         optuna_trial:
-            Optional optuna trial object.    
+            Optional optuna trial object.
         """
 
         trainer_cls = self._select_trainer(model)
