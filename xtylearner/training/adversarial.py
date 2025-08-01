@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Mapping
 
 import torch
+import optuna
 
 from .base_trainer import BaseTrainer
 from .logger import TrainerLogger
@@ -29,6 +30,7 @@ class AdversarialTrainer(BaseTrainer):
             | None
         ) = None,
         grad_clip_norm: float | None = None,
+        optuna_trial: Optional[optuna.Trial] = None,
     ) -> None:
         """Create a trainer for adversarial models.
 
@@ -62,6 +64,7 @@ class AdversarialTrainer(BaseTrainer):
             logger,
             scheduler,
             grad_clip_norm,
+            optuna_trial,
         )
         self.optim_G = optim_G
         self.optim_D = optim_D
@@ -129,11 +132,21 @@ class AdversarialTrainer(BaseTrainer):
                             sched.step()
                 else:
                     self.scheduler.step()
-            if self.logger and self.val_loader is not None:
+
+            val_metrics = None
+            if self.val_loader is not None:
                 val_metrics = self._eval_metrics(self.val_loader)
-                self.logger.log_validation(epoch + 1, val_metrics)
+                if self.logger:
+                    self.logger.log_validation(epoch + 1, val_metrics)
+
             if self.logger:
                 self.logger.end_epoch(epoch + 1)
+
+            if self.optuna_trial is not None and val_metrics is not None:
+                metric = val_metrics.get("loss", next(iter(val_metrics.values()), 0.0))
+                self.optuna_trial.report(metric, step=epoch + 1)
+                if self.optuna_trial.should_prune():
+                    raise optuna.exceptions.TrialPruned()
 
     # --------------------------------------------------------------
     def evaluate(self, data_loader: Iterable) -> Mapping[str, float]:

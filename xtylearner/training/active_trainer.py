@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Mapping
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -43,7 +43,9 @@ class ActiveTrainer:
         self.queries = 0
 
     # --------------------------------------------------------------
-    def _log_status(self, L: TensorDataset, U: TensorDataset, action: str | None = None) -> None:
+    def _log_status(
+        self, L: TensorDataset, U: TensorDataset, action: str | None = None
+    ) -> None:
         """Print current dataset sizes and budget usage when using ``ConsoleLogger``."""
         if isinstance(self._trainer.logger, ConsoleLogger):
             msg = f"labelled={len(L)} unlabelled={len(U)} budget={self.queries}/{self.budget}"
@@ -81,7 +83,9 @@ class ActiveTrainer:
                 self.strategy.update_labeled(L.tensors[0])
 
             rep_fn = getattr(self._trainer.model, "encoder", None)
-            scores = self.strategy(self._trainer.model, U.tensors[0], rep_fn, self.batch)
+            scores = self.strategy(
+                self._trainer.model, U.tensors[0], rep_fn, self.batch
+            )
             topk = torch.topk(scores, min(self.batch, len(U)), largest=True).indices
 
             new_X = U.tensors[0][topk]
@@ -126,4 +130,3 @@ class ActiveTrainer:
 
 
 __all__ = ["ActiveTrainer"]
-
