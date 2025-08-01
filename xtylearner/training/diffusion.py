@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Iterable
 
 import torch
+import optuna
 
 from .base_trainer import BaseTrainer
 
@@ -59,6 +60,10 @@ class DiffusionTrainer(BaseTrainer):
                 self.logger.log_validation(epoch + 1, val_metrics)
             if self.logger:
                 self.logger.end_epoch(epoch + 1)
+            if self.optuna_trial is not None:
+                self.trial.report(val_metrics)
+                if self.trial.should_prune():
+                    raise optuna.exceptions.TrialPruned()                 
 
     def evaluate(self, data_loader: Iterable) -> Mapping[str, float]:
         """Compute averaged metrics over ``data_loader``.

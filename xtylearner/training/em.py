@@ -4,6 +4,7 @@ from typing import Iterable
 
 import numpy as np
 import torch
+import optuna
 
 from .base_trainer import BaseTrainer
 
@@ -99,6 +100,10 @@ class ArrayTrainer(BaseTrainer):
                     val_metrics.update(extra)
                 self.logger.log_validation(1, val_metrics)
             self.logger.end_epoch(1)
+            if self.optuna_trial is not None:
+                self.trial.report(val_metrics)
+                if self.trial.should_prune():
+                    raise optuna.exceptions.TrialPruned()             
 
     def _treatment_metrics(
         self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor

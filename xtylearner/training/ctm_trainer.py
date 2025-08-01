@@ -4,6 +4,7 @@ from typing import Iterable
 
 import torch
 import torch.nn.functional as F
+import optuna
 
 from .base_trainer import BaseTrainer
 from ..noise_schedules import add_noise
@@ -23,6 +24,7 @@ class CTMTrainer(BaseTrainer):
         scheduler=None,
         grad_clip_norm=None,
         cfg=None,
+        optuna_trial: None | optuna.Trial = None,
     ):
         """Create a trainer for a ``CTMT`` model.
 
@@ -47,7 +49,7 @@ class CTMTrainer(BaseTrainer):
         cfg : dict, optional
             Extra configuration parameters controlling pseudo labelling.
         """
-        super().__init__(model, optimizer, train_loader, val_loader, device, logger, scheduler, grad_clip_norm)
+        super().__init__(model, optimizer, train_loader, val_loader, device, logger, scheduler, grad_clip_norm, optuna_trial)
         self.cfg = cfg or {}
 
     def step(self, batch: Iterable[torch.Tensor]) -> torch.Tensor:
@@ -104,6 +106,10 @@ class CTMTrainer(BaseTrainer):
                 self.logger.log_validation(epoch + 1, val_metrics)
             if self.logger:
                 self.logger.end_epoch(epoch + 1)
+            if self.optuna_trial is not None:
+                self.trial.report(val_metrics)
+                if self.trial.should_prune():
+                    raise optuna.exceptions.TrialPruned()                 
 
     def evaluate(self, data_loader: Iterable) -> Mapping[str, float]:
         """Return evaluation metrics averaged over ``data_loader``."""
