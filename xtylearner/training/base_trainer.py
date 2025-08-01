@@ -6,6 +6,7 @@ from collections import defaultdict
 
 import torch
 import torch.nn.functional as F
+import optuna
 
 import numpy as np
 
@@ -35,6 +36,7 @@ class BaseTrainer(ABC):
             | None
         ) = None,
         grad_clip_norm: float | None = None,
+        optuna_trial: Optional[optuna.Trial] = None,
     ) -> None:
         # Some simple models (e.g. probabilistic circuits) do not inherit from
         # ``torch.nn.Module`` and therefore lack a ``to`` method.  In that case
@@ -50,6 +52,7 @@ class BaseTrainer(ABC):
         self.logger = logger
         self.scheduler = scheduler
         self.grad_clip_norm = grad_clip_norm
+        self.optuna_trial = optuna_trial
 
     @abstractmethod
     def fit(self, num_epochs: int) -> None:
@@ -235,13 +238,21 @@ class BaseTrainer(ABC):
 
         if mask_lab.any():
             with torch.no_grad():
-                preds_lab = self._predict_outcome(x[mask_lab], t_obs[mask_lab], y[mask_lab])
+                preds_lab = self._predict_outcome(
+                    x[mask_lab], t_obs[mask_lab], y[mask_lab]
+                )
             if preds_lab is not None:
                 targets_lab = y[mask_lab]
                 if preds_lab.dim() != targets_lab.dim():
-                    if preds_lab.dim() + 1 == targets_lab.dim() and targets_lab.size(-1) == 1:
+                    if (
+                        preds_lab.dim() + 1 == targets_lab.dim()
+                        and targets_lab.size(-1) == 1
+                    ):
                         targets_lab = targets_lab.squeeze(-1)
-                    elif preds_lab.dim() - 1 == targets_lab.dim() and preds_lab.size(-1) == 1:
+                    elif (
+                        preds_lab.dim() - 1 == targets_lab.dim()
+                        and preds_lab.size(-1) == 1
+                    ):
                         preds_lab = preds_lab.squeeze(-1)
                 rmse_lab = rmse_loss(preds_lab, targets_lab)
                 metrics["rmse_labelled"] = float(rmse_lab.item())
@@ -259,13 +270,21 @@ class BaseTrainer(ABC):
 
             if t_pred is not None:
                 with torch.no_grad():
-                    preds_unlab = self._predict_outcome(x[mask_unlab], t_pred, y[mask_unlab])
+                    preds_unlab = self._predict_outcome(
+                        x[mask_unlab], t_pred, y[mask_unlab]
+                    )
                 if preds_unlab is not None:
                     targets_unlab = y[mask_unlab]
                     if preds_unlab.dim() != targets_unlab.dim():
-                        if preds_unlab.dim() + 1 == targets_unlab.dim() and targets_unlab.size(-1) == 1:
+                        if (
+                            preds_unlab.dim() + 1 == targets_unlab.dim()
+                            and targets_unlab.size(-1) == 1
+                        ):
                             targets_unlab = targets_unlab.squeeze(-1)
-                        elif preds_unlab.dim() - 1 == targets_unlab.dim() and preds_unlab.size(-1) == 1:
+                        elif (
+                            preds_unlab.dim() - 1 == targets_unlab.dim()
+                            and preds_unlab.size(-1) == 1
+                        ):
                             preds_unlab = preds_unlab.squeeze(-1)
                     rmse_unlab = rmse_loss(preds_unlab, targets_unlab)
                     metrics["rmse_unlabelled"] = float(rmse_unlab.item())
@@ -276,9 +295,14 @@ class BaseTrainer(ABC):
             preds_cat = torch.cat(preds_all)
             targets_cat = torch.cat(targets_all)
             if preds_cat.dim() != targets_cat.dim():
-                if preds_cat.dim() + 1 == targets_cat.dim() and targets_cat.size(-1) == 1:
+                if (
+                    preds_cat.dim() + 1 == targets_cat.dim()
+                    and targets_cat.size(-1) == 1
+                ):
                     targets_cat = targets_cat.squeeze(-1)
-                elif preds_cat.dim() - 1 == targets_cat.dim() and preds_cat.size(-1) == 1:
+                elif (
+                    preds_cat.dim() - 1 == targets_cat.dim() and preds_cat.size(-1) == 1
+                ):
                     preds_cat = preds_cat.squeeze(-1)
             metrics["rmse"] = float(rmse_loss(preds_cat, targets_cat).item())
 
