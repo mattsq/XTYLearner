@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Iterable, Mapping
 
 import numpy as np
 import torch
+import optuna
 
 from .base_trainer import BaseTrainer
 
@@ -99,6 +100,11 @@ class ArrayTrainer(BaseTrainer):
                     val_metrics.update(extra)
                 self.logger.log_validation(1, val_metrics)
             self.logger.end_epoch(1)
+            if self.optuna_trial is not None:
+                metric = val_metrics.get("loss", next(iter(val_metrics.values()), 0.0))
+                self.optuna_trial.report(metric, step=1)
+                if self.optuna_trial.should_prune():
+                    raise optuna.exceptions.TrialPruned()
 
     def _treatment_metrics(
         self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
@@ -144,7 +150,9 @@ class ArrayTrainer(BaseTrainer):
             metrics["loss"] = float(loss)
         else:
             preds = self.model.predict(X)
-            target = T_obs if getattr(self.model, "target", "outcome") == "treatment" else Y
+            target = (
+                T_obs if getattr(self.model, "target", "outcome") == "treatment" else Y
+            )
             acc = float((preds == target).mean())
             metrics["loss"] = acc
         tensor_X = torch.from_numpy(X)

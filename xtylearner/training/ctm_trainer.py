@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Iterable, Mapping
 
 import torch
 import torch.nn.functional as F
+import optuna
 
 from .base_trainer import BaseTrainer
 from ..noise_schedules import add_noise
@@ -23,6 +24,7 @@ class CTMTrainer(BaseTrainer):
         scheduler=None,
         grad_clip_norm=None,
         cfg=None,
+        optuna_trial: None | optuna.Trial = None,
     ):
         """Create a trainer for a ``CTMT`` model.
 
@@ -47,7 +49,17 @@ class CTMTrainer(BaseTrainer):
         cfg : dict, optional
             Extra configuration parameters controlling pseudo labelling.
         """
-        super().__init__(model, optimizer, train_loader, val_loader, device, logger, scheduler, grad_clip_norm)
+        super().__init__(
+            model,
+            optimizer,
+            train_loader,
+            val_loader,
+            device,
+            logger,
+            scheduler,
+            grad_clip_norm,
+            optuna_trial,
+        )
         self.cfg = cfg or {}
 
     def step(self, batch: Iterable[torch.Tensor]) -> torch.Tensor:
@@ -99,11 +111,21 @@ class CTMTrainer(BaseTrainer):
                     self.logger.log_step(epoch + 1, batch_idx, num_batches, metrics)
             if self.scheduler is not None:
                 self.scheduler.step()
-            if self.logger and self.val_loader is not None:
+
+            val_metrics = None
+            if self.val_loader is not None:
                 val_metrics = self._eval_metrics(self.val_loader)
-                self.logger.log_validation(epoch + 1, val_metrics)
+                if self.logger:
+                    self.logger.log_validation(epoch + 1, val_metrics)
+
             if self.logger:
                 self.logger.end_epoch(epoch + 1)
+
+            if self.optuna_trial is not None and val_metrics is not None:
+                metric = val_metrics.get("loss", next(iter(val_metrics.values()), 0.0))
+                self.optuna_trial.report(metric, step=epoch + 1)
+                if self.optuna_trial.should_prune():
+                    raise optuna.exceptions.TrialPruned()
 
     def evaluate(self, data_loader: Iterable) -> Mapping[str, float]:
         """Return evaluation metrics averaged over ``data_loader``."""
@@ -135,7 +157,11 @@ class CTMTrainer(BaseTrainer):
                 else t_val.to(self.device)
             )
             x0 = torch.cat(
-                [x, torch.zeros(x.size(0), 1, device=self.device), t_tensor.unsqueeze(-1).float()],
+                [
+                    x,
+                    torch.zeros(x.size(0), 1, device=self.device),
+                    t_tensor.unsqueeze(-1).float(),
+                ],
                 dim=-1,
             )
             out, _ = self.model(

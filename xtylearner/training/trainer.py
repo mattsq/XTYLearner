@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Mapping
 
 import torch
+import optuna
 
 from .base_trainer import BaseTrainer
 from .supervised import SupervisedTrainer
@@ -39,6 +40,7 @@ class Trainer:
             | None
         ) = None,
         grad_clip_norm: float | None = None,
+        optuna_trial: None | optuna.Trial = None,
     ) -> None:
         """Instantiate a concrete trainer and delegate all calls to it.
 
@@ -60,6 +62,8 @@ class Trainer:
             Learning rate scheduler or tuple of schedulers.
         grad_clip_norm:
             Optional gradient clipping norm.
+        optuna_trial:
+            Optional optuna trial object.
         """
 
         trainer_cls = self._select_trainer(model)
@@ -77,6 +81,7 @@ class Trainer:
                 logger,
                 scheduler,
                 grad_clip_norm,
+                optuna_trial,
             )
         else:
             self._trainer = trainer_cls(
@@ -88,6 +93,7 @@ class Trainer:
                 logger,
                 scheduler,
                 grad_clip_norm,
+                optuna_trial,
             )
 
     # ------------------------------------------------------------------
