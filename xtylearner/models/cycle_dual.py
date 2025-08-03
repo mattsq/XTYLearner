@@ -111,7 +111,8 @@ class CycleDual(nn.Module):
         unlabelled = ~labelled
 
         # === STEP 1 : make *some* treatment for every row =============
-        logits_T = self.C(torch.cat([X, Y], -1))
+        XY = torch.cat([X, Y], -1)
+        logits_T = self.C(XY)
         if self.k is not None:
             T_pred = logits_T.argmax(-1)
             T_use = torch.where(labelled, T_obs.to(torch.long), T_pred)
@@ -120,25 +121,31 @@ class CycleDual(nn.Module):
             T_pred = logits_T.squeeze(-1)
             T_use = torch.where(labelled, T_obs.float(), T_pred)
             T_1h = T_use.unsqueeze(-1)
+        XT = torch.cat([X, T_1h], -1)
+        TY = torch.cat([T_1h, Y], -1)
 
         # === STEP 2 : forward + backward generators ===================
         if self.lowrank_head:
-            h_y = self.G_Y(torch.cat([X, T_1h], -1))
+            h_y = self.G_Y(XT)
             mu, Fmat, sigma2 = self.G_Y_head(h_y)
             Y_hat = mu
         else:
-            Y_hat = self.G_Y(torch.cat([X, T_1h], -1))
+            Y_hat = self.G_Y(XT)
             mu = Fmat = sigma2 = None
-        X_hat = self.G_X(torch.cat([T_1h, Y], -1))
+        X_hat = self.G_X(TY)
 
         # cycles
-        X_cyc = self.G_X(torch.cat([T_1h, Y_hat.detach()], -1))
+        Y_hat_detached = Y_hat.detach()
+        X_hat_detached = X_hat.detach()
+        TY_hat = torch.cat([T_1h, Y_hat_detached], -1)
+        X_cyc = self.G_X(TY_hat)
+        Xhat_T = torch.cat([X_hat_detached, T_1h], -1)
         if self.lowrank_head:
-            h_cyc = self.G_Y(torch.cat([X_hat.detach(), T_1h], -1))
+            h_cyc = self.G_Y(Xhat_T)
             mu_cyc, F_cyc, sigma2_cyc = self.G_Y_head(h_cyc)
             Y_cyc = mu_cyc
         else:
-            Y_cyc = self.G_Y(torch.cat([X_hat.detach(), T_1h], -1))
+            Y_cyc = self.G_Y(Xhat_T)
 
         # === STEP 3 : losses ==========================================
         mse = mse_loss
