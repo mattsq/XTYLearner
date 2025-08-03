@@ -7,7 +7,6 @@
 
 import torch
 import torch.nn as nn
-from torch.nn.functional import one_hot
 
 from .layers import make_mlp
 from .heads import LowRankDiagHead
@@ -43,6 +42,13 @@ class CycleDual(nn.Module):
         self.k = k
         self.lowrank_head = lowrank_head
         d_t = k if k is not None else 1
+
+        if k is not None:
+            self.t_embedding = nn.Embedding.from_pretrained(
+                torch.eye(k), freeze=True
+            )
+        else:
+            self.t_embedding = None
 
         if lowrank_head:
             self.G_Y = make_mlp(
@@ -82,7 +88,7 @@ class CycleDual(nn.Module):
         """Predict outcome ``Y`` from covariates ``X`` and treatment ``T``."""
 
         if self.k is not None:
-            T_1h = one_hot(T.to(torch.long), self.k).float()
+            T_1h = self.t_embedding(T.to(torch.long))
         else:
             T_1h = T.unsqueeze(-1).float()
         h = self.G_Y(torch.cat([X, T_1h], dim=-1))
@@ -116,7 +122,7 @@ class CycleDual(nn.Module):
         if self.k is not None:
             T_pred = logits_T.argmax(-1)
             T_use = torch.where(labelled, T_obs.to(torch.long), T_pred)
-            T_1h = one_hot(T_use, self.k).float()
+            T_1h = self.t_embedding(T_use)
         else:
             T_pred = logits_T.squeeze(-1)
             T_use = torch.where(labelled, T_obs.float(), T_pred)
