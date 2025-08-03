@@ -4,12 +4,24 @@ import torch
 import torch.nn as nn
 
 
+class Residual(nn.Module):
+    """Wrap a module with a residual (skip) connection."""
+
+    def __init__(self, module: nn.Module):
+        super().__init__()
+        self.module = module
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x + self.module(x)
+
+
 def make_mlp(
     dims: Sequence[int],
     activation: Callable[[], nn.Module] = nn.ReLU,
     *,
     dropout: Optional[Iterable[float]] | float | None = None,
     norm_layer: Optional[Callable[[int], nn.Module]] = None,
+    residual: bool = False,
 ) -> nn.Sequential:
     """Construct a simple feedforward neural network.
 
@@ -26,6 +38,9 @@ def make_mlp(
     norm_layer : Callable[[int], nn.Module] | None, optional
         Normalisation layer constructor applied to each hidden layer. The integer
         argument corresponds to the size of the current layer.
+    residual : bool, optional
+        Enable residual connections when ``in_dim == out_dim`` for a layer.
+        Defaults to ``False``.
 
     Returns
     -------
@@ -46,14 +61,18 @@ def make_mlp(
     layers = []
     for i in range(n_layers):
         in_dim, out_dim = dims[i], dims[i + 1]
-        layers.append(nn.Linear(in_dim, out_dim))
+        block: list[nn.Module] = [nn.Linear(in_dim, out_dim)]
         if i < n_layers - 1:
             if norm_layer is not None:
-                layers.append(norm_layer(out_dim))
-            layers.append(activation())
+                block.append(norm_layer(out_dim))
+            block.append(activation())
             p = dropouts[i]
             if p is not None and p > 0:
-                layers.append(nn.Dropout(p))
+                block.append(nn.Dropout(p))
+        if residual and in_dim == out_dim:
+            layers.append(Residual(nn.Sequential(*block)))
+        else:
+            layers.extend(block)
 
     return nn.Sequential(*layers)
 
