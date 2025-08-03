@@ -25,6 +25,7 @@ class MeanTeacher(nn.Module):
         activation: type[nn.Module] = nn.ReLU,
         dropout: float | None = None,
         norm_layer: callable | None = None,
+        residual: bool = False,
         ema_decay: float = 0.99,
         ramp_up: int = 40,
         cons_max: float = 1.0,
@@ -36,12 +37,14 @@ class MeanTeacher(nn.Module):
             activation=activation,
             dropout=dropout,
             norm_layer=norm_layer,
+            residual=residual,
         )
         self.student = make_mlp(
             [d_x + d_y, *hidden_dims, k],
             activation=activation,
             dropout=dropout,
             norm_layer=norm_layer,
+            residual=residual,
         )
         self.teacher = deepcopy(self.student)
         for p in self.teacher.parameters():

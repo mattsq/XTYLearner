@@ -1,5 +1,6 @@
 import pytest
 import torch.nn as nn
+from xtylearner.models.layers import Residual
 from xtylearner.models import (
     get_model,
     get_model_names,
@@ -39,7 +40,7 @@ from xtylearner.models import (
 @pytest.mark.parametrize(
     "name,cls,kwargs",
     [
-        ("cycle_dual", CycleDual, {"d_x": 2, "d_y": 1, "k": 2}),
+        ("cycle_dual", CycleDual, {"d_x": 2, "d_y": 1, "k": 2, "residual": True}),
         ("diffusion_cevae", DiffusionCEVAE, {"d_x": 2, "d_y": 1, "k": 2}),
         ("eg_ddi", EnergyDiffusionImputer, {"d_x": 2, "d_y": 1}),
         ("joint_ebm", JointEBM, {"d_x": 2, "d_y": 1}),
@@ -62,10 +63,10 @@ from xtylearner.models import (
         (
             "mean_teacher",
             MeanTeacher,
-            {"d_x": 3, "d_y": 1, "k": 2},
+            {"d_x": 3, "d_y": 1, "k": 2, "residual": True},
         ),
-        ("vat", VAT_Model, {"d_x": 2, "d_y": 1, "k": 2}),
-        ("fixmatch", FixMatch, {}),
+        ("vat", VAT_Model, {"d_x": 2, "d_y": 1, "k": 2, "residual": True}),
+        ("fixmatch", FixMatch, {"residual": True}),
         ("ss_dml", SSDMLModel, {}),
         ("semiite", SemiITE, {"d_x": 2, "d_y": 1}),
         ("ctm_t", CTMT, {"d_in": 4}),
@@ -85,13 +86,16 @@ def test_get_model_with_mlp_args():
         d_x=2,
         d_y=1,
         k=2,
-        hidden_dims=[16],
+        hidden_dims=[16, 16],
         dropout=0.1,
+        residual=True,
     )
-    layers = list(model.G_Y)
-    assert isinstance(layers[1], nn.ReLU)
-    assert any(isinstance(layer, nn.Dropout) for layer in layers)
-    assert layers[0].out_features == 16
+    modules = list(model.G_Y.modules())
+    assert isinstance(list(model.G_Y)[0], nn.Linear)
+    assert list(model.G_Y)[0].out_features == 16
+    assert any(isinstance(m, nn.ReLU) for m in modules)
+    assert any(isinstance(m, nn.Dropout) for m in modules)
+    assert any(isinstance(m, Residual) for m in modules)
 
 
 def test_get_model_invalid():
