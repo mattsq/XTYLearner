@@ -2,7 +2,12 @@ import pytest
 import torch
 import torch.nn as nn
 
-from xtylearner.models.layers import make_mlp, ColumnEmbedder, apply_column_mask
+from xtylearner.models.layers import (
+    ColumnEmbedder,
+    Residual,
+    apply_column_mask,
+    make_mlp,
+)
 
 
 def test_make_mlp_default():
@@ -34,6 +39,18 @@ def test_make_mlp_dropout_sequence():
 def test_make_mlp_dropout_mismatch():
     with pytest.raises(ValueError):
         make_mlp([2, 3, 1], dropout=[0.1, 0.2])
+
+
+def test_make_mlp_residual():
+    mlp = make_mlp([3, 3], residual=True)
+    assert len(mlp) == 1
+    assert isinstance(mlp[0], Residual)
+
+    x = torch.randn(2, 3)
+    out = mlp(x)
+    inner_linear = mlp[0].module[0]
+    expected = x + inner_linear(x)
+    assert torch.allclose(out, expected)
 
 
 def test_column_embedder_and_mask():
