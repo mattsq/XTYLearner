@@ -36,12 +36,21 @@ class CycleVAT(nn.Module):
         eps: float = 2.5,
         xi: float = 1e-6,
         n_power: int = 1,
+        gradnorm: bool = False,
+        gradnorm_alpha: float = 1.5,
+        gradnorm_lr: float = 0.025,
     ) -> None:
         super().__init__()
         self.k = k
         self.eps = eps
         self.xi = xi
         self.n_power = n_power
+        self.gradnorm = gradnorm
+        self.gradnorm_alpha = gradnorm_alpha
+        self.gradnorm_lr = gradnorm_lr
+        self._init_losses: torch.Tensor | None = None
+        if self.gradnorm:
+            self.loss_weights = nn.Parameter(torch.ones(3))
 
         self.outcome = make_mlp(
             [d_x + k, *hidden_dims, d_y],
@@ -116,6 +125,43 @@ class CycleVAT(nn.Module):
             if torch.is_grad_enabled()
             else torch.tensor(0.0, device=x.device)
         )
+
+        if self.gradnorm and self.training and torch.is_grad_enabled():
+            losses = torch.stack([ce_sup, cycle, L_vat])
+            if self._init_losses is None:
+                self._init_losses = losses.detach() + 1e-8
+
+            # weighted loss (detach to avoid gradients on weights from main loss)
+            loss = (self.loss_weights.detach() * losses).sum()
+
+            # compute gradient norms of each task
+            params = [p for p in self.parameters() if p is not self.loss_weights]
+            g_norms = []
+            for w, L in zip(self.loss_weights, losses):
+                g = torch.autograd.grad(
+                    w * L,
+                    params,
+                    retain_graph=True,
+                    create_graph=True,
+                    allow_unused=True,
+                )
+                g_norms.append(
+                    torch.norm(torch.cat([gi.reshape(-1) for gi in g if gi is not None]))
+                )
+            g_norms = torch.stack(g_norms)
+
+            with torch.no_grad():
+                loss_ratios = losses.detach() / self._init_losses
+                mean_ratio = loss_ratios.mean()
+                target = g_norms.mean() * (loss_ratios / mean_ratio) ** self.gradnorm_alpha
+
+            grad_loss = (g_norms - target.detach()).abs().sum()
+            grad = torch.autograd.grad(grad_loss, self.loss_weights)[0]
+            with torch.no_grad():
+                self.loss_weights -= self.gradnorm_lr * grad
+                self.loss_weights.data.clamp_(min=1e-3)
+                self.loss_weights.data = 3 * self.loss_weights.data / self.loss_weights.data.sum()
+            return loss
 
         return λ_sup * ce_sup + λ_cyc * cycle + λ_vat * L_vat
 
