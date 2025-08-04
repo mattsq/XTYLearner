@@ -35,6 +35,7 @@ class CycleDual(nn.Module):
         activation=nn.ReLU,
         dropout=None,
         norm_layer=None,
+        residual: bool = False,
         lowrank_head: bool = False,
         rank: int = 4,
     ):
@@ -56,6 +57,7 @@ class CycleDual(nn.Module):
                 activation=activation,
                 dropout=dropout,
                 norm_layer=norm_layer,
+                residual=residual,
             )
             in_dim = hidden_dims[-1] if hidden_dims else d_x + d_t
             self.G_Y_head = LowRankDiagHead(in_dim, d_y, rank)
@@ -65,6 +67,7 @@ class CycleDual(nn.Module):
                 activation=activation,
                 dropout=dropout,
                 norm_layer=norm_layer,
+                residual=residual,
             )
             self.G_Y_head = None
 
@@ -73,6 +76,7 @@ class CycleDual(nn.Module):
             activation=activation,
             dropout=dropout,
             norm_layer=norm_layer,
+            residual=residual,
         )
 
         out_dim_C = k if k is not None else 1
@@ -81,6 +85,7 @@ class CycleDual(nn.Module):
             activation=activation,
             dropout=dropout,
             norm_layer=norm_layer,
+            residual=residual,
         )
 
     # ------------------------------------------------------------------

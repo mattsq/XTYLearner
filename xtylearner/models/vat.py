@@ -58,6 +58,7 @@ class VAT_Model(nn.Module):
         activation: type[nn.Module] = nn.ReLU,
         dropout: float | None = None,
         norm_layer: callable | None = None,
+        residual: bool = False,
         eps: float = 2.5,
         xi: float = 1e-6,
         n_power: int = 1,
@@ -78,12 +79,14 @@ class VAT_Model(nn.Module):
             activation=activation,
             dropout=dropout,
             norm_layer=norm_layer,
+            residual=residual,
         )
         self.classifier = make_mlp(
             [d_x + d_y, *hidden_dims, k],
             activation=activation,
             dropout=dropout,
             norm_layer=norm_layer,
+            residual=residual,
         )
 
     # --------------------------------------------------------------
