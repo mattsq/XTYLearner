@@ -80,6 +80,8 @@ The model registry exposes a variety of architectures grouped below by type.
 
  - ``CycleDual`` – a cycle-consistent dual network that imputes missing
    treatment labels and also works with continuous treatments when ``k=None``.
+ - ``CycleVAT`` – combines cycle consistency with virtual adversarial training
+  for robust treatment and outcome modelling.
 - ``MultiTask`` – a discriminative network trained with self-training on
   pseudo-labels for partially observed treatments.
 - ``DragonNet`` – shared encoder with outcome and propensity heads plus
