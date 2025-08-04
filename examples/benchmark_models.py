@@ -63,7 +63,11 @@ def _run_single(task):
 
 
 def run_benchmark(output_path: str = "benchmark_results.md") -> None:
-    """Train every model for ten epochs and record metrics."""
+    """Train every model for ten epochs and record metrics.
+
+    Results are written as separate tables for each dataset in the
+    provided Markdown file.
+    """
     dataset_names = ["synthetic", "synthetic_mixed"]
     tasks = [
         (ds_name, model_name)
@@ -76,11 +80,19 @@ def run_benchmark(output_path: str = "benchmark_results.md") -> None:
             if row is not None:
                 results.append(row)
     df = pd.DataFrame(results)
-    if "val outcome rmse" in df.columns:
-        df = df.sort_values("val outcome rmse")
-    elif "train outcome rmse" in df.columns:
-        df = df.sort_values("train outcome rmse")
-    df.to_markdown(output_path, index=False)
+    with open(output_path, "w") as fh:
+        for ds_name in dataset_names:
+            ds_df = df[df["dataset"] == ds_name]
+            if ds_df.empty:
+                continue
+            ds_df = ds_df.drop(columns=["dataset"])
+            if "val outcome rmse" in ds_df.columns:
+                ds_df = ds_df.sort_values("val outcome rmse")
+            elif "train outcome rmse" in ds_df.columns:
+                ds_df = ds_df.sort_values("train outcome rmse")
+            fh.write(f"## {ds_name}\n\n")
+            fh.write(ds_df.to_markdown(index=False))
+            fh.write("\n\n")
     print(f"Results written to {output_path}")
 
 
