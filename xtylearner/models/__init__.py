@@ -1,6 +1,7 @@
 """Model architectures available in XTYLearner."""
 
 from .cycle_dual import CycleDual
+from .cycle_vat import CycleVAT
 from .flow_ssc import MixtureOfFlows
 from .multitask_selftrain import MultiTask
 from .generative import M2VAE, SS_CEVAE, DiffusionCEVAE
@@ -39,6 +40,7 @@ from .registry import get_model, get_model_names, get_model_args
 
 __all__ = [
     "CycleDual",
+    "CycleVAT",
     "MixtureOfFlows",
     "MultiTask",
     "M2VAE",
