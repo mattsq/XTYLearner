@@ -115,8 +115,8 @@ class CycleVAT(nn.Module):
 
     # ------------------------------------------------------------------
     @torch.no_grad()
-    def predict_treatment_proba(self, x: torch.Tensor) -> torch.Tensor:
-        logits = self.f_classifier(x)
+    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        logits = self.i_classifier(torch.cat([x, y], dim=-1))
         return logits.softmax(dim=-1)
 
 
