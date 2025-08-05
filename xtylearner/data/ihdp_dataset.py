@@ -17,9 +17,13 @@ import torch
 from torch.utils.data import TensorDataset
 from urllib.request import urlretrieve
 
+# Original ``.npz`` files hosted with the CEVAE repository were removed from the
+# default branch.  The project now provides per-replicate CSV files instead.
+# We load the first two replicates for the training and test splits
+# respectively.
 URLS = {
-    "train": "https://github.com/AMLab-Amsterdam/CEVAE/raw/master/datasets/ihdp_npci_1-100.train.npz",
-    "test": "https://github.com/AMLab-Amsterdam/CEVAE/raw/master/datasets/ihdp_npci_1-100.test.npz",
+    "train": "https://raw.githubusercontent.com/AMLab-Amsterdam/CEVAE/master/datasets/IHDP/csv/ihdp_npci_1.csv",
+    "test": "https://raw.githubusercontent.com/AMLab-Amsterdam/CEVAE/master/datasets/IHDP/csv/ihdp_npci_2.csv",
 }
 
 
@@ -36,7 +40,7 @@ def load_ihdp(
     split:
         Which portion of the dataset to load, ``"train"`` or ``"test"``.
     data_dir:
-        Directory where the ``.npz`` files are stored or should be downloaded to.
+        Directory where the CSV files are stored or should be downloaded to.
     continuous_treatment:
         If ``True`` keep the treatment array as ``np.float32`` and return a
         floating-point tensor. By default integer labels are returned.
@@ -56,10 +60,11 @@ def load_ihdp(
     if not file_path.exists():
         urlretrieve(url, file_path.as_posix())
 
-    data = np.load(file_path)
-    X = torch.from_numpy(data["x"]).float()
-    Y = torch.from_numpy(data["yf"]).float().unsqueeze(-1)
-    t_np = data["t"]
+    data = np.loadtxt(file_path, delimiter=",")
+    # Columns: t, y_factual, y_cfactual, mu0, mu1, x1..x25
+    X = torch.from_numpy(data[:, 5:]).float()
+    Y = torch.from_numpy(data[:, 1]).float().unsqueeze(-1)
+    t_np = data[:, 0]
     if continuous_treatment:
         t_np = t_np.astype(np.float32)
         T = torch.from_numpy(t_np).float()
