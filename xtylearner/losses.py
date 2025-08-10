@@ -20,17 +20,18 @@ def nll_lowrank_diag(
     B, d_y = y.shape
     r = F.size(-1)
     diff = (y - mu).unsqueeze(-1)
-    sigma2 = sigma2.clamp_min(jitter)
+    F = torch.nan_to_num(F)
+    sigma2 = torch.nan_to_num(sigma2).clamp_min(jitter)
     D_inv = 1.0 / sigma2
-    Ft_Dinv = F.transpose(1, 2) * D_inv.unsqueeze(-2)
+    Ft_Dinv = torch.nan_to_num(F.transpose(1, 2) * D_inv.unsqueeze(-2))
     eye = torch.eye(r, device=y.device, dtype=y.dtype).expand(B, r, r)
-    M = torch.baddbmm(eye, Ft_Dinv, F)
+    M = torch.nan_to_num(torch.baddbmm(eye, Ft_Dinv, F))
 
     jitter_i = jitter
     L = None
     logdet_M = None
     for _ in range(max_tries):
-        M_j = M + jitter_i * eye
+        M_j = torch.nan_to_num(M + jitter_i * eye)
         L, info = torch.linalg.cholesky_ex(M_j)
         if (info == 0).all():
             logdet_M = 2.0 * torch.log(torch.diagonal(L, dim1=-2, dim2=-1)).sum(-1)
@@ -42,7 +43,7 @@ def nll_lowrank_diag(
         sol = torch.cholesky_solve(rhs, L)
     else:
         # As a last resort fall back to a pseudoinverse.
-        M_j = M + jitter_i * eye
+        M_j = torch.nan_to_num(M + jitter_i * eye)
         M_inv = torch.linalg.pinv(M_j)
         rhs = Ft_Dinv @ diff
         sol = M_inv @ rhs
