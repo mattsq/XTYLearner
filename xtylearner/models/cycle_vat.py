@@ -4,22 +4,33 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ..training.metrics import cross_entropy_loss, mse_loss
 from .layers import make_mlp
 from .registry import register_model
+from ..training.metrics import cross_entropy_loss
 from .vat import vat_loss
+
+try:  # optional outcome likelihood head
+    from .heads import LowRankDiagHead  # type: ignore
+    from ..losses import nll_lowrank_diag  # type: ignore
+
+    HAS_LIKELIHOOD = True
+except Exception:  # pragma: no cover - fallback when modules missing
+    LowRankDiagHead = None  # type: ignore
+    nll_lowrank_diag = None  # type: ignore
+    HAS_LIKELIHOOD = False
 
 
 @register_model("cycle_vat")
 class CycleVAT(nn.Module):
-    """Combine Cycle consistency with VAT regularisation.
+    """Shared-encoder with two posteriors and VAT regularisation.
 
-    Consists of three networks:
-    - a treatment classifier operating on ``x`` with virtual adversarial
-      training (VAT),
-    - an outcome generator predicting ``y`` from ``x`` and treatment ``t``,
-    - an inverse classifier reconstructing ``t`` from ``x`` and the predicted
-      outcome ``y``.
+    The model encodes covariates ``x`` to a latent representation ``h``. A
+    forward classifier :math:`p_f(t|x)` predicts treatments and receives virtual
+    adversarial training. An outcome head models :math:`p(y|x,t)` and an inverse
+    classifier :math:`p_i(t|x,y)` infers treatments from covariates and observed
+    outcomes. Rows lacking treatment labels contribute via an expected outcome
+    likelihood under a posterior mixing of ``p_f`` and ``p_i``. Optional Kendall
+    uncertainty weighting balances the different loss terms.
     """
 
     def __init__(
@@ -28,56 +39,106 @@ class CycleVAT(nn.Module):
         d_y: int,
         k: int = 2,
         *,
-        hidden_dims: tuple[int, ...] | list[int] = (128, 128),
+        hidden_dims: tuple[int, ...] | list[int] = (256, 256),
         activation: type[nn.Module] = nn.ReLU,
-        dropout: float | None = None,
+        dropout: float | None = 0.1,
         norm_layer: callable | None = None,
         residual: bool = False,
-        eps: float = 2.5,
+        # outcome head
+        outcome_likelihood: bool = True,
+        outcome_rank: int = 8,
+        # y encoder for inverse classifier
+        y_embed_dims: tuple[int, ...] | list[int] | None = (64,),
+        # posterior mixing
+        alpha: float = 0.5,
+        # VAT parameters (applied to x->p_f)
+        eps: float = 2.0,
         xi: float = 1e-6,
         n_power: int = 1,
-        gradnorm: bool = False,
-        gradnorm_alpha: float = 1.5,
-        gradnorm_lr: float = 0.025,
+        # loss weighting
+        use_uncertainty_weighting: bool = True,
+        # agreement loss base weight
+        lambda_agree: float = 1.0,
     ) -> None:
         super().__init__()
+
         self.k = k
-        self.eps = eps
-        self.xi = xi
-        self.n_power = n_power
-        self.gradnorm = gradnorm
-        self.gradnorm_alpha = gradnorm_alpha
-        self.gradnorm_lr = gradnorm_lr
-        self._init_losses: torch.Tensor | None = None
-        if self.gradnorm:
-            self.loss_weights = nn.Parameter(torch.ones(3))
+        self.alpha = alpha
+        self.lambda_agree = lambda_agree
+        self.outcome_likelihood = outcome_likelihood and HAS_LIKELIHOOD
 
-        self.outcome = make_mlp(
-            [d_x + k, *hidden_dims, d_y],
-            activation=activation,
-            dropout=dropout,
-            norm_layer=norm_layer,
-            residual=residual,
-        )
-        self.f_classifier = make_mlp(
-            [d_x, *hidden_dims, k],
-            activation=activation,
-            dropout=dropout,
-            norm_layer=norm_layer,
-            residual=residual,
-        )
-        self.i_classifier = make_mlp(
-            [d_x + d_y, *hidden_dims, k],
+        # ----- shared encoder φ(x)
+        self.encoder = make_mlp(
+            [d_x, *hidden_dims],
             activation=activation,
             dropout=dropout,
             norm_layer=norm_layer,
             residual=residual,
         )
 
-    # ------------------------------------------------------------------
-    def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-        t_onehot = F.one_hot(t.to(torch.long), self.k).float()
-        return self.outcome(torch.cat([x, t_onehot], dim=-1))
+        # ----- forward classifier p_f(t|x)
+        self.f_head = nn.Linear(hidden_dims[-1], k)
+
+        # small wrapper so VAT sees a module x->logits
+        class FOnX(nn.Module):
+            def __init__(self, encoder: nn.Module, f_head: nn.Module) -> None:
+                super().__init__()
+                # store callables only to avoid recursive module references
+                self._enc = encoder.forward
+                self._head = f_head.forward
+
+            def forward(
+                self, x: torch.Tensor
+            ) -> torch.Tensor:  # pragma: no cover - simple wrapper
+                h = self._enc(x)
+                return self._head(h)
+
+        self._f_on_x = FOnX(self.encoder, self.f_head)
+
+        # ----- outcome head p(y|x,t)
+        if self.outcome_likelihood:
+            assert LowRankDiagHead is not None and nll_lowrank_diag is not None
+            self.outcome = LowRankDiagHead(hidden_dims[-1] + k, d_y, outcome_rank)
+        else:
+            self.outcome = make_mlp(
+                [hidden_dims[-1] + k, *hidden_dims, d_y],
+                activation=activation,
+                dropout=dropout,
+                norm_layer=norm_layer,
+                residual=residual,
+            )
+
+        # ----- y encoder ψ(y) for inverse classifier
+        if y_embed_dims is None or len(y_embed_dims) == 0:
+            self.y_enc = nn.Identity()
+            y_repr = d_y
+        else:
+            self.y_enc = make_mlp(
+                [d_y, *y_embed_dims],
+                activation=activation,
+                dropout=dropout,
+                norm_layer=norm_layer,
+                residual=False,
+            )
+            y_repr = y_embed_dims[-1]
+
+        # ----- inverse classifier p_i(t|x,y)
+        self.i_head = make_mlp(
+            [hidden_dims[-1] + y_repr, *hidden_dims, k],
+            activation=activation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+            residual=residual,
+        )
+
+        # ----- Kendall-style uncertainty weighting
+        self.use_uncertainty_weighting = use_uncertainty_weighting
+        if self.use_uncertainty_weighting:
+            # log variances for: sup-t, outcome, inverse, agreement, vat
+            self.log_vars = nn.Parameter(torch.zeros(5))
+
+        # VAT parameters
+        self.eps, self.xi, self.n_power = eps, xi, n_power
 
     # ------------------------------------------------------------------
     @torch.no_grad()
@@ -86,94 +147,199 @@ class CycleVAT(nn.Module):
             t = torch.full((x.size(0),), t, dtype=torch.long, device=x.device)
         elif t.dim() == 0:
             t = t.expand(x.size(0)).to(torch.long)
-        t_onehot = F.one_hot(t.to(torch.long), self.k).float()
-        return self.outcome(torch.cat([x, t_onehot], dim=-1))
+        h = self.encoder(x)
+        t1 = F.one_hot(t.to(torch.long), self.k).float()
+        if self.outcome_likelihood:
+            mu, _, _ = self.outcome(torch.cat([h, t1], dim=-1))
+            return mu
+        return self.outcome(torch.cat([h, t1], dim=-1))
+
+    # ------------------------------------------------------------------
+    @torch.no_grad()
+    def predict_treatment_proba(
+        self, x: torch.Tensor, y: torch.Tensor | None = None, use: str = "auto"
+    ) -> torch.Tensor:
+        h = self.encoder(x)
+        if use == "x" or (use == "auto" and y is None):
+            return F.softmax(self.f_head(h), dim=-1)
+        assert y is not None
+        z = self.y_enc(y)
+        logits = self.i_head(torch.cat([h, z], dim=-1))
+        return F.softmax(logits, dim=-1)
+
+    # ------------------------------------------------------------------
+    def _pf_logits(self, h: torch.Tensor) -> torch.Tensor:
+        return self.f_head(h)
+
+    def _posterior_mix(self, pf: torch.Tensor, pi: torch.Tensor) -> torch.Tensor:
+        # pf, pi are probabilities (softmaxed); q ∝ pf^α * pi^(1-α)
+        a = self.alpha
+        log_q = a * (pf + 1e-12).log() + (1 - a) * (pi + 1e-12).log()
+        return F.softmax(log_q, dim=-1)
+
+    def _expected_outcome_loss(
+        self,
+        h: torch.Tensor,
+        x: torch.Tensor,
+        y: torch.Tensor,
+        q: torch.Tensor,
+        mask: torch.Tensor,
+    ) -> torch.Tensor:
+        if not mask.any():
+            return x.new_tensor(0.0)
+        hm = h[mask]
+        xm = x[mask]  # noqa: F841 - kept for potential extensions
+        ym = y[mask]
+        Bm = hm.size(0)
+        losses = []
+        for j in range(self.k):
+            tj = torch.full((Bm,), j, dtype=torch.long, device=x.device)
+            t1 = F.one_hot(tj, self.k).float()
+            inp = torch.cat([hm, t1], dim=-1)
+            if self.outcome_likelihood:
+                mu, Fmat, sigma2 = self.outcome(inp)
+                losses.append(nll_lowrank_diag(ym, mu, Fmat, sigma2))
+            else:
+                yhat = self.outcome(inp)
+                losses.append(((yhat - ym) ** 2).mean(dim=-1))
+        L = torch.stack(losses, dim=-1)  # [Bm, k]
+        q_m = q[mask]
+        return (q_m * L).sum(dim=-1).mean()
+
+    # ------------------------------------------------------------------
+    def forward(self, x: torch.Tensor, t: torch.Tensor | int) -> torch.Tensor:
+        """Predict outcome mean for a given treatment."""
+
+        return self.predict_outcome(x, t)
 
     # ------------------------------------------------------------------
     def loss(
         self,
         x: torch.Tensor,
-        y: torch.Tensor,
-        t_obs: torch.Tensor,
-        λ_sup: float = 1.0,
-        λ_cyc: float = 1.0,
-        λ_vat: float = 1.0,
+        y: torch.Tensor | None,
+        t_obs: torch.Tensor | None,
+        *,
+        lambda_base: dict[str, float] | None = None,
     ) -> torch.Tensor:
-        t_use = t_obs.clamp_min(0).to(torch.long)
-        t_onehot = F.one_hot(t_use, self.k).float()
+        device = x.device
+        h = self.encoder(x)
+        B = x.size(0)
+        zero = x.new_tensor(0.0)
 
-        logits_t = self.f_classifier(x)
-        y_hat = self.outcome(torch.cat([x, t_onehot], dim=-1))
-        inv_logits_t = self.i_classifier(torch.cat([x, y_hat.detach()], dim=-1))
+        # masks
+        if t_obs is None:
+            has_t = torch.zeros(B, dtype=torch.bool, device=device)
+        else:
+            has_t = t_obs >= 0
 
-        label_mask = t_obs >= 0
-        ce_sup = (
-            cross_entropy_loss(logits_t[label_mask], t_use[label_mask])
-            if label_mask.any()
-            else torch.tensor(0.0, device=x.device)
+        has_y = y is not None
+        if has_y:
+            if y.ndim == 1:
+                ymask = torch.isfinite(y)
+            else:
+                ymask = torch.isfinite(y).all(dim=-1)
+        else:
+            ymask = torch.zeros(B, dtype=torch.bool, device=device)
+
+        # forward classifier on all rows
+        logits_f = self._pf_logits(h)
+
+        # supervised treatment loss
+        L_sup_t = (
+            cross_entropy_loss(logits_f[has_t], t_obs[has_t].to(torch.long))
+            if has_t.any()
+            else zero
         )
-        cycle = (
-            mse_loss(y_hat[label_mask], y[label_mask])
-            + cross_entropy_loss(inv_logits_t[label_mask], t_use[label_mask])
-            if label_mask.any()
-            else torch.tensor(0.0, device=x.device)
-        )
-        L_vat = (
-            vat_loss(
-                self.f_classifier, x, xi=self.xi, eps=self.eps, n_power=self.n_power
+
+        # inverse path using real y
+        if has_y and ymask.any():
+            z = self.y_enc(y)
+            logits_i = self.i_head(torch.cat([h, z], dim=-1))
+            L_inv = (
+                cross_entropy_loss(
+                    logits_i[has_t & ymask], t_obs[has_t & ymask].to(torch.long)
+                )
+                if (has_t & ymask).any()
+                else zero
             )
-            if torch.is_grad_enabled()
-            else torch.tensor(0.0, device=x.device)
+            pf = F.softmax(logits_f[ymask], dim=-1)
+            pi = F.softmax(logits_i[ymask], dim=-1)
+            L_agree = 0.5 * (
+                F.kl_div((pf + 1e-12).log(), pi, reduction="batchmean")
+                + F.kl_div((pi + 1e-12).log(), pf, reduction="batchmean")
+            )
+            q = self._posterior_mix(pf, pi)
+        else:
+            L_inv, L_agree = zero, zero
+            q = None
+
+        # outcome losses
+        if has_y and ymask.any():
+            if has_t.any():
+                idx = has_t & ymask
+                if idx.any():
+                    t1 = F.one_hot(t_obs[idx].to(torch.long), self.k).float()
+                    inp = torch.cat([h[idx], t1], dim=-1)
+                    if self.outcome_likelihood:
+                        mu, Fmat, sigma2 = self.outcome(inp)
+                        L_outcome_obs = nll_lowrank_diag(
+                            y[idx], mu, Fmat, sigma2
+                        ).mean()
+                    else:
+                        yhat = self.outcome(inp)
+                        L_outcome_obs = F.mse_loss(yhat, y[idx])
+                else:
+                    L_outcome_obs = zero
+            else:
+                L_outcome_obs = zero
+
+            if q is not None:
+                idx_miss = (~has_t) & ymask if (t_obs is not None) else ymask
+                L_outcome_miss = self._expected_outcome_loss(h, x, y, q, idx_miss)
+            else:
+                L_outcome_miss = zero
+        else:
+            L_outcome_obs = zero
+            L_outcome_miss = zero
+
+        # VAT on p_f
+        L_vat = (
+            vat_loss(self._f_on_x, x, xi=self.xi, eps=self.eps, n_power=self.n_power)
+            if self.training and torch.is_grad_enabled()
+            else zero
         )
 
-        if self.gradnorm and self.training and torch.is_grad_enabled():
-            losses = torch.stack([ce_sup, cycle, L_vat])
-            if self._init_losses is None:
-                self._init_losses = losses.detach() + 1e-8
+        terms = {
+            "sup_t": L_sup_t,
+            "outcome": L_outcome_obs + L_outcome_miss,
+            "inverse": L_inv,
+            "agree": self.lambda_agree * L_agree,
+            "vat": L_vat,
+        }
 
-            # weighted loss (detach to avoid gradients on weights from main loss)
-            loss = (self.loss_weights.detach() * losses).sum()
+        if lambda_base is None:
+            lambda_base = {
+                "sup_t": 1.0,
+                "outcome": 1.0,
+                "inverse": 1.0,
+                "agree": 1.0,
+                "vat": 1.0,
+            }
 
-            # compute gradient norms of each task
-            params = [p for p in self.parameters() if p is not self.loss_weights]
-            g_norms = []
-            for w, L in zip(self.loss_weights, losses):
-                g = torch.autograd.grad(
-                    w * L,
-                    params,
-                    retain_graph=True,
-                    create_graph=True,
-                    allow_unused=True,
-                )
-                g_norms.append(
-                    torch.norm(torch.cat([gi.reshape(-1) for gi in g if gi is not None]))
-                )
-            g_norms = torch.stack(g_norms)
+        if self.use_uncertainty_weighting:
+            losses = []
+            for i, key in enumerate(["sup_t", "outcome", "inverse", "agree", "vat"]):
+                Li = terms[key]
+                if Li is zero:
+                    continue
+                s = self.log_vars[i]
+                losses.append(torch.exp(-s) * lambda_base[key] * Li + s)
+            return torch.stack(losses).sum() if len(losses) else zero
 
-            with torch.no_grad():
-                loss_ratios = losses.detach() / self._init_losses
-                mean_ratio = loss_ratios.mean()
-                target = g_norms.mean() * (loss_ratios / mean_ratio) ** self.gradnorm_alpha
-
-            grad_loss = (g_norms - target.detach()).abs().sum()
-            grad = torch.autograd.grad(grad_loss, self.loss_weights)[0]
-            with torch.no_grad():
-                self.loss_weights -= self.gradnorm_lr * grad
-                self.loss_weights.data.clamp_(min=1e-3)
-                self.loss_weights.data = 3 * self.loss_weights.data / self.loss_weights.data.sum()
-            return loss
-
-        return λ_sup * ce_sup + λ_cyc * cycle + λ_vat * L_vat
-
-    # ------------------------------------------------------------------
-    @torch.no_grad()
-    def predict_treatment_proba(
-        self, x: torch.Tensor, y: torch.Tensor | None = None
-    ) -> torch.Tensor:
-        if y is None:
-            raise ValueError("CycleVAT requires outcome `y` for treatment prediction")
-        logits = self.i_classifier(torch.cat([x, y], dim=-1))
-        return logits.softmax(dim=-1)
+        total = zero
+        for key, Li in terms.items():
+            total = total + lambda_base.get(key, 1.0) * Li
+        return total
 
 
 __all__ = ["CycleVAT"]
