@@ -98,9 +98,11 @@ class AdversarialTrainer(BaseTrainer):
 
         self.optim_D.zero_grad()
         loss_dict.update(self.model.loss_D(x, y, t))
-        loss_dict["loss_D"].backward()
-        self._clip_grads()
-        self.optim_D.step()
+        loss_D = loss_dict["loss_D"]
+        if loss_D.requires_grad:
+            loss_D.backward()
+            self._clip_grads()
+            self.optim_D.step()
         return loss_dict
 
     # --------------------------------------------------------------
