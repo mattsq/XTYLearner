@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -51,6 +53,10 @@ class CycleVAT(nn.Module):
         y_embed_dims: tuple[int, ...] | list[int] | None = (64,),
         # posterior mixing
         alpha: float = 0.5,
+        warmup_steps: int = 500,
+        q_conf_start: float = 0.9,
+        q_conf_end: float = 0.6,
+        q_conf_anneal_steps: int = 3000,
         # VAT parameters (applied to x->p_f)
         eps: float = 2.0,
         xi: float = 1e-6,
@@ -66,6 +72,10 @@ class CycleVAT(nn.Module):
         self.alpha = alpha
         self.lambda_agree = lambda_agree
         self.outcome_likelihood = outcome_likelihood and HAS_LIKELIHOOD
+        self.warmup_steps = warmup_steps
+        self.q_conf_start = q_conf_start
+        self.q_conf_end = q_conf_end
+        self.q_conf_anneal_steps = q_conf_anneal_steps
 
         # ----- shared encoder φ(x)
         self.encoder = make_mlp(
@@ -139,6 +149,7 @@ class CycleVAT(nn.Module):
 
         # VAT parameters
         self.eps, self.xi, self.n_power = eps, xi, n_power
+        self.register_buffer("_step", torch.zeros((), dtype=torch.long))
 
     # ------------------------------------------------------------------
     @torch.no_grad()
@@ -222,6 +233,8 @@ class CycleVAT(nn.Module):
         lambda_base: dict[str, float] | None = None,
     ) -> torch.Tensor:
         device = x.device
+        self._step += 1
+        step = int(self._step.item())
         h = self.encoder(x)
         B = x.size(0)
         zero = x.new_tensor(0.0)
@@ -264,11 +277,15 @@ class CycleVAT(nn.Module):
             )
             pf = F.softmax(logits_f[ymask], dim=-1)
             pi = F.softmax(logits_i[ymask], dim=-1)
-            L_agree = 0.5 * (
-                F.kl_div((pf + 1e-12).log(), pi, reduction="batchmean")
-                + F.kl_div((pi + 1e-12).log(), pf, reduction="batchmean")
-            )
-            q = self._posterior_mix(pf, pi)
+            if step > self.warmup_steps:
+                L_agree = F.kl_div(
+                    (pf + 1e-12).log(), pi.detach(), reduction="batchmean"
+                )
+            else:
+                L_agree = zero
+            q_y = self._posterior_mix(pf, pi)
+            q = x.new_zeros(B, self.k)
+            q[ymask] = q_y
         else:
             L_inv, L_agree = zero, zero
             q = None
@@ -293,9 +310,27 @@ class CycleVAT(nn.Module):
             else:
                 L_outcome_obs = zero
 
-            if q is not None:
-                idx_miss = (~has_t) & ymask if (t_obs is not None) else ymask
-                L_outcome_miss = self._expected_outcome_loss(h, x, y, q, idx_miss)
+            if q is not None and (step > self.warmup_steps):
+                idx_miss_full = ((~has_t) & ymask) if (t_obs is not None) else ymask
+                if idx_miss_full.any():
+                    s = min(
+                        1.0,
+                        (step - self.warmup_steps) / max(1, self.q_conf_anneal_steps),
+                    )
+                    tau = self.q_conf_end + 0.5 * (
+                        self.q_conf_start - self.q_conf_end
+                    ) * (1 + math.cos((1 - s) * math.pi))
+                    q_miss = q[idx_miss_full]
+                    conf = q_miss.max(dim=-1).values
+                    gate = conf >= tau
+                    if gate.any():
+                        idx2 = idx_miss_full.clone()
+                        idx2[idx_miss_full] = gate
+                        L_outcome_miss = self._expected_outcome_loss(h, x, y, q, idx2)
+                    else:
+                        L_outcome_miss = zero
+                else:
+                    L_outcome_miss = zero
             else:
                 L_outcome_miss = zero
         else:
@@ -303,11 +338,12 @@ class CycleVAT(nn.Module):
             L_outcome_miss = zero
 
         # VAT on p_f
-        L_vat = (
-            vat_loss(self._f_on_x, x, xi=self.xi, eps=self.eps, n_power=self.n_power)
-            if self.training and torch.is_grad_enabled()
-            else zero
-        )
+        if self.training and torch.is_grad_enabled() and (step > self.warmup_steps):
+            L_vat = vat_loss(
+                self._f_on_x, x, xi=self.xi, eps=self.eps, n_power=self.n_power
+            )
+        else:
+            L_vat = zero
 
         terms = {
             "sup_t": L_sup_t,
@@ -332,7 +368,10 @@ class CycleVAT(nn.Module):
                 Li = terms[key]
                 if Li is zero:
                     continue
-                s = self.log_vars[i]
+                with torch.no_grad():
+                    if step <= self.warmup_steps:
+                        self.log_vars.data.clamp_(-2.0, 2.0)
+                s = self.log_vars[i].clamp(-4.0, 4.0)
                 losses.append(torch.exp(-s) * lambda_base[key] * Li + s)
             return torch.stack(losses).sum() if len(losses) else zero
 
