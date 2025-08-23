@@ -22,7 +22,7 @@ class EntropyT(QueryStrategy):
 
     @staticmethod
     def _treatment_proba(model: nn.Module, x: torch.Tensor) -> torch.Tensor:
-        """Return ``p(t\mid x)`` predicted by ``model``.
+        r"""Return ``p(t\mid x)`` predicted by ``model``.
 
         The helper tries ``predict_treatment_proba`` if available and falls
         back to common attribute names such as ``cls_t`` or ``head_T``.  When
@@ -121,7 +121,9 @@ class DeltaCATE(QueryStrategy):
                     if hasattr(model, "sample_T"):
                         t = model.sample_T(X_unlab)
                     else:
-                        raise ValueError("Model must implement sample_T for continuous treatments")
+                        raise ValueError(
+                            "Model must implement sample_T for continuous treatments"
+                        )
                     preds.append(self._predict_outcome(model, X_unlab, t).unsqueeze(1))
             else:
                 for t_val in range(k):
