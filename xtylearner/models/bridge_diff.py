@@ -9,7 +9,7 @@ from .registry import register_model
 
 
 class ScoreBridge(nn.Module):
-    """Score network predicting ``\nabla_y log q(y_\tau | x,t)``."""
+    r"""Score network predicting ``\nabla_y log q(y_\tau | x,t)``."""
 
     def __init__(
         self,

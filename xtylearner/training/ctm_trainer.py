@@ -174,7 +174,7 @@ class CTMTrainer(BaseTrainer):
 
     @torch.no_grad()
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Return ``p(t\mid x,y)`` estimated by the model."""
+        r"""Return ``p(t\mid x,y)`` estimated by the model."""
 
         self.model.eval()
         x = x.to(self.device)
