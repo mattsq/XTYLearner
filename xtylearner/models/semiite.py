@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, Iterable, Sequence
+from typing import Callable, Sequence
 
 import torch
 import torch.nn as nn

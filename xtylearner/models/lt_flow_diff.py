@@ -301,7 +301,6 @@ class LTFlowDiff(nn.Module):
                 probs_u = pseudo_logits.softmax(-1)
                 probs_u = (probs_u ** 2) / probs_u.sum(dim=-1, keepdim=True)
             t_used[idx_u] = probs_u.argmax(dim=-1)
-        obs_mask = t_used != -1
         u, logdet = self.flow(y, x, z, t_used.clamp_min(0))
         log_pxy = (
             -0.5 * u.pow(2).sum(-1) - 0.5 * u.size(1) * math.log(2 * math.pi) + logdet
