@@ -227,7 +227,7 @@ class FactorVAEPlus(nn.Module):
         )
         z = _reparameterise(mu, logvar)
         logits = self.dec_t(x, z)
-        return [F.softmax(l, -1) for l in logits]
+        return [F.softmax(logit, -1) for logit in logits]
 
 
 __all__ = ["FactorVAEPlus"]

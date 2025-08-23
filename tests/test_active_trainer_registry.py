@@ -1,5 +1,5 @@
 import torch
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
 
 from xtylearner.data import load_mixed_synthetic_dataset
 from xtylearner.models import get_model, get_model_names
