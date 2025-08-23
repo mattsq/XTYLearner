@@ -41,7 +41,7 @@ jobs:
           . .venv/bin/activate
           pip install -r requirements.txt
           echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
-      - name: Install package
+      - name: Install package and ASV
         env:
           PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
         run: |
@@ -49,24 +49,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu
           pip install -e .
-      - name: Run benchmark
+          pip install asv
+      - name: Configure ASV machine
         run: |
           . .venv/bin/activate
-          python - <<'PY'
-          from examples.benchmark_models import run_benchmark
-          run_benchmark('benchmark_results.md')
-          PY
+          asv machine --yes github-actions
+      - name: Run ASV benchmarks
+        run: |
+          . .venv/bin/activate
+          asv run --quick --machine github-actions -E existing --python same
       - name: Commit benchmark results
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add benchmark_results.md
+          git add .asv/results
           if ! git diff --cached --quiet; then
-            git commit -m "Update benchmark results"
+            git commit -m "Update ASV benchmark results"
             git push origin HEAD:${{ github.head_ref }}
           fi
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
-          path: benchmark_results.md
+          path: .asv/results
