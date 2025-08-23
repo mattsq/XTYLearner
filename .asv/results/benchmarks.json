@@ -1,0 +1,59 @@
+{
+    "benchmark_models.BenchmarkModels.track_val_outcome_rmse": {
+        "code": "class BenchmarkModels:\n    def track_val_outcome_rmse(self, dataset: str, model: str) -> float:\n        \"\"\"Return validation RMSE for the given model and dataset.\"\"\"\n        row = _run_single((dataset, model))\n        if row is None:\n            return float(\"nan\")\n        return row.get(\"val outcome rmse\", float(\"nan\"))",
+        "name": "benchmark_models.BenchmarkModels.track_val_outcome_rmse",
+        "param_names": [
+            "dataset",
+            "model"
+        ],
+        "params": [
+            [
+                "'synthetic'",
+                "'synthetic_mixed'"
+            ],
+            [
+                "'cacore'",
+                "'ccl_cpc'",
+                "'cevae_m'",
+                "'cnflow'",
+                "'ctm_t'",
+                "'cycle_dual'",
+                "'cycle_vat'",
+                "'deconfounder_cfm'",
+                "'diffusion_cevae'",
+                "'diffusion_gnn_scm'",
+                "'dragon_net'",
+                "'eg_ddi'",
+                "'em'",
+                "'factor_vae_plus'",
+                "'fixmatch'",
+                "'flow_ssc'",
+                "'ganite'",
+                "'gflownet_treatment'",
+                "'gnn_ebm'",
+                "'gnn_scm'",
+                "'joint_ebm'",
+                "'jsbf'",
+                "'lp_knn'",
+                "'lt_flow_diff'",
+                "'m2_vae'",
+                "'masked_tabular_transformer'",
+                "'mean_teacher'",
+                "'multitask'",
+                "'prob_circuit'",
+                "'scgm'",
+                "'semiite'",
+                "'ss_cevae'",
+                "'tab_jepa'",
+                "'vacim'",
+                "'vat'",
+                "'vime'"
+            ]
+        ],
+        "timeout": 120,
+        "type": "track",
+        "unit": "unit",
+        "version": "d429049ca0ef91db7c7e97d0a24660ed6ee9c9f8da60f6d6795876b5f4b192e9"
+    },
+    "version": 2
+}
