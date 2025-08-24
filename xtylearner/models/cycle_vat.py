@@ -233,11 +233,11 @@ class CycleVAT(nn.Module):
         lambda_base: dict[str, float] | None = None,
     ) -> torch.Tensor:
         device = x.device
-        self._step += 1
+        if self.training and torch.is_grad_enabled():
+            self._step += 1
         step = int(self._step.item())
         h = self.encoder(x)
         B = x.size(0)
-        zero = x.new_tensor(0.0)
 
         # masks
         if t_obs is None:
@@ -261,7 +261,7 @@ class CycleVAT(nn.Module):
         L_sup_t = (
             cross_entropy_loss(logits_f[has_t], t_obs[has_t].to(torch.long))
             if has_t.any()
-            else zero
+            else None
         )
 
         # inverse path using real y
@@ -273,7 +273,7 @@ class CycleVAT(nn.Module):
                     logits_i[has_t & ymask], t_obs[has_t & ymask].to(torch.long)
                 )
                 if (has_t & ymask).any()
-                else zero
+                else None
             )
             pf = F.softmax(logits_f[ymask], dim=-1)
             pi = F.softmax(logits_i[ymask], dim=-1)
@@ -282,12 +282,12 @@ class CycleVAT(nn.Module):
                     (pf + 1e-12).log(), pi.detach(), reduction="batchmean"
                 )
             else:
-                L_agree = zero
+                L_agree = None
             q_y = self._posterior_mix(pf, pi)
             q = x.new_zeros(B, self.k)
             q[ymask] = q_y
         else:
-            L_inv, L_agree = zero, zero
+            L_inv, L_agree = None, None
             q = None
 
         # outcome losses
@@ -306,9 +306,9 @@ class CycleVAT(nn.Module):
                         yhat = self.outcome(inp)
                         L_outcome_obs = F.mse_loss(yhat, y[idx])
                 else:
-                    L_outcome_obs = zero
+                    L_outcome_obs = None
             else:
-                L_outcome_obs = zero
+                L_outcome_obs = None
 
             if q is not None and (step > self.warmup_steps):
                 idx_miss_full = ((~has_t) & ymask) if (t_obs is not None) else ymask
@@ -328,14 +328,14 @@ class CycleVAT(nn.Module):
                         idx2[idx_miss_full] = gate
                         L_outcome_miss = self._expected_outcome_loss(h, x, y, q, idx2)
                     else:
-                        L_outcome_miss = zero
+                        L_outcome_miss = None
                 else:
-                    L_outcome_miss = zero
+                    L_outcome_miss = None
             else:
-                L_outcome_miss = zero
+                L_outcome_miss = None
         else:
-            L_outcome_obs = zero
-            L_outcome_miss = zero
+            L_outcome_obs = None
+            L_outcome_miss = None
 
         # VAT on p_f
         if self.training and torch.is_grad_enabled() and (step > self.warmup_steps):
@@ -343,13 +343,17 @@ class CycleVAT(nn.Module):
                 self._f_on_x, x, xi=self.xi, eps=self.eps, n_power=self.n_power
             )
         else:
-            L_vat = zero
+            L_vat = None
+
+        outcome_terms = [L_outcome_obs, L_outcome_miss]
+        outcome_terms = [L for L in outcome_terms if L is not None]
+        L_outcome = torch.stack(outcome_terms).sum() if outcome_terms else None
 
         terms = {
             "sup_t": L_sup_t,
-            "outcome": L_outcome_obs + L_outcome_miss,
+            "outcome": L_outcome,
             "inverse": L_inv,
-            "agree": self.lambda_agree * L_agree,
+            "agree": self.lambda_agree * L_agree if L_agree is not None else None,
             "vat": L_vat,
         }
 
@@ -363,21 +367,26 @@ class CycleVAT(nn.Module):
             }
 
         if self.use_uncertainty_weighting:
+            if step <= self.warmup_steps:
+                with torch.no_grad():
+                    self.log_vars.clamp_(-2.0, 2.0)
             losses = []
             for i, key in enumerate(["sup_t", "outcome", "inverse", "agree", "vat"]):
                 Li = terms[key]
-                if Li is zero:
+                if Li is None:
                     continue
-                with torch.no_grad():
-                    if step <= self.warmup_steps:
-                        self.log_vars.data.clamp_(-2.0, 2.0)
                 s = self.log_vars[i].clamp(-4.0, 4.0)
                 losses.append(torch.exp(-s) * lambda_base[key] * Li + s)
-            return torch.stack(losses).sum() if len(losses) else zero
+            return (
+                torch.stack(losses).sum()
+                if len(losses)
+                else x.new_tensor(0.0, requires_grad=True)
+            )
 
-        total = zero
+        total = x.new_tensor(0.0, requires_grad=True)
         for key, Li in terms.items():
-            total = total + lambda_base.get(key, 1.0) * Li
+            if Li is not None:
+                total = total + lambda_base.get(key, 1.0) * Li
         return total
 
 
