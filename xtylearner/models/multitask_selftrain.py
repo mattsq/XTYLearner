@@ -106,12 +106,13 @@ class MultiTask(nn.Module):
         T_1h = torch.nn.functional.one_hot(T_use, self.k).float()
 
         Y_hat, logits_T, X_hat = self._forward_all(X, Y, T_1h)
-
-        loss = torch.tensor(0.0, device=X.device)
         if labelled.any():
-            loss += mse_loss(Y_hat[labelled], Y[labelled])
+            loss = mse_loss(Y_hat[labelled], Y[labelled])
             loss += mse_loss(X_hat[labelled], X[labelled])
             loss += cross_entropy_loss(logits_T[labelled], T_obs[labelled])
+        else:
+            # ensure returned tensor participates in autograd graph
+            loss = (Y_hat.sum() + logits_T.sum() + X_hat.sum()) * 0.0
         return loss
 
     # --------------------------------------------------------
