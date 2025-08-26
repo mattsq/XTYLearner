@@ -1,4 +1,9 @@
 {
-    "machine": "github-actions",
-    "version": 1
+  "arch": "x86_64",
+  "cpu": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+  "machine": "github-actions",
+  "num_cpu": "5",
+  "os": "Ubuntu 24.04.2 LTS",
+  "ram": "10413356",
+  "version": 1
 }
