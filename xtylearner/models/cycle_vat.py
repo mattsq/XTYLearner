@@ -47,7 +47,7 @@ class CycleVAT(nn.Module):
         norm_layer: callable | None = None,
         residual: bool = False,
         # outcome head
-        outcome_likelihood: bool = True,
+        outcome_likelihood: bool = False,
         outcome_rank: int = 8,
         # y encoder for inverse classifier
         y_embed_dims: tuple[int, ...] | list[int] | None = (64,),
