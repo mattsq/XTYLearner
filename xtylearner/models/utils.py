@@ -186,6 +186,24 @@ class UNet1D(nn.Module):
         return self.net(h)
 
 
+class UncertaintyWeighter(nn.Module):
+    """Adaptive loss weighting via learnable task uncertainties."""
+
+    def __init__(self, num_tasks: int, init_log_vars: float = 0.0) -> None:
+        super().__init__()
+        self.log_vars = nn.Parameter(torch.full((num_tasks,), float(init_log_vars)))
+
+    def forward(self, losses: list[torch.Tensor] | tuple[torch.Tensor, ...]) -> torch.Tensor:
+        assert len(losses) == self.log_vars.numel()
+        s = self.log_vars
+        weights = torch.exp(-s)
+        total = sum(w * L for w, L in zip(weights, losses)) + torch.sum(s)
+        return total
+
+    def weights(self) -> list[float]:
+        with torch.no_grad():
+            return torch.exp(-self.log_vars).cpu().tolist()
+
 __all__ = [
     "centre_per_row",
     "ramp_up_sigmoid",
@@ -196,4 +214,5 @@ __all__ = [
     "mmd",
     "sinusoidal_time_embed",
     "UNet1D",
+    "UncertaintyWeighter",
 ]
