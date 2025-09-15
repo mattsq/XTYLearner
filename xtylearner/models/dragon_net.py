@@ -4,6 +4,7 @@ import torch.nn.functional as F
 
 from .layers import make_mlp
 from .registry import register_model
+from .utils import UncertaintyWeighter
 
 
 @register_model("dragon_net")
@@ -14,7 +15,16 @@ class DragonNet(nn.Module):
     term for doubly robust effect estimates.
     """
 
-    def __init__(self, d_x: int, d_y: int = 1, k: int = 2, h: int = 200, *, lmbda=(1.0, 1.0, 1.0, 1.0)) -> None:
+    def __init__(
+        self,
+        d_x: int,
+        d_y: int = 1,
+        k: int = 2,
+        h: int = 200,
+        *,
+        lmbda: tuple[float, float, float, float] | None = None,
+        init_log_vars: float = 0.0,
+    ) -> None:
         super().__init__()
         self.k = k
         self.encoder = make_mlp([d_x, h, h, h], activation=nn.ReLU)
@@ -23,6 +33,10 @@ class DragonNet(nn.Module):
         self.recon_head = nn.Linear(h + d_y, k)
         self.lmbda = lmbda
         self.d_y = d_y
+        if lmbda is None:
+            self.loss_weighter = UncertaintyWeighter(num_tasks=5, init_log_vars=init_log_vars)
+        else:
+            self.loss_weighter = None
 
     # ------------------------------------------------------------------
     def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
@@ -72,6 +86,13 @@ class DragonNet(nn.Module):
                 * (y_lab.unsqueeze(1) - mu_lab)
             ).mean(0)
             tar_reg = tau_dr.pow(2).sum()
+
+        if self.loss_weighter is not None:
+            losses = [mse_y, ce_pi, ce_rho, kl, tar_reg]
+            mask = [L.requires_grad for L in losses]
+            if any(mask):
+                return self.loss_weighter(losses, mask=mask)
+            return torch.tensor(0.0, device=x.device)
 
         l1, l2, l3, l4 = self.lmbda
         return mse_y + l1 * ce_pi + l2 * ce_rho + l3 * kl + l4 * tar_reg
