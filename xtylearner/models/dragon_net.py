@@ -88,7 +88,11 @@ class DragonNet(nn.Module):
             tar_reg = tau_dr.pow(2).sum()
 
         if self.loss_weighter is not None:
-            return self.loss_weighter([mse_y, ce_pi, ce_rho, kl, tar_reg])
+            losses = [mse_y, ce_pi, ce_rho, kl, tar_reg]
+            mask = [L.requires_grad for L in losses]
+            if any(mask):
+                return self.loss_weighter(losses, mask=mask)
+            return torch.tensor(0.0, device=x.device)
 
         l1, l2, l3, l4 = self.lmbda
         return mse_y + l1 * ce_pi + l2 * ce_rho + l3 * kl + l4 * tar_reg
