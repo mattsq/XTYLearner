@@ -123,7 +123,7 @@ class BridgeDiff(nn.Module):
                 y_noisy[obs_mask],
                 x[obs_mask],
                 t_obs[obs_mask].clamp_min(0),
-                tau[obs_mask].unsqueeze(-1),
+                tau[obs_mask],
             )
             mse = (s_obs + eps[obs_mask] / sig[obs_mask]) ** 2
             loss_obs = (sig[obs_mask] ** 2 * mse).mean()
@@ -138,7 +138,7 @@ class BridgeDiff(nn.Module):
                     y_noisy[unobs_mask],
                     x[unobs_mask],
                     torch.full_like(t_obs[unobs_mask], t_val),
-                    tau[unobs_mask].unsqueeze(-1),
+                    tau[unobs_mask],
                 )
                 mse = ((s_t + eps[unobs_mask] / sig_unobs) ** 2).mean(dim=-1)
                 mse_all.append(mse)
