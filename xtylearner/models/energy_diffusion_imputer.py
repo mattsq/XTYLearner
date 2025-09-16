@@ -85,22 +85,46 @@ class EnergyDiffusionImputer(nn.Module):
         lr: float = 0.1,
         reg: float = 0.01,
         noise: float = 0.0,
+        score_weight: float = 1.0,
     ) -> torch.Tensor:
         """Approximate ``p(y|x,t)`` via gradient-based energy minimisation.
 
-        The procedure now includes optional L2 regularisation of ``y`` and
-        terminates early when the gradient becomes small.  ``noise`` can be
-        used to perform Langevin-style updates.
+        ``score_weight`` controls how strongly the diffusion score network guides
+        the optimisation.  ``noise`` can be used to perform Langevin-style
+        updates.
         """
 
         y = torch.zeros(x.size(0), self.d_y, device=x.device, requires_grad=True)
+        target_t = t.view(-1, 1).clamp_min(0).long()
         with torch.enable_grad():
             for _ in range(steps):
                 e_all = self.energy_net(x, y)
-                e = e_all.gather(1, t.view(-1, 1).clamp_min(0))
+                e = e_all.gather(1, target_t)
                 reg_term = reg * (y ** 2).sum(dim=1, keepdim=True)
-                loss = e + reg_term
-                grad = torch.autograd.grad(loss.sum(), y, create_graph=False)[0]
+                total = e + reg_term
+
+                if score_weight > 0.0:
+                    tau = torch.full(
+                        (x.size(0), 1), 1.0 / self.timesteps, device=x.device
+                    )
+                    logits = self.score_net(x, y, target_t.squeeze(1), tau)
+                    score_loss = torch.zeros_like(total)
+                    valid = t >= 0
+                    if valid.all():
+                        score_loss = F.cross_entropy(
+                            logits, target_t.squeeze(1), reduction="none"
+                        ).unsqueeze(1)
+                    elif valid.any():
+                        per_elem = torch.zeros(x.size(0), device=x.device)
+                        per_elem[valid] = F.cross_entropy(
+                            logits[valid],
+                            target_t.squeeze(1)[valid],
+                            reduction="none",
+                        )
+                        score_loss = per_elem.unsqueeze(1)
+                    total = total + score_weight * score_loss
+
+                grad = torch.autograd.grad(total.sum(), y, create_graph=False)[0]
                 if grad.norm() < 1e-3:
                     break
                 y = (y - lr * grad).detach()
@@ -117,6 +141,7 @@ class EnergyDiffusionImputer(nn.Module):
         *,
         steps: int = 20,
         lr: float = 0.1,
+        score_weight: float = 1.0,
     ) -> torch.Tensor:
         """Convenience wrapper around :meth:`forward`.
 
@@ -125,7 +150,9 @@ class EnergyDiffusionImputer(nn.Module):
         """
 
         t = t.to(torch.long)
-        return self.forward(x, t, steps=steps, lr=lr)
+        return self.forward(
+            x, t, steps=steps, lr=lr, score_weight=score_weight
+        )
 
     # ----- diffusion utilities -----
     def _gamma(self, k: torch.Tensor) -> torch.Tensor:
@@ -148,6 +175,8 @@ class EnergyDiffusionImputer(nn.Module):
         w_obs: float = 1.0,
         w_unobs: float = 1.0,
         w_align: float = 1.0,
+        w_energy_obs: float = 1.0,
+        w_energy_recon: float = 1.0,
     ) -> torch.Tensor:
         b = x.size(0)
         device = x.device
@@ -175,12 +204,36 @@ class EnergyDiffusionImputer(nn.Module):
             w = F.softmax(-E, dim=-1)
             loss_unobs = (w * (-log_probs)).sum(dim=-1).mean()
 
+        loss_energy_obs = torch.tensor(0.0, device=device)
+        loss_energy_recon = torch.tensor(0.0, device=device)
+        if obs_mask.any():
+            x_obs = x[obs_mask]
+            y_obs = y[obs_mask]
+            t_obs_idx = t_obs[obs_mask]
+
+            energy_obs = self.energy_net(x_obs, y_obs)
+            loss_energy_obs = F.cross_entropy(-energy_obs, t_obs_idx)
+
+            noise = torch.randn_like(y_obs)
+            y_neg = y_obs + 0.1 * noise
+            energy_pos = energy_obs.gather(1, t_obs_idx.view(-1, 1))
+            energy_neg = self.energy_net(x_obs, y_neg).gather(
+                1, t_obs_idx.view(-1, 1)
+            )
+            loss_energy_recon = F.softplus(energy_pos - energy_neg).mean()
+
         E_all = self.energy_net(x, y)
         log_p_score = F.log_softmax(logits, dim=-1)
         log_p_energy = F.log_softmax(-E_all, dim=-1)
         kl_div = F.kl_div(log_p_score, log_p_energy.exp(), reduction="batchmean")
 
-        total = w_obs * loss_obs + w_unobs * loss_unobs + w_align * kl_div
+        total = (
+            w_obs * loss_obs
+            + w_unobs * loss_unobs
+            + w_align * kl_div
+            + w_energy_obs * loss_energy_obs
+            + w_energy_recon * loss_energy_recon
+        )
         return total
 
     # ----- simple sampler -----
@@ -201,8 +254,11 @@ class EnergyDiffusionImputer(nn.Module):
         b = x.size(0)
         t = torch.randint(0, self.k, (b,), device=x.device)
         probs = None
-        for step_idx in reversed(range(1, steps + 1)):
-            tau = torch.full((b, 1), step_idx / steps, device=x.device)
+        schedule = torch.linspace(
+            float(self.timesteps), 1.0, steps, device=x.device
+        ).tolist()
+        for step_val in schedule:
+            tau = torch.full((b, 1), step_val / self.timesteps, device=x.device)
             logits = self.score_net(x, y, t, tau)
             energy = self.energy_net(x, y)
             guided = logits - lambda_energy * energy
