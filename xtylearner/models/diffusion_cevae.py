@@ -156,6 +156,11 @@ class ScoreU(nn.Module):
         )
 
     def forward(self, u: torch.Tensor, tau: torch.Tensor) -> torch.Tensor:
+        # Ensure tau has correct dimensions for time_mlp
+        if tau.dim() == 1:
+            tau = tau.unsqueeze(-1)
+        elif tau.dim() > 2:
+            tau = tau.view(-1, 1)
         t_emb = self.time_mlp(tau)
         h = torch.cat([u, t_emb], dim=-1)
         return self.trunk(h)
@@ -177,9 +182,9 @@ class DiffusionCEVAE(nn.Module):
         dropout=None,
         norm_layer=None,
         timesteps: int = 1000,
-        sigma_min: float = 0.001,
+        sigma_min: float = 0.01,  # Increased from 0.001 for stability
         sigma_max: float = 1.0,
-        lambda_score: float = 1.0,
+        lambda_score: float = 0.1,  # Reduced from 1.0 to prevent overwhelming other losses
     ) -> None:
         super().__init__()
         self.k = k
@@ -229,7 +234,14 @@ class DiffusionCEVAE(nn.Module):
 
     # ----- diffusion utilities -----
     def _sigma(self, t: torch.Tensor) -> torch.Tensor:
-        return self.sigma_min * (self.sigma_max / self.sigma_min) ** t
+        # Clamp t to prevent extreme values and ensure numerical stability
+        t_clamped = torch.clamp(t, 0.0, 1.0)
+        # Use log-space computation for better numerical stability
+        ratio = self.sigma_max / self.sigma_min
+        log_sigma = torch.log(torch.tensor(self.sigma_min)) + t_clamped * torch.log(torch.tensor(ratio))
+        # Clamp sigma to prevent extremely small values that cause instability
+        sigma = torch.clamp(log_sigma.exp(), self.sigma_min * 2, self.sigma_max)
+        return sigma
 
     # ----- model loss -----
     def loss(
@@ -257,7 +269,16 @@ class DiffusionCEVAE(nn.Module):
         noise = torch.randn_like(u0)
         u_tau = u0 + sig * noise
         score_pred = self.score_u(u_tau, tau.unsqueeze(-1))
-        score_loss = ((score_pred + noise / sig) ** 2).mean()
+        
+        # Add numerical stability to prevent explosion when sig is small
+        eps = 1e-6
+        sig_stable = sig + eps
+        noise_over_sig = noise / sig_stable
+        
+        # Clamp the noise/sig ratio to prevent extreme values
+        noise_over_sig = torch.clamp(noise_over_sig, -10.0, 10.0)
+        
+        score_loss = ((score_pred + noise_over_sig) ** 2).mean()
 
         return recon_x + recon_y + recon_t + self.lambda_score * score_loss
 
