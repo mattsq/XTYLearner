@@ -40,6 +40,11 @@ class ScoreBridge(nn.Module):
         self, y_noisy: torch.Tensor, x: torch.Tensor, t: torch.Tensor, tau: torch.Tensor
     ) -> torch.Tensor:
         t_emb = self.t_embed(t)
+        # Ensure tau is always 2D [batch_size, 1] for consistent processing
+        if tau.dim() == 1:
+            tau = tau.unsqueeze(-1)
+        elif tau.dim() > 2:
+            tau = tau.view(-1, 1)
         tau_emb = self.time_mlp(tau)
         h = torch.cat([y_noisy, self.x_proj(x), t_emb, tau_emb], dim=-1)
         h = self.trunk(h)
@@ -92,7 +97,12 @@ class BridgeDiff(nn.Module):
 
     # ----- utilities -----
     def _sigma(self, t: torch.Tensor) -> torch.Tensor:
-        return self.sigma_min * (self.sigma_max / self.sigma_min) ** t
+        # Clamp t to prevent extreme values and ensure numerical stability
+        t_clamped = torch.clamp(t, 0.0, 1.0)
+        ratio = self.sigma_max / self.sigma_min
+        # Use log-space computation for better numerical stability
+        log_sigma = math.log(self.sigma_min) + t_clamped * math.log(ratio)
+        return torch.clamp(log_sigma.exp(), self.sigma_min, self.sigma_max)
 
     # ----- training objective -----
     def loss(
@@ -101,6 +111,7 @@ class BridgeDiff(nn.Module):
         y: torch.Tensor,
         t_obs: torch.Tensor,
         warmup: int = 10,
+        current_epoch: int = 0,
     ) -> torch.Tensor:
         b = x.size(0)
         device = x.device
@@ -125,13 +136,18 @@ class BridgeDiff(nn.Module):
                 t_obs[obs_mask].clamp_min(0),
                 tau[obs_mask],
             )
-            mse = (s_obs + eps[obs_mask] / sig[obs_mask]) ** 2
-            loss_obs = (sig[obs_mask] ** 2 * mse).mean()
+            # Add small epsilon for numerical stability
+            eps_val = 1e-8
+            sig_obs = sig[obs_mask] + eps_val
+            mse = (s_obs + eps[obs_mask] / sig_obs) ** 2
+            loss_obs = (sig_obs ** 2 * mse).mean()
 
         unobs_mask = obs_mask.logical_not()
         loss_unobs = torch.tensor(0.0, device=device, requires_grad=True)
         if unobs_mask.any():
-            sig_unobs = sig[unobs_mask]
+            # Add small epsilon for numerical stability
+            eps_val = 1e-8
+            sig_unobs = sig[unobs_mask] + eps_val
             mse_all = []
             for t_val in range(self.k):
                 s_t = self.score_net(
@@ -147,7 +163,8 @@ class BridgeDiff(nn.Module):
                 (p_post[unobs_mask] * (sig_unobs**2) * mse_all).sum(dim=1).mean()
             )
 
-        if warmup > 0:
+        # Apply warmup: disable unobserved loss during initial training epochs
+        if current_epoch < warmup:
             loss_unobs = torch.tensor(0.0, device=device, requires_grad=True)
 
         ce_loss = torch.tensor(0.0, device=device, requires_grad=True)
@@ -179,7 +196,9 @@ class BridgeDiff(nn.Module):
                 y[:, t_val] = y[:, t_val] + (sig**2) * score
             if step_idx > 1:
                 prev = tau - 1 / n_steps
-                noise_scale = (sig**2 - self._sigma(prev).pow(2)).sqrt()
+                sig_prev = self._sigma(prev)
+                # Ensure noise scale is non-negative for numerical stability
+                noise_scale = torch.clamp(sig**2 - sig_prev.pow(2), min=1e-8).sqrt()
                 noise = torch.randn_like(y[:, 0])
                 y = y + noise_scale.unsqueeze(-1) * noise.unsqueeze(1)
         return tuple(y[:, t] for t in range(self.k))
