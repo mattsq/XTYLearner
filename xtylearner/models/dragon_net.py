@@ -92,7 +92,9 @@ class DragonNet(nn.Module):
             mask = [L.requires_grad for L in losses]
             if any(mask):
                 return self.loss_weighter(losses, mask=mask)
-            return torch.tensor(0.0, device=x.device)
+            # When in no_grad context (evaluation), still return the actual loss
+            # Just don't use the uncertainty weighter since gradients aren't needed
+            return mse_y + ce_pi + ce_rho + kl + tar_reg
 
         l1, l2, l3, l4 = self.lmbda
         return mse_y + l1 * ce_pi + l2 * ce_rho + l3 * kl + l4 * tar_reg
