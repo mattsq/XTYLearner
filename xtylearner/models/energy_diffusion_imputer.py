@@ -95,22 +95,24 @@ class EnergyDiffusionImputer(nn.Module):
         """
 
         y = torch.zeros(x.size(0), self.d_y, device=x.device, requires_grad=True)
-        target_t = t.view(-1, 1).clamp_min(0).long()
+        target_t = t.view(-1, 1).long()
+        # Clamp for gather operation, but preserve original t for validation
+        target_t_clamped = target_t.clamp_min(0)
         with torch.enable_grad():
             for _ in range(steps):
                 e_all = self.energy_net(x, y)
-                e = e_all.gather(1, target_t)
+                e = e_all.gather(1, target_t_clamped)
                 reg_term = reg * (y ** 2).sum(dim=1, keepdim=True)
                 total = e + reg_term
 
                 if score_weight > 0.0:
                     valid = t >= 0
                     if valid.any():
-                        tau = target_t.to(dtype=y.dtype) / self.timesteps
-                        tau = tau.clamp_min(1.0 / self.timesteps)
-                        logits = self.score_net(x, y, target_t.squeeze(1), tau)
+                        tau = target_t_clamped.to(dtype=y.dtype) / self.timesteps
+                        tau = tau.clamp_min(1e-6)  # More stable minimum bound
+                        logits = self.score_net(x, y, target_t_clamped.squeeze(1), tau)
                         per_elem = F.cross_entropy(
-                            logits, target_t.squeeze(1), reduction="none"
+                            logits, target_t_clamped.squeeze(1), reduction="none"
                         ).unsqueeze(1)
                         mask = valid.view(-1, 1).to(per_elem.dtype)
                         total = total + score_weight * (per_elem * mask)
@@ -151,7 +153,7 @@ class EnergyDiffusionImputer(nn.Module):
 
     def _q_sample(self, t0: torch.Tensor, k: torch.Tensor) -> torch.Tensor:
         """Corrupt ``t0`` at step ``k`` by randomly replacing with random labels."""
-        gam = self._gamma(k)
+        gam = self._gamma(k).clamp(0.0, 1.0)
         flip = torch.bernoulli(gam).to(torch.bool)
         rand = torch.randint(0, self.k, t0.shape, device=t0.device)
         return torch.where(flip, rand, t0)
@@ -209,17 +211,20 @@ class EnergyDiffusionImputer(nn.Module):
             # Jitter observed outcomes to construct contrastive negatives for the
             # energy network.
             noise = torch.randn_like(y_obs)
-            y_neg = y_obs + contrastive_noise_scale * noise
+            # Scale noise relative to outcome standard deviation for better contrastives
+            # Use unbiased=False to prevent NaN when batch has only one observed sample
+            y_std = y_obs.std(dim=0, keepdim=True, unbiased=False).clamp_min(1e-6)
+            y_neg = y_obs + contrastive_noise_scale * y_std * noise
             energy_pos = energy_obs.gather(1, t_obs_idx.view(-1, 1))
-            energy_neg = self.energy_net(x_obs, y_neg).gather(
-                1, t_obs_idx.view(-1, 1)
-            )
+            energy_neg_all = self.energy_net(x_obs, y_neg)
+            energy_neg = energy_neg_all.gather(1, t_obs_idx.view(-1, 1))
             loss_energy_recon = F.softplus(energy_pos - energy_neg).mean()
 
         E_all = self.energy_net(x, y)
         log_p_score = F.log_softmax(logits, dim=-1)
         log_p_energy = F.log_softmax(-E_all, dim=-1)
-        kl_div = F.kl_div(log_p_score, log_p_energy.exp(), reduction="batchmean")
+        # KL(energy || score) to align score network with energy guidance
+        kl_div = F.kl_div(log_p_energy, log_p_score.exp(), reduction="batchmean")
 
         total = (
             w_obs * loss_obs
