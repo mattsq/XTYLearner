@@ -66,10 +66,19 @@ jobs:
       - name: Run ASV benchmarks
         run: |
           . .venv/bin/activate
-          # Run benchmarks for the current commit (no range spec needed with -E existing)
-          asv run --machine github-actions -E existing --python same
+          # Get current commit hash for results file
+          COMMIT_HASH=$(git rev-parse HEAD)
+          echo "Running benchmarks for commit: $COMMIT_HASH"
+          # Try to run ASV with commit specification to force result saving
+          asv run --machine github-actions -E existing --python same $COMMIT_HASH^!
+          # If that fails, try without commit spec but ensure results are saved
+          if [ $? -ne 0 ]; then
+            echo "Commit-specific run failed, trying without commit spec..."
+            asv run --machine github-actions -E existing --python same
+          fi
           # Show what was created
-          ls -la .asv/results/github-actions/ || echo "No ASV results directory found - benchmarks may not have run successfully"
+          echo "ASV results directory contents:"
+          ls -la .asv/results/github-actions/ || echo "No ASV results directory found"
       - name: Generate HTML reports
         run: |
           . .venv/bin/activate
