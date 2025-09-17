@@ -212,7 +212,8 @@ class EnergyDiffusionImputer(nn.Module):
             # energy network.
             noise = torch.randn_like(y_obs)
             # Scale noise relative to outcome standard deviation for better contrastives
-            y_std = y_obs.std(dim=0, keepdim=True).clamp_min(1e-6)
+            # Use unbiased=False to prevent NaN when batch has only one observed sample
+            y_std = y_obs.std(dim=0, keepdim=True, unbiased=False).clamp_min(1e-6)
             y_neg = y_obs + contrastive_noise_scale * y_std * noise
             energy_pos = energy_obs.gather(1, t_obs_idx.view(-1, 1))
             energy_neg_all = self.energy_net(x_obs, y_neg)
