@@ -22,30 +22,47 @@ jobs:
       - name: Detect changes and determine benchmark strategy
         id: changes
         run: |
+          set -euo pipefail
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            # Get changed files in models directory
-            CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep "xtylearner/models/.*\.py$" || true)
-            
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            git fetch --no-tags --depth=1 origin "$BASE_SHA"
+            CHANGED_FILES=$(git diff --name-only "$BASE_SHA"...HEAD -- 'xtylearner/models/*.py')
+
             if [ -z "$CHANGED_FILES" ]; then
               echo "No model files changed, running core models only"
-              echo "strategy=core" >> $GITHUB_OUTPUT
-              echo "models=jsbf,eg_ddi,cevae_m" >> $GITHUB_OUTPUT
-              echo "should_run=true" >> $GITHUB_OUTPUT
+              echo "strategy=core" >> "$GITHUB_OUTPUT"
+              echo "models=jsbf,eg_ddi,cevae_m" >> "$GITHUB_OUTPUT"
             else
               echo "Model files changed, running selective benchmarks"
-              echo "strategy=selective" >> $GITHUB_OUTPUT
-              # Extract model names from file paths and add core models
-              MODELS=$(echo "$CHANGED_FILES" | sed 's|xtylearner/models/||g' | sed 's|_model\.py||g' | sed 's|\.py||g' | tr '\n' ',' | sed 's/,$//')
-              echo "models=$MODELS,jsbf,eg_ddi,cevae_m" >> $GITHUB_OUTPUT
-              echo "should_run=true" >> $GITHUB_OUTPUT
-              echo "Changed model files: $CHANGED_FILES"
-              echo "Will benchmark models: $MODELS,jsbf,eg_ddi,cevae_m"
+              printf '%s\n' "$CHANGED_FILES"
+              export CHANGED_FILES
+              MODELS=$(python - <<'PY'
+import os
+from pathlib import Path
+
+core = ["jsbf", "eg_ddi", "cevae_m"]
+models = []
+for relative in os.environ.get("CHANGED_FILES", "").splitlines():
+    name = Path(relative).stem
+    if name.endswith("_model"):
+        name = name[:-6]
+    if name and name not in models:
+        models.append(name)
+for item in core:
+    if item not in models:
+        models.append(item)
+print(",".join(models))
+PY
+)
+              echo "models=$MODELS" >> "$GITHUB_OUTPUT"
+              echo "strategy=selective" >> "$GITHUB_OUTPUT"
             fi
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
           else
-            # Full benchmark on main branch pushes
-            echo "strategy=parallel" >> $GITHUB_OUTPUT
-            echo "models=" >> $GITHUB_OUTPUT
-            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "Full benchmark on push"
+            echo "strategy=full" >> "$GITHUB_OUTPUT"
+            echo "models=" >> "$GITHUB_OUTPUT"
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
           fi
 
   benchmark:
@@ -54,22 +71,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    strategy:
-      matrix:
-        chunk: ${{ fromJson(needs.detect-changes.outputs.benchmark_strategy == 'parallel' && '[0, 1, 2, 3]' || '[0]') }}
-      fail-fast: false
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.head_ref || github.ref_name }}
-      - name: Set up git references for ASV
-        run: |
-          git branch -a
-          # Ensure main branch exists locally for ASV
-          git checkout -B main origin/main 2>/dev/null || true
-          # Go back to the working branch
-          git checkout ${{ github.head_ref || github.ref_name }} 2>/dev/null || git checkout HEAD
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -77,102 +83,62 @@ jobs:
           cache-dependency-path: |
             pyproject.toml
             requirements.txt
-      - name: Restore or save venv
-        id: cache-venv
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-py3.11-${{ hashFiles('requirements.txt') }}
-
-      - name: Ensure .venv on PATH
-        if: steps.cache-venv.outputs.cache-hit == 'true'
-        run: echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
-      - name: Build venv if needed
-        if: steps.cache-venv.outputs.cache-hit != 'true'
-        env:
-          PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
+      - name: Install ASV
         run: |
-          python -m venv .venv
-          . .venv/bin/activate
-          pip install -r requirements.txt
-          echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
-      - name: Install package and ASV
-        env:
-          PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
-        run: |
-          source .venv/bin/activate
           python -m pip install --upgrade pip
-          pip install torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu
-          pip install -e .
           pip install asv
-      - name: Configure ASV machine
-        run: |
-          . .venv/bin/activate
-          asv machine --yes --machine github-actions
-      - name: Run ASV benchmarks
+      - name: Record ASV machine info
+        run: asv machine --yes --machine github-actions
+      - name: Prepare benchmark filters
+        id: filters
         env:
           BENCHMARK_MODELS: ${{ needs.detect-changes.outputs.changed_models }}
-          MODEL_CHUNK_INDEX: ${{ matrix.chunk }}
-          MODEL_CHUNK_TOTAL: ${{ needs.detect-changes.outputs.benchmark_strategy == 'parallel' && '4' || '1' }}
         run: |
-          set +e  # Disable exit on error for this step
-          . .venv/bin/activate
-          # Get current commit hash for results file
-          BASE_COMMIT_HASH=$(git rev-parse HEAD)
-          
-          # Create unique commit hash for each chunk to prevent overwriting
-          if [ "${{ needs.detect-changes.outputs.benchmark_strategy }}" = "parallel" ]; then
-            COMMIT_HASH="${BASE_COMMIT_HASH}-chunk-${{ matrix.chunk }}"
-          else
-            COMMIT_HASH="$BASE_COMMIT_HASH"
-          fi
-          
-          echo "Running benchmarks for commit: $COMMIT_HASH"
-          echo "Benchmark strategy: ${{ needs.detect-changes.outputs.benchmark_strategy }}"
-          echo "Changed models: $BENCHMARK_MODELS"
-          echo "Chunk: $MODEL_CHUNK_INDEX/$MODEL_CHUNK_TOTAL"
-          
-          # Method 1: Try ASV with --set-commit-hash to force result saving in existing env
-          echo "Attempting Method 1: ASV with --set-commit-hash..."
-          asv run --machine github-actions -E existing --python same --set-commit-hash $COMMIT_HASH
-          METHOD1_SUCCESS=$?
-          
-          # Method 2: If that fails, try commit range syntax
-          if [ $METHOD1_SUCCESS -ne 0 ]; then
-            echo "Method 1 failed, trying Method 2: commit range syntax..."
-            asv run --machine github-actions -E existing --python same $COMMIT_HASH^! || true
-          fi
-          
-          # Method 3: Fallback to regular run
-          echo "Running fallback method..."
-          asv run --machine github-actions -E existing --python same || true
-          
-          # Show what was created
-          echo "ASV results directory contents:"
-          ls -la .asv/results/github-actions/ || echo "No ASV results directory found"
-          
-          set -e  # Re-enable exit on error
+          python - <<'PY'
+import json
+import os
+
+models = [m.strip() for m in os.environ.get("BENCHMARK_MODELS", "").split(",") if m.strip()]
+with open(os.environ["GITHUB_OUTPUT"], "w") as fh:
+    fh.write(f"models={json.dumps(models)}\n")
+PY
+      - name: Run ASV benchmarks
+        env:
+          MODEL_FILTERS: ${{ steps.filters.outputs.models }}
+        run: |
+          python - <<'PY'
+import json
+import os
+import subprocess
+import sys
+
+filters = os.environ.get("MODEL_FILTERS")
+args = [
+    "asv",
+    "run",
+    "--machine",
+    "github-actions",
+    "--repo",
+    ".",
+    "--steps",
+    "1",
+    "HEAD^!",
+]
+if filters:
+    for model in json.loads(filters):
+        args.extend(["--parameter", f"model={model}"])
+print("Running:", " ".join(args))
+sys.exit(subprocess.call(args))
+PY
       - name: Generate HTML reports
         run: |
-          . .venv/bin/activate
-          # Check what results exist before publishing
-          echo "=== ASV Results before publish ==="
-          find .asv/results -name "*.json" -exec echo "File: {}" \; -exec wc -l {} \;
-          # Check git branches available
-          echo "=== Git branches ==="
-          git branch -a
-          # Generate HTML (skip if no benchmark data exists)
           if ls .asv/results/github-actions/*.json 2>/dev/null | grep -v machine.json; then
-            echo "Found benchmark data files, generating HTML..."
             asv publish --html-dir .asv/html
           else
-            echo "No benchmark data files found, creating minimal HTML structure..."
+            echo "No benchmark data files found, creating placeholder HTML"
             mkdir -p .asv/html
             echo "<html><body><h1>No benchmark data available yet</h1></body></html>" > .asv/html/index.html
           fi
-          # Check what HTML was generated
-          echo "=== HTML files generated ==="
-          ls -la .asv/html/ || echo "No HTML directory created"
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         if: github.ref == 'refs/heads/main'
@@ -180,85 +146,8 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: .asv/html
           force_orphan: true
-      - name: Commit benchmark results
-        if: github.event_name == 'pull_request'
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add .asv/results
-          if ! git diff --cached --quiet; then
-            git commit -m "Update ASV benchmark results"
-            git push origin HEAD:${{ github.head_ref }}
-          fi
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
         with:
-          name: benchmark-results-chunk-${{ matrix.chunk }}
+          name: benchmark-results
           path: .asv/results
-
-  merge-results:
-    needs: [detect-changes, benchmark]
-    if: needs.detect-changes.outputs.benchmark_strategy == 'parallel'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.head_ref || github.ref_name }}
-      - name: Download all benchmark results
-        uses: actions/download-artifact@v4
-        with:
-          pattern: benchmark-results-chunk-*
-          path: benchmark-chunks
-          merge-multiple: true
-      - name: Set up git references for ASV
-        run: |
-          git branch -a
-          git checkout -B main origin/main 2>/dev/null || true
-          git checkout ${{ github.head_ref || github.ref_name }} 2>/dev/null || git checkout HEAD
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Install ASV
-        run: |
-          python -m pip install asv
-      - name: Merge benchmark results
-        run: |
-          # Copy all chunk results to main ASV results directory
-          mkdir -p .asv/results/github-actions
-          
-          # Copy chunk results with unique filenames (they already have unique commit hashes)
-          echo "=== Copying chunk results ==="
-          find benchmark-chunks -name "*.json" -type f | while read -r file; do
-            filename=$(basename "$file")
-            echo "Copying $file -> .asv/results/github-actions/$filename"
-            cp "$file" ".asv/results/github-actions/$filename"
-          done
-          
-          # Show merged results
-          echo "=== Merged ASV Results ==="
-          ls -la .asv/results/github-actions/
-          echo "=== Result file contents check ==="
-          find .asv/results/github-actions -name "*.json" -not -name "machine.json" | head -3 | while read -r file; do
-            echo "File: $file"
-            echo "Models in this file: $(jq -r '.results | keys[]' "$file" 2>/dev/null | wc -l || echo 'N/A')"
-          done
-          
-          # Generate combined HTML
-          if ls .asv/results/github-actions/*.json 2>/dev/null | grep -v machine.json; then
-            echo "Generating combined HTML from all chunks..."
-            asv publish --html-dir .asv/html
-          else
-            echo "No benchmark data files found after merge"
-            mkdir -p .asv/html
-            echo "<html><body><h1>No benchmark data available</h1></body></html>" > .asv/html/index.html
-          fi
-      - name: Deploy merged results to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        if: github.ref == 'refs/heads/main'
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: .asv/html
-          force_orphan: true

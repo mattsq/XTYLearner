@@ -1,6 +1,5 @@
 """ASV benchmark definitions."""
 
-import os
 from pathlib import Path
 import sys
 
@@ -15,47 +14,15 @@ from xtylearner.models import get_model_names  # noqa: E402
 from xtylearner.models.ss_dml import _HAS_DOUBLEML  # noqa: E402
 
 
-# Core models to always benchmark for regression detection
-CORE_MODELS = ["jsbf", "eg_ddi", "cevae_m"]
+def _all_model_names():
+    """Return the list of models exposed to the benchmark suite."""
+    names = [model for model in get_model_names() if model != "bridge_diff"]
+    if not _HAS_DOUBLEML and "ss_dml" in names:
+        names.remove("ss_dml")
+    return names
 
 
-def get_benchmark_models():
-    """Get models to benchmark based on environment variable or default to all."""
-    # Check for selective benchmarking
-    env_models = os.environ.get('BENCHMARK_MODELS', '').strip()
-    chunk_index = os.environ.get('MODEL_CHUNK_INDEX', '').strip()
-    total_chunks = int(os.environ.get('MODEL_CHUNK_TOTAL', '1'))
-    
-    # Get base model list
-    all_models = [m for m in get_model_names() if m != "bridge_diff"]
-    if not _HAS_DOUBLEML and "ss_dml" in all_models:
-        all_models.remove("ss_dml")
-    
-    # Selective benchmarking based on changed files
-    if env_models:
-        selected_models = [m.strip() for m in env_models.split(',') if m.strip()]
-        # Add core models for regression detection
-        selected_models.extend(CORE_MODELS)
-        # Remove duplicates while preserving order
-        return list(dict.fromkeys(m for m in selected_models if m in all_models))
-    
-    # Parallel execution chunking
-    if chunk_index:
-        chunk_idx = int(chunk_index)
-        chunk_size = len(all_models) // total_chunks
-        remainder = len(all_models) % total_chunks
-        
-        # Calculate start and end indices for this chunk
-        start_idx = chunk_idx * chunk_size + min(chunk_idx, remainder)
-        end_idx = start_idx + chunk_size + (1 if chunk_idx < remainder else 0)
-        
-        return all_models[start_idx:end_idx]
-    
-    # Default: return all models
-    return all_models
-
-
-MODEL_NAMES = get_benchmark_models()
+MODEL_NAMES = _all_model_names()
 
 
 class BenchmarkModels:
@@ -69,6 +36,10 @@ class BenchmarkModels:
         MODEL_NAMES,
     ]
     param_names = ["dataset", "model"]
+    param_descriptions = {
+        "dataset": "Synthetic evaluation datasets shipped with the benchmarks.",
+        "model": "Registered model name from ``xtylearner.models``.",
+    }
 
     def track_val_outcome_rmse(self, dataset: str, model: str) -> float:
         """Return validation RMSE for the given model and dataset."""

@@ -4,10 +4,15 @@
   "repo": ".",
   "branches": ["main"],
   "benchmark_dir": "benchmarks",
-  "environment_type": "existing",
+  "environment_type": "virtualenv",
   "env_dir": ".asv/env",
   "results_dir": ".asv/results",
   "html_dir": ".asv/html",
-  "pythons": ["same"],
+  "pythons": ["3.11"],
+  "install_command": [
+    "python -m pip install --upgrade pip",
+    "python -m pip install --extra-index-url https://download.pytorch.org/whl/cpu -r {root}/requirements.txt",
+    "python -m pip install --extra-index-url https://download.pytorch.org/whl/cpu -e {root}"
+  ],
   "show_commit_url": "https://github.com/mattsq/XTYLearner/commit/"
 }
