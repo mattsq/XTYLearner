@@ -7,5 +7,7 @@
   "environment_type": "existing",
   "env_dir": ".asv/env",
   "results_dir": ".asv/results",
-  "html_dir": ".asv/html"
+  "html_dir": ".asv/html",
+  "pythons": ["same"],
+  "show_commit_url": "https://github.com/mattsq/XTYLearner/commit/"
 }
