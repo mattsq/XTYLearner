@@ -17,6 +17,13 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.head_ref || github.ref_name }}
+      - name: Set up git references for ASV
+        run: |
+          git branch -a
+          # Ensure main branch exists locally for ASV
+          git checkout -B main origin/main 2>/dev/null || true
+          # Go back to the working branch
+          git checkout ${{ github.head_ref || github.ref_name }} 2>/dev/null || git checkout HEAD
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -59,11 +66,31 @@ jobs:
       - name: Run ASV benchmarks
         run: |
           . .venv/bin/activate
-          asv run --machine github-actions -E existing --python same --quick
+          # Run benchmarks for the current commit (no range spec needed with -E existing)
+          asv run --machine github-actions -E existing --python same
+          # Show what was created
+          ls -la .asv/results/github-actions/ || echo "No ASV results directory found - benchmarks may not have run successfully"
       - name: Generate HTML reports
         run: |
           . .venv/bin/activate
-          asv publish --html-dir .asv/html
+          # Check what results exist before publishing
+          echo "=== ASV Results before publish ==="
+          find .asv/results -name "*.json" -exec echo "File: {}" \; -exec wc -l {} \;
+          # Check git branches available
+          echo "=== Git branches ==="
+          git branch -a
+          # Generate HTML (skip if no benchmark data exists)
+          if ls .asv/results/github-actions/*.json 2>/dev/null | grep -v machine.json; then
+            echo "Found benchmark data files, generating HTML..."
+            asv publish --html-dir .asv/html
+          else
+            echo "No benchmark data files found, creating minimal HTML structure..."
+            mkdir -p .asv/html
+            echo "<html><body><h1>No benchmark data available yet</h1></body></html>" > .asv/html/index.html
+          fi
+          # Check what HTML was generated
+          echo "=== HTML files generated ==="
+          ls -la .asv/html/ || echo "No HTML directory created"
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         if: github.ref == 'refs/heads/main'

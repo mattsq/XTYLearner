@@ -22,7 +22,7 @@ if not _HAS_DOUBLEML and "ss_dml" in MODEL_NAMES:
 class BenchmarkModels:
     """ASV benchmarks for model validation metrics."""
 
-    timeout = 120
+    timeout = 300  # Increased timeout for complex models
 
     # Parameters: dataset names and model names
     params = [
