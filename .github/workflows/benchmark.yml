@@ -59,11 +59,21 @@ jobs:
       - name: Run ASV benchmarks
         run: |
           . .venv/bin/activate
-          asv run --machine github-actions -E existing --python same --quick
+          # Run benchmarks for the current commit
+          asv run --machine github-actions -E existing --python same HEAD^!
+          # Show what was created
+          ls -la .asv/results/github-actions/ || echo "No github-actions results directory"
       - name: Generate HTML reports
         run: |
           . .venv/bin/activate
+          # Check what results exist before publishing
+          echo "=== ASV Results before publish ==="
+          find .asv/results -name "*.json" -exec echo "File: {}" \; -exec wc -l {} \;
+          # Generate HTML
           asv publish --html-dir .asv/html
+          # Check what HTML was generated
+          echo "=== HTML files generated ==="
+          ls -la .asv/html/ || echo "No HTML directory created"
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         if: github.ref == 'refs/heads/main'
