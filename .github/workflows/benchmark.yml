@@ -62,7 +62,7 @@ jobs:
           # Run benchmarks for the current commit
           asv run --machine github-actions -E existing --python same HEAD^!
           # Show what was created
-          ls -la .asv/results/github-actions/ || echo "No github-actions results directory"
+          ls -la .asv/results/github-actions/ || echo "No ASV results directory found - benchmarks may not have run successfully"
       - name: Generate HTML reports
         run: |
           . .venv/bin/activate
