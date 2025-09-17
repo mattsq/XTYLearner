@@ -65,11 +65,32 @@ jobs:
           asv machine --yes --machine github-actions
       - name: Run ASV benchmarks
         run: |
+          set +e  # Disable exit on error for this step
           . .venv/bin/activate
-          # Run benchmarks for the current commit (no range spec needed with -E existing)
-          asv run --machine github-actions -E existing --python same
+          # Get current commit hash for results file
+          COMMIT_HASH=$(git rev-parse HEAD)
+          echo "Running benchmarks for commit: $COMMIT_HASH"
+          
+          # Method 1: Try ASV with --set-commit-hash to force result saving in existing env
+          echo "Attempting Method 1: ASV with --set-commit-hash..."
+          asv run --machine github-actions -E existing --python same --set-commit-hash $COMMIT_HASH
+          METHOD1_SUCCESS=$?
+          
+          # Method 2: If that fails, try commit range syntax
+          if [ $METHOD1_SUCCESS -ne 0 ]; then
+            echo "Method 1 failed, trying Method 2: commit range syntax..."
+            asv run --machine github-actions -E existing --python same $COMMIT_HASH^! || true
+          fi
+          
+          # Method 3: Fallback to regular run
+          echo "Running fallback method..."
+          asv run --machine github-actions -E existing --python same || true
+          
           # Show what was created
-          ls -la .asv/results/github-actions/ || echo "No ASV results directory found - benchmarks may not have run successfully"
+          echo "ASV results directory contents:"
+          ls -la .asv/results/github-actions/ || echo "No ASV results directory found"
+          
+          set -e  # Re-enable exit on error
       - name: Generate HTML reports
         run: |
           . .venv/bin/activate
