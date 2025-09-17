@@ -121,21 +121,30 @@ class JSBF(nn.Module):
 
         t_mask = t_obs != -1
         t_cln = t_obs.clone()
+        # Fill missing treatments (-1) with random valid treatment values
         if (~t_mask).any():
             rand_fill = torch.randint(
                 0, self.k, (t_mask.logical_not().sum(),), device=x.device
             )
             t_cln[~t_mask] = rand_fill
-        t_cln = t_cln.clamp_min(0)
+        # Ensure all treatment values are valid (should be redundant but safe)
+        t_cln = t_cln.clamp(0, self.k - 1)
         t_corrupt, _ = self._q_sample_discrete(t_cln, t_idx)
         tau = (t_idx.float() / self.timesteps).unsqueeze(-1)
 
         score_pred, logits_pred = self.net(xy_t, t_corrupt, tau)
 
-        score_loss = (((score_pred + eps / sig_t) ** 2) * sig_t**2).mean()
+        # Improve numerical stability by clamping sigma values and using stable computation
+        sig_t_clamped = sig_t.clamp_min(1e-6)  # Prevent division by very small numbers
+        score_target = -eps / sig_t_clamped
+        score_loss = F.mse_loss(score_pred, score_target) * sig_t_clamped.mean()**2
 
         cls_per_row = F.cross_entropy(logits_pred, t_cln, reduction="none")
-        cls_loss = cls_per_row[t_mask].mean()
+        # Handle case where no treatments are observed (all are -1)
+        if t_mask.any():
+            cls_loss = cls_per_row[t_mask].mean()
+        else:
+            cls_loss = torch.tensor(0.0, device=x.device, requires_grad=True)
 
         return score_loss + self.cls_coef * cls_loss
 
@@ -156,7 +165,9 @@ class JSBF(nn.Module):
             )
             step = sig_t**2 - sig_prev**2
             score, logits = self.net(xy, t, tau)
-            xy = xy + step * score + step.sqrt() * torch.randn_like(xy)
+            # Clamp step to prevent numerical issues
+            step_clamped = step.clamp_min(0.0)
+            xy = xy + step_clamped * score + step_clamped.sqrt() * torch.randn_like(xy)
             probs = F.softmax(logits, -1)
             t = torch.multinomial(probs, 1).squeeze(-1)
 
@@ -197,8 +208,10 @@ class JSBF(nn.Module):
             )
             step = sig_t**2 - sig_prev**2
             score, logits = self.net(xy, t, tau)
-            xy[:, self.d_x :] += step * score[:, self.d_x :]
-            xy[:, self.d_x :] += step.sqrt() * torch.randn_like(y)
+            # Clamp step to prevent numerical issues
+            step_clamped = step.clamp_min(0.0)
+            xy[:, self.d_x :] += step_clamped * score[:, self.d_x :]
+            xy[:, self.d_x :] += step_clamped.sqrt() * torch.randn_like(y)
             probs = F.softmax(logits, -1)
             t = torch.multinomial(probs, 1).squeeze(-1)
         return xy[:, self.d_x :]
