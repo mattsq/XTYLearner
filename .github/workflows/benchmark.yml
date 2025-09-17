@@ -17,6 +17,13 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.head_ref || github.ref_name }}
+      - name: Set up git references for ASV
+        run: |
+          git branch -a
+          # Ensure main branch exists locally for ASV
+          git checkout -B main origin/main 2>/dev/null || true
+          # Go back to the working branch
+          git checkout ${{ github.head_ref || github.ref_name }} 2>/dev/null || git checkout HEAD
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -69,8 +76,18 @@ jobs:
           # Check what results exist before publishing
           echo "=== ASV Results before publish ==="
           find .asv/results -name "*.json" -exec echo "File: {}" \; -exec wc -l {} \;
-          # Generate HTML
-          asv publish --html-dir .asv/html
+          # Check git branches available
+          echo "=== Git branches ==="
+          git branch -a
+          # Generate HTML (skip if no benchmark data exists)
+          if ls .asv/results/github-actions/*.json 2>/dev/null | grep -v machine.json; then
+            echo "Found benchmark data files, generating HTML..."
+            asv publish --html-dir .asv/html
+          else
+            echo "No benchmark data files found, creating minimal HTML structure..."
+            mkdir -p .asv/html
+            echo "<html><body><h1>No benchmark data available yet</h1></body></html>" > .asv/html/index.html
+          fi
           # Check what HTML was generated
           echo "=== HTML files generated ==="
           ls -la .asv/html/ || echo "No HTML directory created"
