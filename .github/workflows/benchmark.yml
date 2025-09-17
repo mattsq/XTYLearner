@@ -118,7 +118,15 @@ jobs:
           set +e  # Disable exit on error for this step
           . .venv/bin/activate
           # Get current commit hash for results file
-          COMMIT_HASH=$(git rev-parse HEAD)
+          BASE_COMMIT_HASH=$(git rev-parse HEAD)
+          
+          # Create unique commit hash for each chunk to prevent overwriting
+          if [ "${{ needs.detect-changes.outputs.benchmark_strategy }}" = "parallel" ]; then
+            COMMIT_HASH="${BASE_COMMIT_HASH}-chunk-${{ matrix.chunk }}"
+          else
+            COMMIT_HASH="$BASE_COMMIT_HASH"
+          fi
+          
           echo "Running benchmarks for commit: $COMMIT_HASH"
           echo "Benchmark strategy: ${{ needs.detect-changes.outputs.benchmark_strategy }}"
           echo "Changed models: $BENCHMARK_MODELS"
@@ -220,11 +228,23 @@ jobs:
         run: |
           # Copy all chunk results to main ASV results directory
           mkdir -p .asv/results/github-actions
-          find benchmark-chunks -name "*.json" -exec cp {} .asv/results/github-actions/ \;
+          
+          # Copy chunk results with unique filenames (they already have unique commit hashes)
+          echo "=== Copying chunk results ==="
+          find benchmark-chunks -name "*.json" -type f | while read -r file; do
+            filename=$(basename "$file")
+            echo "Copying $file -> .asv/results/github-actions/$filename"
+            cp "$file" ".asv/results/github-actions/$filename"
+          done
           
           # Show merged results
           echo "=== Merged ASV Results ==="
           ls -la .asv/results/github-actions/
+          echo "=== Result file contents check ==="
+          find .asv/results/github-actions -name "*.json" -not -name "machine.json" | head -3 | while read -r file; do
+            echo "File: $file"
+            echo "Models in this file: $(jq -r '.results | keys[]' "$file" 2>/dev/null | wc -l || echo 'N/A')"
+          done
           
           # Generate combined HTML
           if ls .asv/results/github-actions/*.json 2>/dev/null | grep -v machine.json; then
