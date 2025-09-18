@@ -177,9 +177,10 @@ jobs:
           # Check what HTML was generated
           echo "=== HTML files generated ==="
           ls -la .asv/html/ || echo "No HTML directory created"
-      - name: Deploy to GitHub Pages
+      # Deploy only for non-parallel execution (single chunk)
+      - name: Deploy single chunk results to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && needs.detect-changes.outputs.benchmark_strategy != 'parallel'
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: .asv/html
