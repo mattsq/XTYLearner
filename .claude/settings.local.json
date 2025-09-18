@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(venv/Scripts/python.exe -m pytest --tb=line -q)",
+      "Bash(venv/Scripts/python.exe -c \"\nimport sys\nsys.path.insert(0, ''.'')\nfrom examples.benchmark_models import run_benchmark\n\n# Run benchmark with updated models\nprint(''Running updated benchmark with fixed DiffusionCEVAE...'')\nrun_benchmark(''benchmark_results_updated.md'')\n\")",
+      "Bash(venv/Scripts/python.exe:*)",
+      "Bash(git checkout:*)",
+      "Bash(git pull:*)",
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "WebSearch",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:asv.readthedocs.io)",
+      "Bash(uv run:*)",
+      "Bash(echo $BENCHMARK_MODELS)",
+      "Bash(git log:*)",
+      "WebFetch(domain:mattsq.github.io)",
+      "Bash(git stash:*)"
+    ],
+    "deny": [],
+    "ask": [],
+    "defaultMode": "acceptEdits"
+  }
+}

@@ -18,7 +18,8 @@ dependencies = [
     "pandas",
     "scipy",
     "tabulate",
-    "optuna"
+    "optuna",
+    "asv>=0.6.5",
 ]
 
 [project.optional-dependencies]

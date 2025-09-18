@@ -302,3 +302,184 @@ jobs:
           path: |
             .asv/results/github-actions
             .asv/html
+
+  consolidate-results:
+    needs: [detect-changes, benchmark]
+    if: needs.detect-changes.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref || github.ref_name }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: |
+            asv.conf.json
+            requirements.txt
+      - name: Install ASV tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install asv
+      - name: Download all benchmark artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: asv-results-*
+          path: artifact-downloads
+          merge-multiple: true
+      - name: Consolidate benchmark results
+        run: |
+          set -euo pipefail
+          echo "=== Consolidating benchmark results ==="
+          
+          # Install jq for JSON validation
+          sudo apt-get update && sudo apt-get install -y jq
+          
+          # Create consolidated results directory
+          mkdir -p .asv/results/github-actions
+          
+          # Copy machine.json from any artifact
+          find artifact-downloads -name "machine.json" -exec cp {} .asv/results/github-actions/ \; -quit
+          
+          # Merge all benchmark result files
+          echo "=== Available result files ==="
+          find artifact-downloads -name "*.json" -not -name "machine.json" | sort
+          
+          # Copy all benchmark JSON files with validation
+          result_count=0
+          model_count=0
+          for file in $(find artifact-downloads -name "*.json" -not -name "machine.json" | sort); do
+            if jq empty "$file" 2>/dev/null; then
+              filename=$(basename "$file")
+              echo "Processing valid result file: $filename"
+              
+              # Count models in this file
+              file_models=$(jq -r '.results | keys[]' "$file" 2>/dev/null | wc -l || echo "0")
+              echo "  Models in file: $file_models"
+              model_count=$((model_count + file_models))
+              
+              cp "$file" ".asv/results/github-actions/$filename"
+              result_count=$((result_count + 1))
+            else
+              echo "WARNING: Skipping malformed JSON file: $file"
+            fi
+          done
+          
+          echo "=== Consolidation Summary ==="
+          echo "Total valid result files: $result_count"
+          echo "Total models benchmarked: $model_count"
+          ls -la .asv/results/github-actions/
+          
+          # Validate we have results
+          if [ "$result_count" -eq 0 ]; then
+            echo "ERROR: No valid benchmark results found"
+            exit 1
+          fi
+          
+          # Validate we have expected models
+          expected_models="${{ needs.detect-changes.outputs.models }}"
+          if [ -n "$expected_models" ]; then
+            expected_count=$(echo "$expected_models" | tr ',' '\n' | wc -l)
+            echo "Expected models: $expected_count, Found models: $model_count"
+            if [ "$model_count" -lt "$expected_count" ]; then
+              echo "WARNING: Found fewer models than expected"
+            fi
+          fi
+          
+          # Generate unified HTML
+          echo "=== Generating unified HTML ==="
+          asv publish --config asv.conf.json --html-dir .asv/html
+          
+          # Validate HTML generation
+          if [ ! -f ".asv/html/index.html" ]; then
+            echo "ERROR: HTML generation failed"
+            exit 1
+          fi
+          
+          # Validate HTML content
+          if grep -q "No benchmark data available" ".asv/html/index.html"; then
+            echo "ERROR: HTML shows no benchmark data"
+            exit 1
+          fi
+          
+          echo "HTML generation successful"
+          echo "Generated files:"
+          find .asv/html -name "*.html" | head -10
+      - name: Upload consolidated artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: consolidated-asv-results
+          path: |
+            .asv/results/github-actions
+            .asv/html
+
+  deploy-to-pages:
+    needs: [detect-changes, consolidate-results]
+    if: needs.detect-changes.outputs.should_run == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - name: Download consolidated results
+        uses: actions/download-artifact@v4
+        with:
+          name: consolidated-asv-results
+          path: asv-consolidated
+      - name: Validate deployment package
+        run: |
+          set -euo pipefail
+          echo "=== Validating deployment package ==="
+          
+          # Check required files exist
+          if [ ! -f "asv-consolidated/.asv/html/index.html" ]; then
+            echo "ERROR: Missing index.html"
+            exit 1
+          fi
+          
+          # Check for required ASV assets
+          required_files=("asv.js" "asv.css" "asv_ui.js")
+          for file in "${required_files[@]}"; do
+            if [ ! -f "asv-consolidated/.asv/html/$file" ]; then
+              echo "ERROR: Missing required ASV file: $file"
+              exit 1
+            fi
+          done
+          
+          # Validate index.html doesn't contain error messages
+          if grep -qi "error\|no.*data.*available" "asv-consolidated/.asv/html/index.html"; then
+            echo "ERROR: HTML contains error indicators"
+            cat asv-consolidated/.asv/html/index.html
+            exit 1
+          fi
+          
+          echo "Deployment package validation successful"
+          echo "Package contents:"
+          find asv-consolidated/.asv/html -type f | head -20
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      - name: Upload to GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: asv-consolidated/.asv/html
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+      - name: Verify deployment
+        if: always()
+        run: |
+          echo "=== Deployment Summary ==="
+          echo "Deployment status: ${{ steps.deployment.outcome }}"
+          if [ "${{ steps.deployment.outcome }}" = "success" ]; then
+            echo "✅ ASV benchmarks successfully deployed to GitHub Pages"
+            echo "🔗 URL: ${{ steps.deployment.outputs.page_url }}"
+          else
+            echo "❌ Deployment failed"
+            echo "Check the deployment logs above for details"
+          fi
