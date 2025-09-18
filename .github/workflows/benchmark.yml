@@ -29,8 +29,8 @@ jobs:
       - name: Determine benchmark models
         id: models
         env:
-          DEFAULT_MODELS: cycle_dual,vat,mean_teacher
-          CHUNK_SIZE: '2'
+          DEFAULT_MODELS: cycle_dual,mean_teacher
+          CHUNK_SIZE: '1'
         run: |
           python <<'PY'
           import json
