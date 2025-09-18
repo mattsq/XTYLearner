@@ -312,6 +312,16 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.head_ref || github.ref_name }}
+      - name: Ensure main branch exists
+        run: |
+          # Ensure we have the main branch for ASV publish
+          if ! git show-ref --verify --quiet refs/heads/main; then
+            if git show-ref --verify --quiet refs/remotes/origin/main; then
+              git branch main origin/main
+            else
+              git fetch origin main:main
+            fi
+          fi
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -404,7 +414,22 @@ jobs:
           
           # Generate unified HTML
           echo "=== Generating unified HTML ==="
-          asv publish --config asv.conf.json --html-dir .asv/html
+          echo "Current git branches:"
+          git branch -a || echo "Git branch listing failed"
+          echo "Current commit:"
+          git rev-parse HEAD || echo "Git rev-parse failed"
+          
+          # Create a temporary config that doesn't require specific branches
+          cp asv.conf.json asv-publish.conf.json
+          # Get current branch name
+          CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          echo "Current branch: $CURRENT_BRANCH"
+          
+          # Update config to use current branch instead of main
+          jq --arg branch "$CURRENT_BRANCH" '.branches = [$branch]' asv.conf.json > asv-publish.conf.json
+          
+          # Try publish with modified config
+          asv publish --config asv-publish.conf.json --html-dir .asv/html --no-pull
           
           # Validate HTML generation
           if [ ! -f ".asv/html/index.html" ]; then
