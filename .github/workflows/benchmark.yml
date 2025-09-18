@@ -163,20 +163,20 @@ jobs:
             echo "=== TEST 2: MANUAL BENCHMARK EXECUTION ==="
             echo "Testing direct benchmark execution outside ASV..."
             python -c "
-import sys
-sys.path.insert(0, '.')
-from examples.benchmark_models import _run_single
-import time
-
-print('Direct benchmark test:')
-start = time.time()
-try:
-    result = _run_single(('synthetic', 'cycle_dual'))
-    end = time.time()
-    print(f'SUCCESS: {end-start:.2f}s - {result}')
-except Exception as e:
-    end = time.time()
-    print(f'FAILED: {end-start:.2f}s - {e}')
+            import sys
+            sys.path.insert(0, '.')
+            from examples.benchmark_models import _run_single
+            import time
+            
+            print('Direct benchmark test:')
+            start = time.time()
+            try:
+                result = _run_single(('synthetic', 'cycle_dual'))
+                end = time.time()
+                print(f'SUCCESS: {end-start:.2f}s - {result}')
+            except Exception as e:
+                end = time.time()
+                print(f'FAILED: {end-start:.2f}s - {e}')
             "
             MANUAL_EXIT_CODE=$?
             echo "Manual benchmark exit code: $MANUAL_EXIT_CODE"
@@ -187,17 +187,17 @@ except Exception as e:
             echo ""
             echo "ASV environment details:"
             python -c "
-import sys
-print(f'Python path: {sys.path}')
-print(f'Python executable: {sys.executable}')
-try:
-    import xtylearner
-    print(f'XTYLearner import: SUCCESS')
-    from xtylearner.models import get_model
-    model = get_model('cycle_dual', d_x=2, d_y=1, k=2)
-    print(f'Model creation: SUCCESS - {type(model)}')
-except Exception as e:
-    print(f'XTYLearner test: FAILED - {e}')
+            import sys
+            print(f'Python path: {sys.path}')
+            print(f'Python executable: {sys.executable}')
+            try:
+                import xtylearner
+                print(f'XTYLearner import: SUCCESS')
+                from xtylearner.models import get_model
+                model = get_model('cycle_dual', d_x=2, d_y=1, k=2)
+                print(f'Model creation: SUCCESS - {type(model)}')
+            except Exception as e:
+                print(f'XTYLearner test: FAILED - {e}')
             "
             echo ""
             echo "ASV benchmark discovery:"
