@@ -29,7 +29,7 @@ jobs:
       - name: Determine benchmark models
         id: models
         env:
-          DEFAULT_MODELS: cycle_dual
+          DEFAULT_MODELS: cycle_dual,cycle_vat,vat,mean_teacher
           CHUNK_SIZE: '2'
         run: |
           python <<'PY'
