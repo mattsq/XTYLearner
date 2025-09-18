@@ -147,9 +147,9 @@ jobs:
             echo "Environment: BENCHMARK_MODELS=$BENCHMARK_MODELS"
             echo "Commit: $(git rev-parse HEAD)"
             
-            # Run ASV without existing environment flag to see if it saves results
-            echo "Running ASV to save results properly..."
-            asv run --machine github-actions --python same --verbose
+            # Run ASV with virtualenv environment to save results properly
+            echo "Running ASV with proper environment management..."
+            asv run --machine github-actions --verbose
             ASV_EXIT_CODE=$?
             echo "ASV exit code: $ASV_EXIT_CODE"
             

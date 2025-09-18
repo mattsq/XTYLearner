@@ -4,10 +4,20 @@
   "repo": ".",
   "branches": ["main"],
   "benchmark_dir": "benchmarks",
-  "environment_type": "existing",
+  "environment_type": "virtualenv",
   "env_dir": ".asv/env",
   "results_dir": ".asv/results",
   "html_dir": ".asv/html",
-  "pythons": ["same"],
-  "show_commit_url": "https://github.com/mattsq/XTYLearner/commit/"
+  "pythons": ["3.11"],
+  "show_commit_url": "https://github.com/mattsq/XTYLearner/commit/",
+  "matrix": {
+    "req": {
+      "torch": ["2.3.0"]
+    }
+  },
+  "build_command": [
+    "python -m pip install --upgrade pip",
+    "python -m pip install torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu",
+    "python -m pip install -e ."
+  ]
 }
