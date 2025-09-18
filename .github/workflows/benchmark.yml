@@ -114,60 +114,76 @@ jobs:
           BENCHMARK_MODELS: ${{ needs.detect-changes.outputs.changed_models }}
           MODEL_CHUNK_INDEX: ${{ matrix.chunk }}
           MODEL_CHUNK_TOTAL: ${{ needs.detect-changes.outputs.benchmark_strategy == 'parallel' && '4' || '1' }}
-        run: |
-          set +e  # Disable exit on error for this step
-          . .venv/bin/activate
-          
-          # Always use the real commit hash - never modify it
-          COMMIT_HASH=$(git rev-parse HEAD)
-          
-          echo "Running benchmarks for commit: $COMMIT_HASH"
-          echo "Benchmark strategy: ${{ needs.detect-changes.outputs.benchmark_strategy }}"
-          echo "Changed models: $BENCHMARK_MODELS"
-          echo "Chunk: $MODEL_CHUNK_INDEX/$MODEL_CHUNK_TOTAL"
-          
-          # For parallel execution, use temporary result directory to avoid conflicts
-          if [ "${{ needs.detect-changes.outputs.benchmark_strategy }}" = "parallel" ]; then
-            # Create temporary results directory for this chunk
-            TEMP_RESULTS_DIR=".asv/results-chunk-${{ matrix.chunk }}"
-            mkdir -p "$TEMP_RESULTS_DIR/github-actions"
-            
-            # Run ASV with temporary results directory
-            echo "Running ASV with chunk-specific results directory..."
-            asv run --machine github-actions -E existing --python same --results-dir "$TEMP_RESULTS_DIR"
-            
-            # Copy machine.json if it doesn't exist in main results
-            if [ -f "$TEMP_RESULTS_DIR/github-actions/machine.json" ] && [ ! -f ".asv/results/github-actions/machine.json" ]; then
-              mkdir -p .asv/results/github-actions
-              cp "$TEMP_RESULTS_DIR/github-actions/machine.json" ".asv/results/github-actions/machine.json"
+          run: |
+            . .venv/bin/activate
+
+            set -e
+
+            # Always use the real commit hash - never modify it
+            COMMIT_HASH=$(git rev-parse HEAD)
+            if git rev-parse "${COMMIT_HASH}^" >/dev/null 2>&1; then
+              COMMIT_SPEC="${COMMIT_HASH}^!"
+            else
+              COMMIT_SPEC="$COMMIT_HASH"
             fi
-          else
-            # Non-parallel execution - simplified ASV run
-            echo "Running ASV benchmarks..."
-            echo "Environment: BENCHMARK_MODELS=$BENCHMARK_MODELS"
-            echo "Commit: $(git rev-parse HEAD)"
-            
-            # Run ASV with virtualenv environment to save results properly
-            echo "Running ASV with proper environment management..."
-            asv run --machine github-actions --verbose
-            ASV_EXIT_CODE=$?
+  
+            echo "Running benchmarks for commit: $COMMIT_HASH"
+            echo "Commit specification: $COMMIT_SPEC"
+            echo "Benchmark strategy: ${{ needs.detect-changes.outputs.benchmark_strategy }}"
+            echo "Changed models: $BENCHMARK_MODELS"
+            echo "Chunk: $MODEL_CHUNK_INDEX/$MODEL_CHUNK_TOTAL"
+  
+            ASV_BASE_ARGS="--machine github-actions --config asv.conf.json --show-stderr"
+            RESULTS_DIR=""
+  
+            if [ "${{ needs.detect-changes.outputs.benchmark_strategy }}" = "parallel" ]; then
+              TEMP_RESULTS_DIR=".asv/results-chunk-${{ matrix.chunk }}"
+              mkdir -p "$TEMP_RESULTS_DIR/github-actions"
+  
+              echo "Running ASV with chunk-specific results directory..."
+              if asv run "$COMMIT_SPEC" $ASV_BASE_ARGS --results-dir "$TEMP_RESULTS_DIR"; then
+                ASV_EXIT_CODE=0
+              else
+                ASV_EXIT_CODE=$?
+                echo "ASV run failed with exit code $ASV_EXIT_CODE"
+                exit $ASV_EXIT_CODE
+              fi
+  
+              RESULTS_DIR="$TEMP_RESULTS_DIR/github-actions"
+  
+              if [ -f "$RESULTS_DIR/machine.json" ] && [ ! -f ".asv/results/github-actions/machine.json" ]; then
+                mkdir -p .asv/results/github-actions
+                cp "$RESULTS_DIR/machine.json" ".asv/results/github-actions/machine.json"
+              fi
+            else
+              echo "Running ASV benchmarks..."
+              echo "Environment: BENCHMARK_MODELS=$BENCHMARK_MODELS"
+  
+              if asv run "$COMMIT_SPEC" $ASV_BASE_ARGS; then
+                ASV_EXIT_CODE=0
+              else
+                ASV_EXIT_CODE=$?
+                echo "ASV run failed with exit code $ASV_EXIT_CODE"
+                exit $ASV_EXIT_CODE
+              fi
+  
+              RESULTS_DIR=".asv/results/github-actions"
+            fi
+  
             echo "ASV exit code: $ASV_EXIT_CODE"
-            
-            # Check results
-            echo "ASV results after run:"
-            ls -la .asv/results/github-actions/ || echo "No results directory"
-            find .asv/results -name "*.json" -not -name "machine.json" | head -5
+  
+            if [ -z "$RESULTS_DIR" ]; then
+              echo "ASV did not set a results directory"
+              exit 1
+            fi
+  
+            echo "ASV results directory contents:"
+            ls -la "$RESULTS_DIR" || true
+  
+            if ! find "$RESULTS_DIR" -maxdepth 1 -name "*.json" -not -name "machine.json" -print -quit; then
+              echo "No benchmark result files were produced in $RESULTS_DIR"
+              exit 1
           fi
-          
-          # Show what was created
-          echo "ASV results directory contents:"
-          if [ "${{ needs.detect-changes.outputs.benchmark_strategy }}" = "parallel" ]; then
-            ls -la ".asv/results-chunk-${{ matrix.chunk }}/github-actions/" || echo "No chunk results directory found"
-          else
-            ls -la .asv/results/github-actions/ || echo "No ASV results directory found"
-          fi
-          
-          set -e  # Re-enable exit on error
       - name: Generate HTML reports
         run: |
           . .venv/bin/activate
