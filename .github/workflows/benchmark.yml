@@ -514,6 +514,7 @@ jobs:
           name: consolidated-asv-results
           path: asv-consolidated
       - name: Validate deployment package
+        id: validate
         run: |
           set -euo pipefail
           echo "=== Validating deployment package ==="
@@ -539,11 +540,21 @@ jobs:
 
           echo "Found HTML directory: $html_dir"
 
+          # Normalize to a standard location for upload
+          normalized_dir="pages-content"
+          echo "Normalizing HTML content to: $normalized_dir"
+
+          # Copy HTML content to normalized location
+          cp -r "$html_dir" "$normalized_dir"
+
+          # Output the normalized path for the upload step
+          echo "upload_path=$normalized_dir" >> "$GITHUB_OUTPUT"
+
           # Check required files exist
-          if [ ! -f "$html_dir/index.html" ]; then
-            echo "ERROR: Missing index.html in $html_dir"
-            echo "Contents of HTML directory:"
-            ls -la "$html_dir/" || echo "Directory listing failed"
+          if [ ! -f "$normalized_dir/index.html" ]; then
+            echo "ERROR: Missing index.html in $normalized_dir"
+            echo "Contents of normalized directory:"
+            ls -la "$normalized_dir/" || echo "Directory listing failed"
             exit 1
           fi
 
@@ -551,30 +562,31 @@ jobs:
           required_files=("asv.js" "asv.css" "asv_ui.js")
           missing_assets=0
           for file in "${required_files[@]}"; do
-            if [ ! -f "$html_dir/$file" ]; then
+            if [ ! -f "$normalized_dir/$file" ]; then
               echo "WARNING: Missing ASV file: $file (may be fallback HTML)"
               missing_assets=$((missing_assets + 1))
             fi
           done
 
           # Validate index.html doesn't contain error messages (but allow fallback)
-          if grep -qi "error\|no.*data.*available" "$html_dir/index.html"; then
+          if grep -qi "error\|no.*data.*available" "$normalized_dir/index.html"; then
             echo "WARNING: HTML contains error indicators (may be fallback)"
             echo "First few lines of HTML:"
-            head -10 "$html_dir/index.html"
+            head -10 "$normalized_dir/index.html"
           fi
 
           echo "Deployment package validation completed"
-          echo "HTML directory: $html_dir"
+          echo "Original HTML directory: $html_dir"
+          echo "Normalized upload path: $normalized_dir"
           echo "Missing ASV assets: $missing_assets/3"
           echo "Package contents:"
-          find "$html_dir" -type f | head -20
+          find "$normalized_dir" -type f | head -20
       - name: Setup Pages
         uses: actions/configure-pages@v4
       - name: Upload to GitHub Pages
         uses: actions/upload-pages-artifact@v3
         with:
-          path: asv-consolidated/.asv/html
+          path: ${{ steps.validate.outputs.upload_path }}
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
