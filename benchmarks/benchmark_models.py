@@ -21,7 +21,15 @@ CORE_MODELS = ["jsbf", "eg_ddi", "cevae_m"]
 
 def get_benchmark_models():
     """Get models to benchmark based on environment variable or default to cycle_dual only."""
-    # For debugging: only run cycle_dual model
+    # Check environment variable for model list
+    env_models = os.environ.get("BENCHMARK_MODELS", "").strip()
+    if env_models:
+        # Split comma-separated model list and clean up whitespace
+        models = [model.strip() for model in env_models.split(",") if model.strip()]
+        if models:
+            return models
+    
+    # For debugging: only run cycle_dual model if no env var specified
     return ["cycle_dual"]
 
 
