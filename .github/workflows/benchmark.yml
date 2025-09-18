@@ -181,6 +181,31 @@ except Exception as e:
             MANUAL_EXIT_CODE=$?
             echo "Manual benchmark exit code: $MANUAL_EXIT_CODE"
             echo ""
+            echo "=== TEST 3: ASV ENVIRONMENT AND DEPENDENCY CHECKS ==="
+            echo "ASV machine info:"
+            asv machine --machine github-actions --yes || echo "Machine setup failed"
+            echo ""
+            echo "ASV environment details:"
+            python -c "
+import sys
+print(f'Python path: {sys.path}')
+print(f'Python executable: {sys.executable}')
+try:
+    import xtylearner
+    print(f'XTYLearner import: SUCCESS')
+    from xtylearner.models import get_model
+    model = get_model('cycle_dual', d_x=2, d_y=1, k=2)
+    print(f'Model creation: SUCCESS - {type(model)}')
+except Exception as e:
+    print(f'XTYLearner test: FAILED - {e}')
+            "
+            echo ""
+            echo "ASV benchmark discovery:"
+            asv list || echo "Benchmark discovery failed"
+            echo ""
+            echo "ASV dry run test:"
+            asv run --dry-run --quick --machine github-actions -E existing --python same || echo "Dry run failed"
+            echo ""
             echo "=== RUNNING ASV WITH VERBOSE OUTPUT ==="
             asv run --machine github-actions -E existing --python same --verbose --show-stderr
             ASV_EXIT_CODE=$?
