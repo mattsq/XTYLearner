@@ -142,9 +142,104 @@ jobs:
               cp "$TEMP_RESULTS_DIR/github-actions/machine.json" ".asv/results/github-actions/machine.json"
             fi
           else
-            # Non-parallel execution - use standard ASV run
-            echo "Running standard ASV..."
-            asv run --machine github-actions -E existing --python same
+            # Non-parallel execution - use standard ASV run with comprehensive debugging
+            echo "=== DEBUGGING ASV EXECUTION ==="
+            echo "Working directory: $(pwd)"
+            echo "Python executable: $(which python)"
+            echo "ASV version: $(asv --version)"
+            echo "ASV configuration:"
+            cat asv.conf.json
+            echo ""
+            echo "Benchmark files:"
+            find benchmarks -name "*.py" -exec echo "File: {}" \; -exec head -5 {} \;
+            echo ""
+            echo "Current git commit: $(git rev-parse HEAD)"
+            echo "Git status:"
+            git status --porcelain
+            echo ""
+            echo "Environment variables:"
+            env | grep -E "(BENCHMARK|MODEL|CHUNK)" || echo "No benchmark env vars"
+            echo ""
+            echo "=== TEST 2: MANUAL BENCHMARK EXECUTION ==="
+            echo "Testing direct benchmark execution outside ASV..."
+            python -c "
+            import sys
+            sys.path.insert(0, '.')
+            from examples.benchmark_models import _run_single
+            import time
+            
+            print('Direct benchmark test:')
+            start = time.time()
+            try:
+                result = _run_single(('synthetic', 'cycle_dual'))
+                end = time.time()
+                print(f'SUCCESS: {end-start:.2f}s - {result}')
+            except Exception as e:
+                end = time.time()
+                print(f'FAILED: {end-start:.2f}s - {e}')
+            "
+            MANUAL_EXIT_CODE=$?
+            echo "Manual benchmark exit code: $MANUAL_EXIT_CODE"
+            echo ""
+            echo "=== TEST 3: ASV ENVIRONMENT AND DEPENDENCY CHECKS ==="
+            echo "ASV machine info:"
+            asv machine --machine github-actions --yes || echo "Machine setup failed"
+            echo ""
+            echo "ASV environment details:"
+            python -c "
+            import sys
+            print(f'Python path: {sys.path}')
+            print(f'Python executable: {sys.executable}')
+            try:
+                import xtylearner
+                print(f'XTYLearner import: SUCCESS')
+                from xtylearner.models import get_model
+                model = get_model('cycle_dual', d_x=2, d_y=1, k=2)
+                print(f'Model creation: SUCCESS - {type(model)}')
+            except Exception as e:
+                print(f'XTYLearner test: FAILED - {e}')
+            "
+            echo ""
+            echo "ASV benchmark discovery:"
+            asv list || echo "Benchmark discovery failed"
+            echo ""
+            echo "ASV dry run test:"
+            asv run --dry-run --quick --machine github-actions -E existing --python same || echo "Dry run failed"
+            echo ""
+            echo "=== RUNNING ASV WITH VERBOSE OUTPUT ==="
+            asv run --machine github-actions -E existing --python same --verbose --show-stderr
+            ASV_EXIT_CODE=$?
+            echo "ASV exit code: $ASV_EXIT_CODE"
+            echo ""
+            echo "=== TEST 4: FILE PERMISSIONS AND RESULT WRITING ==="
+            echo "Testing result directory permissions:"
+            ls -la .asv/
+            ls -la .asv/results/
+            ls -la .asv/results/github-actions/ || echo "github-actions dir missing"
+            echo ""
+            echo "Testing file creation in results directory:"
+            echo '{"test": "write permissions"}' > .asv/results/test-write.json
+            if [ -f ".asv/results/test-write.json" ]; then
+              echo "SUCCESS: Can write to results directory"
+              rm .asv/results/test-write.json
+            else
+              echo "FAILED: Cannot write to results directory"
+            fi
+            echo ""
+            echo "Disk space and filesystem info:"
+            df -h .
+            echo ""
+            echo "=== POST-ASV DEBUGGING ==="
+            echo "Results directory after ASV:"
+            find .asv/results -type f -name "*.json" | while read file; do
+              echo "File: $file ($(wc -c < "$file") bytes)"
+              echo "Content preview:"
+              head -3 "$file" || echo "Cannot read file"
+              echo "---"
+            done
+            echo ""
+            echo "All .asv directory contents:"
+            find .asv -type f | head -20
           fi
           
           # Show what was created
