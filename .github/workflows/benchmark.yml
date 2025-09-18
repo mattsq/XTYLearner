@@ -211,6 +211,24 @@ except Exception as e:
             ASV_EXIT_CODE=$?
             echo "ASV exit code: $ASV_EXIT_CODE"
             echo ""
+            echo "=== TEST 4: FILE PERMISSIONS AND RESULT WRITING ==="
+            echo "Testing result directory permissions:"
+            ls -la .asv/
+            ls -la .asv/results/
+            ls -la .asv/results/github-actions/ || echo "github-actions dir missing"
+            echo ""
+            echo "Testing file creation in results directory:"
+            echo '{"test": "write permissions"}' > .asv/results/test-write.json
+            if [ -f ".asv/results/test-write.json" ]; then
+              echo "SUCCESS: Can write to results directory"
+              rm .asv/results/test-write.json
+            else
+              echo "FAILED: Cannot write to results directory"
+            fi
+            echo ""
+            echo "Disk space and filesystem info:"
+            df -h .
+            echo ""
             echo "=== POST-ASV DEBUGGING ==="
             echo "Results directory after ASV:"
             find .asv/results -type f -name "*.json" | while read file; do
@@ -219,6 +237,9 @@ except Exception as e:
               head -3 "$file" || echo "Cannot read file"
               echo "---"
             done
+            echo ""
+            echo "All .asv directory contents:"
+            find .asv -type f | head -20
           fi
           
           # Show what was created
