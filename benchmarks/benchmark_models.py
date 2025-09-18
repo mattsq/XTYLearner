@@ -1,5 +1,6 @@
 """ASV benchmark definitions."""
 
+import math
 import os
 from pathlib import Path
 import sys
@@ -19,6 +20,43 @@ from xtylearner.models.ss_dml import _HAS_DOUBLEML  # noqa: E402
 CORE_MODELS = ["jsbf", "eg_ddi", "cevae_m"]
 
 
+def _parse_int_env(var_name: str, default: int) -> int:
+    """Return an integer environment variable or a default value."""
+
+    value = os.environ.get(var_name, "").strip()
+    if not value:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+def _apply_chunking(models: list[str]) -> list[str]:
+    """Return the subset of models assigned to the current chunk."""
+
+    if not models:
+        return models
+
+    chunk_total = max(1, _parse_int_env("MODEL_CHUNK_TOTAL", 1))
+    chunk_index = _parse_int_env("MODEL_CHUNK_INDEX", 0)
+
+    if chunk_total <= 1 or len(models) <= 1:
+        return models
+
+    # Avoid requesting more chunks than there are models. When the matrix in the
+    # workflow over-provisions chunks we simply skip the surplus ones by
+    # returning an empty list.
+    chunk_total = min(chunk_total, len(models))
+    if chunk_index < 0 or chunk_index >= chunk_total:
+        return []
+
+    chunk_size = math.ceil(len(models) / chunk_total)
+    start = chunk_size * chunk_index
+    end = start + chunk_size
+    return models[start:end]
+
+
 def get_benchmark_models():
     """Get models to benchmark based on environment variable or default to cycle_dual only."""
     # Check environment variable for model list
@@ -27,10 +65,10 @@ def get_benchmark_models():
         # Split comma-separated model list and clean up whitespace
         models = [model.strip() for model in env_models.split(",") if model.strip()]
         if models:
-            return models
-    
+            return _apply_chunking(models)
+
     # For debugging: only run cycle_dual model if no env var specified
-    return ["cycle_dual"]
+    return _apply_chunking(["cycle_dual"])
 
 
 MODEL_NAMES = get_benchmark_models()
