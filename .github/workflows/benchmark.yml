@@ -142,9 +142,37 @@ jobs:
               cp "$TEMP_RESULTS_DIR/github-actions/machine.json" ".asv/results/github-actions/machine.json"
             fi
           else
-            # Non-parallel execution - use standard ASV run
-            echo "Running standard ASV..."
-            asv run --machine github-actions -E existing --python same
+            # Non-parallel execution - use standard ASV run with full debugging
+            echo "=== DEBUGGING ASV EXECUTION ==="
+            echo "Working directory: $(pwd)"
+            echo "Python executable: $(which python)"
+            echo "ASV version: $(asv --version)"
+            echo "ASV configuration:"
+            cat asv.conf.json
+            echo ""
+            echo "Benchmark files:"
+            find benchmarks -name "*.py" -exec echo "File: {}" \; -exec head -5 {} \;
+            echo ""
+            echo "Current git commit: $(git rev-parse HEAD)"
+            echo "Git status:"
+            git status --porcelain
+            echo ""
+            echo "Environment variables:"
+            env | grep -E "(BENCHMARK|MODEL|CHUNK)" || echo "No benchmark env vars"
+            echo ""
+            echo "=== RUNNING ASV WITH VERBOSE OUTPUT ==="
+            asv run --machine github-actions -E existing --python same --verbose --show-stderr
+            ASV_EXIT_CODE=$?
+            echo "ASV exit code: $ASV_EXIT_CODE"
+            echo ""
+            echo "=== POST-ASV DEBUGGING ==="
+            echo "Results directory after ASV:"
+            find .asv/results -type f -name "*.json" | while read file; do
+              echo "File: $file ($(wc -c < "$file") bytes)"
+              echo "Content preview:"
+              head -3 "$file" || echo "Cannot read file"
+              echo "---"
+            done
           fi
           
           # Show what was created
