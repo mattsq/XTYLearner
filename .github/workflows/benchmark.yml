@@ -343,10 +343,10 @@ jobs:
         run: |
           set -euo pipefail
           echo "=== Consolidating benchmark results ==="
-          
+
           # Install jq for JSON validation
           sudo apt-get update && sudo apt-get install -y jq
-          
+
           # Debug: Show what we downloaded
           echo "=== Downloaded artifact structure ==="
           find artifact-downloads -type f | head -20
@@ -354,33 +354,33 @@ jobs:
           find artifact-downloads -type d -name "results" | head -10
           echo "=== Looking for JSON files ==="
           find artifact-downloads -name "*.json" | head -10
-          
+
           # Create consolidated results directory
           mkdir -p .asv/results/github-actions
-          
+
           # Copy machine.json from any artifact
           find artifact-downloads -name "machine.json" -exec cp {} .asv/results/github-actions/ \; -quit
-          
+
           # Merge all benchmark result files (only from results directory, not HTML)
           echo "=== Available result files ==="
           find artifact-downloads -path "*/results/github-actions/*.json" -not -name "machine.json" | sort
-          
+
           # Copy all benchmark JSON files with validation
           result_count=0
           model_count=0
-          
+
           # Process only actual benchmark result files (not HTML JSON files)
           while IFS= read -r -d '' file; do
             if [ -f "$file" ] && jq empty "$file" 2>/dev/null; then
               filename=$(basename "$file")
               echo "Processing valid result file: $filename"
-              
+
               # Count models in this file - check if results key exists
               if jq -e '.results' "$file" >/dev/null 2>&1; then
                 file_models=$(jq -r '.results | keys | length' "$file" 2>/dev/null || echo "0")
                 echo "  Models in file: $file_models"
                 model_count=$((model_count + file_models))
-                
+
                 cp "$file" ".asv/results/github-actions/$filename"
                 result_count=$((result_count + 1))
               else
@@ -390,18 +390,18 @@ jobs:
               echo "WARNING: Skipping malformed JSON file: $(basename "$file")"
             fi
           done < <(find artifact-downloads -path "*/results/github-actions/*.json" -not -name "machine.json" -print0)
-          
+
           echo "=== Consolidation Summary ==="
           echo "Total valid result files: $result_count"
           echo "Total models benchmarked: $model_count"
           ls -la .asv/results/github-actions/
-          
+
           # Validate we have results
           if [ "$result_count" -eq 0 ]; then
             echo "ERROR: No valid benchmark results found"
             exit 1
           fi
-          
+
           # Validate we have expected models
           expected_models="${{ needs.detect-changes.outputs.models }}"
           if [ -n "$expected_models" ]; then
@@ -411,34 +411,34 @@ jobs:
               echo "WARNING: Found fewer models than expected"
             fi
           fi
-          
+
           # Generate unified HTML
           echo "=== Generating unified HTML ==="
           echo "Current git branches:"
           git branch -a || echo "Git branch listing failed"
           echo "Current commit:"
           git rev-parse HEAD || echo "Git rev-parse failed"
-          
+
           # Create a temporary config that doesn't require specific branches
           cp asv.conf.json asv-publish.conf.json
           # Get current branch name
           CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
           echo "Current branch: $CURRENT_BRANCH"
-          
+
           # Update config to use current branch instead of main
           jq --arg branch "$CURRENT_BRANCH" '.branches = [$branch]' asv.conf.json > asv-publish.conf.json
-          
+
           # Try publish with modified config
           echo "=== ASV Publish Debug ==="
           echo "Config file contents:"
           cat asv-publish.conf.json
           echo "Available result files:"
           find .asv/results -name "*.json" | head -10
-          
+
           # Try publish with verbose output
           asv publish --config asv-publish.conf.json --html-dir .asv/html --no-pull --verbose || {
             echo "ASV publish failed, trying alternative approach..."
-            
+
             # Fallback: copy HTML from individual job artifacts if available
             if [ -d "artifact-downloads/html" ]; then
               echo "Using HTML from individual artifacts..."
@@ -446,10 +446,11 @@ jobs:
             else
               echo "Generating minimal HTML manually..."
               mkdir -p .asv/html
-              echo '<html><body><h1>Benchmark results processing...</h1><p>Results available but HTML generation failed.</p></body></html>' > .asv/html/index.html
+              echo '<html><body><h1>Benchmark results processing...</h1>' > .asv/html/index.html
+              echo '<p>Results available but HTML generation failed.</p></body></html>' >> .asv/html/index.html
             fi
           }
-          
+
           # Validate HTML generation
           if [ ! -f ".asv/html/index.html" ]; then
             echo "ERROR: HTML generation completely failed"
@@ -457,38 +458,30 @@ jobs:
             find .asv -type f | head -20
             echo "Creating emergency fallback HTML..."
             mkdir -p .asv/html
-            
+
             # Create a functional HTML page with the data we have
-            cat > .asv/html/index.html << 'EOF'
-<!DOCTYPE html>
-<html>
-<head>
-    <title>XTYLearner Benchmarks</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
-        .benchmark { border: 1px solid #ddd; margin: 10px 0; padding: 15px; border-radius: 5px; }
-    </style>
-</head>
-<body>
-    <h1>XTYLearner Benchmark Results</h1>
-    <p>Benchmark data is available but HTML generation encountered issues.</p>
-    <p>Raw results are being processed. Check back soon for interactive visualizations.</p>
-    <div class="benchmark">
-        <h3>Available Data</h3>
-        <p>✅ Benchmark execution completed</p>
-        <p>✅ Results collected and validated</p>
-        <p>⚠️ Interactive dashboard loading...</p>
-    </div>
-</body>
-</html>
-EOF
+            echo '<!DOCTYPE html>' > .asv/html/index.html
+            echo '<html><head><title>XTYLearner Benchmarks</title>' >> .asv/html/index.html
+            echo '<style>body{font-family:Arial;max-width:800px;margin:50px auto;padding:20px}' >> .asv/html/index.html
+            echo '.benchmark{border:1px solid #ddd;margin:10px 0;padding:15px;' >> .asv/html/index.html
+            echo 'border-radius:5px}' >> .asv/html/index.html
+            echo '</style></head><body>' >> .asv/html/index.html
+            echo '<h1>XTYLearner Benchmark Results</h1>' >> .asv/html/index.html
+            echo '<p>Benchmark data available but HTML generation encountered issues.</p>' >> .asv/html/index.html
+            echo '<p>Raw results are being processed. Check back soon for interactive' >> .asv/html/index.html
+            echo ' visualizations.</p>' >> .asv/html/index.html
+            echo '<div class="benchmark"><h3>Available Data</h3>' >> .asv/html/index.html
+            echo '<p>✅ Benchmark execution completed</p>' >> .asv/html/index.html
+            echo '<p>✅ Results collected and validated</p>' >> .asv/html/index.html
+            echo '<p>⚠️ Interactive dashboard loading...</p>' >> .asv/html/index.html
+            echo '</div></body></html>' >> .asv/html/index.html
           fi
-          
+
           # Validate HTML content
           if grep -q "No benchmark data available" ".asv/html/index.html"; then
             echo "WARNING: HTML shows no benchmark data, but proceeding with deployment"
           fi
-          
+
           echo "HTML generation completed"
           echo "Generated files:"
           find .asv/html -name "*.html" | head -10
@@ -524,13 +517,13 @@ EOF
         run: |
           set -euo pipefail
           echo "=== Validating deployment package ==="
-          
+
           # Check required files exist
           if [ ! -f "asv-consolidated/.asv/html/index.html" ]; then
             echo "ERROR: Missing index.html"
             exit 1
           fi
-          
+
           # Check for required ASV assets
           required_files=("asv.js" "asv.css" "asv_ui.js")
           for file in "${required_files[@]}"; do
@@ -539,14 +532,14 @@ EOF
               exit 1
             fi
           done
-          
+
           # Validate index.html doesn't contain error messages
           if grep -qi "error\|no.*data.*available" "asv-consolidated/.asv/html/index.html"; then
             echo "ERROR: HTML contains error indicators"
             cat asv-consolidated/.asv/html/index.html
             exit 1
           fi
-          
+
           echo "Deployment package validation successful"
           echo "Package contents:"
           find asv-consolidated/.asv/html -type f | head -20
