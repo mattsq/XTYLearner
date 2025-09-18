@@ -160,6 +160,27 @@ jobs:
             echo "Environment variables:"
             env | grep -E "(BENCHMARK|MODEL|CHUNK)" || echo "No benchmark env vars"
             echo ""
+            echo "=== TEST 2: MANUAL BENCHMARK EXECUTION ==="
+            echo "Testing direct benchmark execution outside ASV..."
+            python -c "
+import sys
+sys.path.insert(0, '.')
+from examples.benchmark_models import _run_single
+import time
+
+print('Direct benchmark test:')
+start = time.time()
+try:
+    result = _run_single(('synthetic', 'cycle_dual'))
+    end = time.time()
+    print(f'SUCCESS: {end-start:.2f}s - {result}')
+except Exception as e:
+    end = time.time()
+    print(f'FAILED: {end-start:.2f}s - {e}')
+            "
+            MANUAL_EXIT_CODE=$?
+            echo "Manual benchmark exit code: $MANUAL_EXIT_CODE"
+            echo ""
             echo "=== RUNNING ASV WITH VERBOSE OUTPUT ==="
             asv run --machine github-actions -E existing --python same --verbose --show-stderr
             ASV_EXIT_CODE=$?
