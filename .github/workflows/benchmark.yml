@@ -365,7 +365,7 @@ jobs:
           echo "=== Available result files ==="
           find artifact-downloads -path "*/results/github-actions/*.json" -not -name "machine.json" | sort
 
-          # Copy all benchmark JSON files with validation
+          # Copy all benchmark JSON files with validation and ensure unique naming
           result_count=0
           model_count=0
 
@@ -379,10 +379,19 @@ jobs:
               if jq -e '.results' "$file" >/dev/null 2>&1; then
                 file_models=$(jq -r '.results | keys | length' "$file" 2>/dev/null || echo "0")
                 echo "  Models in file: $file_models"
+
+                # Show which models are in this file
+                model_names=$(jq -r '.results | keys | join(", ")' "$file" 2>/dev/null || echo "unknown")
+                echo "  Model names: $model_names"
+
                 model_count=$((model_count + file_models))
 
-                cp "$file" ".asv/results/github-actions/$filename"
+                # Use a unique filename to avoid conflicts between chunks
+                unique_filename="${result_count}-${filename}"
+                cp "$file" ".asv/results/github-actions/$unique_filename"
                 result_count=$((result_count + 1))
+
+                echo "  Copied as: $unique_filename"
               else
                 echo "  Skipping non-benchmark file: $filename (no .results key)"
               fi
