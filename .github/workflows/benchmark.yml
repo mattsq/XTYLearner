@@ -42,9 +42,9 @@ jobs:
               echo "Will benchmark models: $MODELS,jsbf,eg_ddi,cevae_m"
             fi
           else
-            # Full benchmark on main branch pushes
-            echo "strategy=parallel" >> $GITHUB_OUTPUT
-            echo "models=" >> $GITHUB_OUTPUT
+            # Full benchmark on main branch pushes - use core models for now to debug
+            echo "strategy=core" >> $GITHUB_OUTPUT
+            echo "models=jsbf,eg_ddi,cevae_m" >> $GITHUB_OUTPUT
             echo "should_run=true" >> $GITHUB_OUTPUT
           fi
 
