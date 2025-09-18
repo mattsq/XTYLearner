@@ -337,35 +337,49 @@ jobs:
           # Install jq for JSON validation
           sudo apt-get update && sudo apt-get install -y jq
           
+          # Debug: Show what we downloaded
+          echo "=== Downloaded artifact structure ==="
+          find artifact-downloads -type f | head -20
+          echo "=== Looking for results directories ==="
+          find artifact-downloads -type d -name "results" | head -10
+          echo "=== Looking for JSON files ==="
+          find artifact-downloads -name "*.json" | head -10
+          
           # Create consolidated results directory
           mkdir -p .asv/results/github-actions
           
           # Copy machine.json from any artifact
           find artifact-downloads -name "machine.json" -exec cp {} .asv/results/github-actions/ \; -quit
           
-          # Merge all benchmark result files
+          # Merge all benchmark result files (only from results directory, not HTML)
           echo "=== Available result files ==="
-          find artifact-downloads -name "*.json" -not -name "machine.json" | sort
+          find artifact-downloads -path "*/results/github-actions/*.json" -not -name "machine.json" | sort
           
           # Copy all benchmark JSON files with validation
           result_count=0
           model_count=0
-          for file in $(find artifact-downloads -name "*.json" -not -name "machine.json" | sort); do
-            if jq empty "$file" 2>/dev/null; then
+          
+          # Process only actual benchmark result files (not HTML JSON files)
+          while IFS= read -r -d '' file; do
+            if [ -f "$file" ] && jq empty "$file" 2>/dev/null; then
               filename=$(basename "$file")
               echo "Processing valid result file: $filename"
               
-              # Count models in this file
-              file_models=$(jq -r '.results | keys[]' "$file" 2>/dev/null | wc -l || echo "0")
-              echo "  Models in file: $file_models"
-              model_count=$((model_count + file_models))
-              
-              cp "$file" ".asv/results/github-actions/$filename"
-              result_count=$((result_count + 1))
+              # Count models in this file - check if results key exists
+              if jq -e '.results' "$file" >/dev/null 2>&1; then
+                file_models=$(jq -r '.results | keys | length' "$file" 2>/dev/null || echo "0")
+                echo "  Models in file: $file_models"
+                model_count=$((model_count + file_models))
+                
+                cp "$file" ".asv/results/github-actions/$filename"
+                result_count=$((result_count + 1))
+              else
+                echo "  Skipping non-benchmark file: $filename (no .results key)"
+              fi
             else
-              echo "WARNING: Skipping malformed JSON file: $file"
+              echo "WARNING: Skipping malformed JSON file: $(basename "$file")"
             fi
-          done
+          done < <(find artifact-downloads -path "*/results/github-actions/*.json" -not -name "machine.json" -print0)
           
           echo "=== Consolidation Summary ==="
           echo "Total valid result files: $result_count"
