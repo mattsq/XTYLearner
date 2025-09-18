@@ -147,8 +147,10 @@ jobs:
             echo "Environment: BENCHMARK_MODELS=$BENCHMARK_MODELS"
             echo "Commit: $(git rev-parse HEAD)"
             
-            # Run ASV with verbose output
-            asv run --machine github-actions -E existing --python same --verbose
+            # Run ASV with verbose output, explicitly specifying the commit
+            COMMIT_HASH=$(git rev-parse HEAD)
+            echo "Running ASV for specific commit: $COMMIT_HASH"
+            asv run $COMMIT_HASH --machine github-actions -E existing --python same --verbose
             ASV_EXIT_CODE=$?
             echo "ASV exit code: $ASV_EXIT_CODE"
             
