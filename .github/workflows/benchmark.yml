@@ -117,39 +117,43 @@ jobs:
         run: |
           set +e  # Disable exit on error for this step
           . .venv/bin/activate
-          # Get current commit hash for results file
-          BASE_COMMIT_HASH=$(git rev-parse HEAD)
           
-          # Create unique commit hash for each chunk to prevent overwriting
-          if [ "${{ needs.detect-changes.outputs.benchmark_strategy }}" = "parallel" ]; then
-            COMMIT_HASH="${BASE_COMMIT_HASH}-chunk-${{ matrix.chunk }}"
-          else
-            COMMIT_HASH="$BASE_COMMIT_HASH"
-          fi
+          # Always use the real commit hash - never modify it
+          COMMIT_HASH=$(git rev-parse HEAD)
           
           echo "Running benchmarks for commit: $COMMIT_HASH"
           echo "Benchmark strategy: ${{ needs.detect-changes.outputs.benchmark_strategy }}"
           echo "Changed models: $BENCHMARK_MODELS"
           echo "Chunk: $MODEL_CHUNK_INDEX/$MODEL_CHUNK_TOTAL"
           
-          # Method 1: Try ASV with --set-commit-hash to force result saving in existing env
-          echo "Attempting Method 1: ASV with --set-commit-hash..."
-          asv run --machine github-actions -E existing --python same --set-commit-hash $COMMIT_HASH
-          METHOD1_SUCCESS=$?
-          
-          # Method 2: If that fails, try commit range syntax
-          if [ $METHOD1_SUCCESS -ne 0 ]; then
-            echo "Method 1 failed, trying Method 2: commit range syntax..."
-            asv run --machine github-actions -E existing --python same $COMMIT_HASH^! || true
+          # For parallel execution, use temporary result directory to avoid conflicts
+          if [ "${{ needs.detect-changes.outputs.benchmark_strategy }}" = "parallel" ]; then
+            # Create temporary results directory for this chunk
+            TEMP_RESULTS_DIR=".asv/results-chunk-${{ matrix.chunk }}"
+            mkdir -p "$TEMP_RESULTS_DIR/github-actions"
+            
+            # Run ASV with temporary results directory
+            echo "Running ASV with chunk-specific results directory..."
+            asv run --machine github-actions -E existing --python same --results-dir "$TEMP_RESULTS_DIR"
+            
+            # Copy machine.json if it doesn't exist in main results
+            if [ -f "$TEMP_RESULTS_DIR/github-actions/machine.json" ] && [ ! -f ".asv/results/github-actions/machine.json" ]; then
+              mkdir -p .asv/results/github-actions
+              cp "$TEMP_RESULTS_DIR/github-actions/machine.json" ".asv/results/github-actions/machine.json"
+            fi
+          else
+            # Non-parallel execution - use standard ASV run
+            echo "Running standard ASV..."
+            asv run --machine github-actions -E existing --python same
           fi
-          
-          # Method 3: Fallback to regular run
-          echo "Running fallback method..."
-          asv run --machine github-actions -E existing --python same || true
           
           # Show what was created
           echo "ASV results directory contents:"
-          ls -la .asv/results/github-actions/ || echo "No ASV results directory found"
+          if [ "${{ needs.detect-changes.outputs.benchmark_strategy }}" = "parallel" ]; then
+            ls -la ".asv/results-chunk-${{ matrix.chunk }}/github-actions/" || echo "No chunk results directory found"
+          else
+            ls -la .asv/results/github-actions/ || echo "No ASV results directory found"
+          fi
           
           set -e  # Re-enable exit on error
       - name: Generate HTML reports
@@ -194,7 +198,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-results-chunk-${{ matrix.chunk }}
-          path: .asv/results
+          path: ${{ needs.detect-changes.outputs.benchmark_strategy == 'parallel' && format('.asv/results-chunk-{0}', matrix.chunk) || '.asv/results' }}
 
   merge-results:
     needs: [detect-changes, benchmark]
@@ -224,31 +228,68 @@ jobs:
       - name: Install ASV
         run: |
           python -m pip install asv
+      - name: Install Python dependencies for merging
+        run: |
+          python -m pip install --upgrade pip
       - name: Merge benchmark results
         run: |
-          # Copy all chunk results to main ASV results directory
+          # Get the real commit hash
+          REAL_COMMIT_HASH=$(git rev-parse HEAD)
+          echo "Real commit hash: $REAL_COMMIT_HASH"
+          
+          # Create output directory
           mkdir -p .asv/results/github-actions
           
-          # Copy chunk results with unique filenames (they already have unique commit hashes)
-          echo "=== Copying chunk results ==="
-          find benchmark-chunks -name "*.json" -type f | while read -r file; do
-            filename=$(basename "$file")
-            echo "Copying $file -> .asv/results/github-actions/$filename"
-            cp "$file" ".asv/results/github-actions/$filename"
+          # Copy machine.json from any chunk (they should be identical)
+          echo "=== Copying machine.json ==="
+          find benchmark-chunks -name "machine.json" -type f | head -1 | while read -r machine_file; do
+            if [ -n "$machine_file" ]; then
+              echo "Copying machine.json from $machine_file"
+              cp "$machine_file" ".asv/results/github-actions/machine.json"
+            fi
           done
           
-          # Show merged results
-          echo "=== Merged ASV Results ==="
+          # Find all chunk result directories
+          CHUNK_DIRS=""
+          echo "Looking for chunk directories in benchmark-chunks/"
+          find benchmark-chunks -name "results-chunk-*" -type d | while read -r chunk_dir; do
+            echo "Found chunk directory: $chunk_dir"
+          done
+          
+          # Try multiple possible artifact structures
+          for chunk_path in benchmark-chunks/.asv/results-chunk-*/ benchmark-chunks/results-chunk-*/; do
+            if [ -d "$chunk_path" ]; then
+              CHUNK_DIRS="$CHUNK_DIRS $chunk_path"
+              echo "Added chunk directory: $chunk_path"
+            fi
+          done
+          
+          if [ -n "$CHUNK_DIRS" ]; then
+            echo "=== Merging chunk results using Python script ==="
+            echo "Chunk directories: $CHUNK_DIRS"
+            python scripts/merge_asv_results.py \
+              --chunk-dirs $CHUNK_DIRS \
+              --output-dir .asv/results \
+              --commit-hash "$REAL_COMMIT_HASH"
+          else
+            echo "No chunk directories found!"
+            echo "Available benchmark-chunks contents:"
+            find benchmark-chunks -type f -name "*.json" | head -10
+          fi
+          
+          # Show final merged results
+          echo "=== Final ASV Results ==="
           ls -la .asv/results/github-actions/
           echo "=== Result file contents check ==="
-          find .asv/results/github-actions -name "*.json" -not -name "machine.json" | head -3 | while read -r file; do
+          find .asv/results/github-actions -name "*.json" -not -name "machine.json" | while read -r file; do
             echo "File: $file"
-            echo "Models in this file: $(jq -r '.results | keys[]' "$file" 2>/dev/null | wc -l || echo 'N/A')"
+            echo "Commit hash in file: $(jq -r '.commit_hash' "$file" 2>/dev/null || echo 'N/A')"
+            echo "Benchmarks in file: $(jq -r '.results | keys[]' "$file" 2>/dev/null | wc -l || echo 'N/A')"
           done
           
           # Generate combined HTML
           if ls .asv/results/github-actions/*.json 2>/dev/null | grep -v machine.json; then
-            echo "Generating combined HTML from all chunks..."
+            echo "Generating combined HTML from merged results..."
             asv publish --html-dir .asv/html
           else
             echo "No benchmark data files found after merge"
