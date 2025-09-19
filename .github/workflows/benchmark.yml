@@ -466,7 +466,14 @@ jobs:
             # Single file - just copy it with standard naming
             echo "Single result file - copying directly"
             cp "${result_files[0]}" ".asv/results/github-actions/$(basename "${result_files[0]}")"
-            model_count=$(jq -r '.results | keys | length' "${result_files[0]}" 2>/dev/null || echo "0")
+            # Count models from the params[1] array in the first benchmark
+            model_count=$(jq -r '
+              to_entries | 
+              map(select(.key != "version")) | 
+              first | 
+              .value.params[1] | 
+              length
+            ' "${result_files[0]}" 2>/dev/null || echo "0")
           else
             # Multiple files - merge into a single consolidated result file
             echo "Multiple result files - creating consolidated result"
@@ -485,10 +492,23 @@ jobs:
               merge_file="${result_files[i]}"
               echo "Merging results from: $(basename "$merge_file")"
 
-              # Simple merge: combine the results objects
+              # Deep merge: combine the params arrays for each benchmark
               jq -s '
                 .[0] as $base | .[1] as $merge |
-                $base | .results = ($base.results + $merge.results)
+                $base | 
+                # For each benchmark in the results, merge the params[1] arrays (model names)
+                to_entries | map(
+                  if .key == "version" then
+                    .
+                  else
+                    .key as $bench_key |
+                    if ($merge | has($bench_key)) then
+                      .value.params[1] = (.value.params[1] + $merge[$bench_key].params[1] | unique | sort)
+                    else
+                      .
+                    end
+                  end
+                ) | from_entries
               ' "$output_file" "$merge_file" > "${output_file}.tmp" && mv "${output_file}.tmp" "$output_file"
 
               if [ $? -ne 0 ]; then
@@ -497,8 +517,26 @@ jobs:
               fi
             done
 
-            model_count=$(jq -r '.results | keys | length' "$output_file" 2>/dev/null || echo "0")
-            echo "Consolidated result contains $model_count benchmark types"
+            # Count models from the params[1] array in the first benchmark
+            model_count=$(jq -r '
+              to_entries | 
+              map(select(.key != "version")) | 
+              first | 
+              .value.params[1] | 
+              length
+            ' "$output_file" 2>/dev/null || echo "0")
+            echo "Consolidated result contains $model_count models"
+            
+            # Debug: Show the actual model names
+            echo "Models in consolidated result:"
+            jq -r '
+              to_entries | 
+              map(select(.key != "version")) | 
+              first | 
+              .value.params[1][] | 
+              . as $model | 
+              "  - " + $model
+            ' "$output_file" 2>/dev/null || echo "  (unable to list models)"
           fi
 
           echo "=== Consolidation Summary ==="
