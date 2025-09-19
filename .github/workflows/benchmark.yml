@@ -396,9 +396,28 @@ jobs:
 
           # With merge-multiple: false, each artifact is in its own directory
           # Actual structure: artifact-downloads/asv-results-MODEL/results/github-actions/*.json (no .asv!)
-          mapfile -t result_files < <(find artifact-downloads \
-            -path "*/asv-results-*/results/github-actions/*.json" -not -name "machine.json" | sort)
+          echo "=== Final search pattern ==="
+          echo "Running: find with asv-results pattern"
+          find artifact-downloads -path "*/asv-results-*/results/github-actions/*.json" \
+            -not -name "machine.json" | sort
+
+          # Use a simpler approach to avoid mapfile issues
+          result_files_temp=$(find artifact-downloads \
+            -path "*/asv-results-*/results/github-actions/*.json" \
+            -not -name "machine.json" | sort)
+
+          echo "=== Result files found by pattern ==="
+          echo "$result_files_temp"
+
+          # Convert to array
+          readarray -t result_files <<< "$result_files_temp"
           result_count=${#result_files[@]}
+
+          # Handle case where find returns empty (readarray creates array with one empty element)
+          if [ "$result_count" -eq 1 ] && [ -z "${result_files[0]}" ]; then
+            result_count=0
+            result_files=()
+          fi
 
           echo "Found $result_count result files to consolidate:"
           for file in "${result_files[@]}"; do
