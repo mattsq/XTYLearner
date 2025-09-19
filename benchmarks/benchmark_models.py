@@ -19,6 +19,16 @@ from xtylearner.models.ss_dml import _HAS_DOUBLEML  # noqa: E402
 # Core models to always benchmark for regression detection
 CORE_MODELS = ["jsbf", "eg_ddi", "cevae_m"]
 
+# Default models evaluated by the automated workflow. These models run quickly
+# and cover a mix of training paradigms so regressions are likely to surface.
+DEFAULT_BENCHMARK_MODELS = [
+    "cycle_dual",
+    "mean_teacher",
+    "prob_circuit",
+    "ganite",
+    "flow_ssc",
+]
+
 
 def _parse_int_env(var_name: str, default: int) -> int:
     """Return an integer environment variable or a default value."""
@@ -58,7 +68,7 @@ def _apply_chunking(models: list[str]) -> list[str]:
 
 
 def get_benchmark_models():
-    """Get models to benchmark based on environment variable or default to cycle_dual only."""
+    """Return benchmark models from env or fall back to workflow defaults."""
     # Check environment variable for model list
     env_models = os.environ.get("BENCHMARK_MODELS", "").strip()
     if env_models:
@@ -67,8 +77,8 @@ def get_benchmark_models():
         if models:
             return _apply_chunking(models)
 
-    # For debugging: only run cycle_dual model if no env var specified
-    return _apply_chunking(["cycle_dual"])
+    # Fall back to the workflow defaults when no explicit selection is made.
+    return _apply_chunking(DEFAULT_BENCHMARK_MODELS)
 
 
 MODEL_NAMES = get_benchmark_models()
