@@ -466,12 +466,16 @@ jobs:
             # Single file - just copy it with standard naming
             echo "Single result file - copying directly"
             cp "${result_files[0]}" ".asv/results/github-actions/$(basename "${result_files[0]}")"
-            # Count models from the params[1] array in the first benchmark
+            # Count models from the params[1] array (for ASV result files)
             model_count=$(jq -r '
-              if has("results") then
-                .results | to_entries | first | .value.params[1] | length
+              if has("params") and (.params | length) > 1 then
+                if (.params[1] | type) == "array" then
+                  .params[1] | length
+                else
+                  1
+                end
               else
-                to_entries | map(select(.key != "version")) | first | .value.params[1] | length
+                0
               end
             ' "${result_files[0]}" 2>/dev/null || echo "0")
           else
@@ -498,48 +502,34 @@ jobs:
               echo "=== Merge file structure ==="
               jq -r 'keys[]' "$merge_file" 2>/dev/null || echo "Failed to read merge file keys"
 
-              # Debug: Show benchmark key and params structure
-              echo "=== Base file benchmark params ==="
-              jq -r 'to_entries | map(select(.key != "version")) | first |
-                     .key as $k | .value.params[1] | "Key: " + $k + " Models: " + tostring' \
+              # Debug: Show actual file structure
+              echo "=== Base file top-level params ==="
+              jq -r 'if has("params") then .params | "Params: " + tostring else "No top-level params" end' \
                 "$output_file" 2>/dev/null || echo "Failed to read base params"
-              echo "=== Merge file benchmark params ==="
-              jq -r 'to_entries | map(select(.key != "version")) | first |
-                     .key as $k | .value.params[1] | "Key: " + $k + " Models: " + tostring' \
+              echo "=== Merge file top-level params ==="
+              jq -r 'if has("params") then .params | "Params: " + tostring else "No top-level params" end' \
                 "$merge_file" 2>/dev/null || echo "Failed to read merge params"
+              
+              # Show results structure
+              echo "=== Results structure ==="
+              jq -r 'if has("results") then (.results | type) + " with " + (.results | length | tostring) + " elements" else "No results key" end' \
+                "$output_file" 2>/dev/null || echo "Failed to analyze results"
 
-              # Deep merge: combine the params arrays for each benchmark
-              echo "=== Attempting jq merge ==="
+              # Merge result files by combining top-level params arrays
+              echo "=== Attempting result file merge ==="
               if ! jq -s '
                 .[0] as $base | .[1] as $merge |
                 $base |
-                if has("results") then
-                  # Handle structure with .results wrapper
-                  .results = (
-                    .results as $br | $merge.results as $mr |
-                    $br | to_entries | map(
-                      .key as $bench_key |
-                      if ($mr | has($bench_key)) then
-                        .value.params[1] = (.value.params[1] + $mr[$bench_key].params[1] | unique | sort)
-                      else
-                        .
-                      end
-                    ) | from_entries
-                  )
+                # For ASV result files, merge the top-level params array
+                if has("params") and ($merge | has("params")) then
+                  # ASV result files: params[1] contains model names
+                  if (.params | length) > 1 and (($merge.params | length) > 1) then
+                    .params[1] = (.params[1] + $merge.params[1] | unique | sort)
+                  else
+                    .
+                  end
                 else
-                  # Handle direct benchmark structure (current case)
-                  to_entries | map(
-                    if .key == "version" then
-                      .
-                    else
-                      .key as $bench_key |
-                      if ($merge | has($bench_key)) then
-                        .value.params[1] = (.value.params[1] + $merge[$bench_key].params[1] | unique | sort)
-                      else
-                        .
-                      end
-                    end
-                  ) | from_entries
+                  .
                 end
               ' "$output_file" "$merge_file" > "${output_file}.tmp"; then
                 echo "ERROR: jq merge failed, falling back to simple approach"
@@ -552,33 +542,20 @@ jobs:
                 echo "with open(sys.argv[2]) as f:" >> merge_files.py
                 echo "    merge_data = json.load(f)" >> merge_files.py
                 echo "" >> merge_files.py
-                echo "# Handle both .results wrapper and direct benchmark structure" >> merge_files.py
-                echo "if \"results\" in base and \"results\" in merge_data:" >> merge_files.py
-                echo "    # Structure with .results wrapper" >> merge_files.py
-                echo "    base_benchmarks = base[\"results\"]" >> merge_files.py
-                echo "    merge_benchmarks = merge_data[\"results\"]" >> merge_files.py
-                echo "    for key, value in merge_benchmarks.items():" >> merge_files.py
-                echo "        if key in base_benchmarks:" >> merge_files.py
-                echo "            base_models = base_benchmarks[key][\"params\"][1]" >> merge_files.py
-                echo "            merge_models = value[\"params\"][1]" >> merge_files.py
-                echo "            combined = list(set(base_models + merge_models))" >> merge_files.py
-                echo "            combined.sort()" >> merge_files.py
-                echo "            base_benchmarks[key][\"params\"][1] = combined" >> merge_files.py
-                echo "        else:" >> merge_files.py
-                echo "            base_benchmarks[key] = value" >> merge_files.py
+                echo "# Handle ASV result files with top-level params" >> merge_files.py
+                echo "if \"params\" in base and \"params\" in merge_data:" >> merge_files.py
+                echo "    # ASV result files: merge params[1] (model names)" >> merge_files.py
+                echo "    if len(base[\"params\"]) > 1 and len(merge_data[\"params\"]) > 1:" >> merge_files.py
+                echo "        base_models = base[\"params\"][1] if isinstance(base[\"params\"][1], list) else [base[\"params\"][1]]" >> merge_files.py
+                echo "        merge_models = merge_data[\"params\"][1] if isinstance(merge_data[\"params\"][1], list) else [merge_data[\"params\"][1]]" >> merge_files.py
+                echo "        combined = list(set(base_models + merge_models))" >> merge_files.py
+                echo "        combined.sort()" >> merge_files.py
+                echo "        base[\"params\"][1] = combined" >> merge_files.py
+                echo "        print(f\"Merged models: {combined}\", file=sys.stderr)" >> merge_files.py
+                echo "    else:" >> merge_files.py
+                echo "        print(\"Insufficient params arrays to merge\", file=sys.stderr)" >> merge_files.py
                 echo "else:" >> merge_files.py
-                echo "    # Direct benchmark structure" >> merge_files.py
-                echo "    for key, value in merge_data.items():" >> merge_files.py
-                echo "        if key == \"version\":" >> merge_files.py
-                echo "            continue" >> merge_files.py
-                echo "        if key in base:" >> merge_files.py
-                echo "            base_models = base[key][\"params\"][1]" >> merge_files.py
-                echo "            merge_models = value[\"params\"][1]" >> merge_files.py
-                echo "            combined = list(set(base_models + merge_models))" >> merge_files.py
-                echo "            combined.sort()" >> merge_files.py
-                echo "            base[key][\"params\"][1] = combined" >> merge_files.py
-                echo "        else:" >> merge_files.py
-                echo "            base[key] = value" >> merge_files.py
+                echo "    print(\"No params arrays found in files\", file=sys.stderr)" >> merge_files.py
                 echo "" >> merge_files.py
                 echo "print(json.dumps(base, indent=2))" >> merge_files.py
                 python merge_files.py "$output_file" "$merge_file" > "${output_file}.tmp"
@@ -595,12 +572,16 @@ jobs:
               echo "=== Merge completed successfully ==="
             done
 
-            # Count models from the params[1] array in the first benchmark
+            # Count models from the params[1] array (for ASV result files)
             model_count=$(jq -r '
-              if has("results") then
-                .results | to_entries | first | .value.params[1] | length
+              if has("params") and (.params | length) > 1 then
+                if (.params[1] | type) == "array" then
+                  .params[1] | length
+                else
+                  1
+                end
               else
-                to_entries | map(select(.key != "version")) | first | .value.params[1] | length
+                0
               end
             ' "$output_file" 2>/dev/null || echo "0")
             echo "Consolidated result contains $model_count models"
@@ -608,10 +589,14 @@ jobs:
             # Debug: Show the actual model names
             echo "Models in consolidated result:"
             jq -r '
-              if has("results") then
-                .results | to_entries | first | .value.params[1][] | "  - " + .
+              if has("params") and (.params | length) > 1 then
+                if (.params[1] | type) == "array" then
+                  .params[1][] | "  - " + .
+                else
+                  "  - " + (.params[1] | tostring)
+                end
               else
-                to_entries | map(select(.key != "version")) | first | .value.params[1][] | "  - " + .
+                "  (no model params found)"
               end
             ' "$output_file" 2>/dev/null || echo "  (unable to list models)"
           fi
