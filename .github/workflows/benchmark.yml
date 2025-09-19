@@ -401,22 +401,43 @@ jobs:
           find artifact-downloads -path "*/asv-results-*/results/github-actions/*.json" \
             -not -name "machine.json" | sort
 
-          # Use a simpler approach to avoid mapfile issues
-          result_files_temp=$(find artifact-downloads \
+          # Test if the command works at all
+          echo "=== Testing find command directly ==="
+          set +e  # Don't exit on error
+          find_result=$(find artifact-downloads \
             -path "*/asv-results-*/results/github-actions/*.json" \
-            -not -name "machine.json" | sort)
+            -not -name "machine.json" 2>&1)
+          find_exit_code=$?
+          set -e  # Re-enable exit on error
 
-          echo "=== Result files found by pattern ==="
-          echo "$result_files_temp"
+          echo "Find exit code: $find_exit_code"
+          echo "Find result:"
+          echo "$find_result"
 
-          # Convert to array
-          readarray -t result_files <<< "$result_files_temp"
-          result_count=${#result_files[@]}
+          if [ "$find_exit_code" -ne 0 ]; then
+            echo "ERROR: Find command failed"
+            echo "Trying simpler approach..."
+            # Fallback: use glob pattern
+            result_files=(artifact-downloads/asv-results-*/results/github-actions/*.json)
+            # Filter out machine.json manually
+            filtered_files=()
+            for file in "${result_files[@]}"; do
+              if [[ "$file" != *"machine.json" && -f "$file" ]]; then
+                filtered_files+=("$file")
+              fi
+            done
+            result_files=("${filtered_files[@]}")
+            result_count=${#result_files[@]}
+          else
+            echo "=== Converting to array ==="
+            readarray -t result_files <<< "$find_result"
+            result_count=${#result_files[@]}
 
-          # Handle case where find returns empty (readarray creates array with one empty element)
-          if [ "$result_count" -eq 1 ] && [ -z "${result_files[0]}" ]; then
-            result_count=0
-            result_files=()
+            # Handle case where find returns empty
+            if [ "$result_count" -eq 1 ] && [ -z "${result_files[0]}" ]; then
+              result_count=0
+              result_files=()
+            fi
           fi
 
           echo "Found $result_count result files to consolidate:"
