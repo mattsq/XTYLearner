@@ -414,45 +414,39 @@ jobs:
             # Fallback: create minimal working HTML
             echo "Generating minimal HTML manually..."
             mkdir -p .asv/html
-            cat > .asv/html/index.html << 'EOF'
-<!DOCTYPE html>
-<html>
-<head>
-    <title>XTYLearner Benchmarks</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
-        .benchmark { border: 1px solid #ddd; margin: 10px 0; padding: 15px; border-radius: 5px; }
-        .machine { background: #f5f5f5; margin: 10px 0; padding: 10px; border-radius: 3px; }
-    </style>
-</head>
-<body>
-    <h1>XTYLearner Benchmark Results</h1>
-    <p>✅ Benchmark execution completed successfully</p>
-    <p>✅ Results collected from parallel execution</p>
-    
-    <div class="benchmark">
-        <h3>Execution Summary</h3>
-EOF
+            echo '<!DOCTYPE html>' > .asv/html/index.html
+            echo '<html>' >> .asv/html/index.html
+            echo '<head>' >> .asv/html/index.html
+            echo '    <title>XTYLearner Benchmarks</title>' >> .asv/html/index.html
+            echo '    <style>' >> .asv/html/index.html
+            echo '        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }' >> .asv/html/index.html
+            echo '        .benchmark { border: 1px solid #ddd; margin: 10px 0; padding: 15px; border-radius: 5px; }' >> .asv/html/index.html
+            echo '        .machine { background: #f5f5f5; margin: 10px 0; padding: 10px; border-radius: 3px; }' >> .asv/html/index.html
+            echo '    </style>' >> .asv/html/index.html
+            echo '</head>' >> .asv/html/index.html
+            echo '<body>' >> .asv/html/index.html
+            echo '    <h1>XTYLearner Benchmark Results</h1>' >> .asv/html/index.html
+            echo '    <p>✅ Benchmark execution completed successfully</p>' >> .asv/html/index.html
+            echo '    <p>✅ Results collected from parallel execution</p>' >> .asv/html/index.html
+            echo '    ' >> .asv/html/index.html
+            echo '    <div class="benchmark">' >> .asv/html/index.html
+            echo '        <h3>Execution Summary</h3>' >> .asv/html/index.html
             echo "        <p>Machines: $machine_count</p>" >> .asv/html/index.html
             echo "        <p>Models: ${{ needs.detect-changes.outputs.models }}</p>" >> .asv/html/index.html
-            cat >> .asv/html/index.html << 'EOF'
-        <p>Commit: $(git rev-parse --short HEAD)</p>
-    </div>
-    
-    <div class="benchmark">
-        <h3>Available Machines</h3>
-EOF
+            echo "        <p>Commit: $(git rev-parse --short HEAD)</p>" >> .asv/html/index.html
+            echo '    </div>' >> .asv/html/index.html
+            echo '    ' >> .asv/html/index.html
+            echo '    <div class="benchmark">' >> .asv/html/index.html
+            echo '        <h3>Available Machines</h3>' >> .asv/html/index.html
             for machine_dir in .asv/results/*; do
               if [ -d "$machine_dir" ]; then
                 machine_name=$(basename "$machine_dir")
                 echo "        <div class=\"machine\">$machine_name</div>" >> .asv/html/index.html
               fi
             done
-            cat >> .asv/html/index.html << 'EOF'
-    </div>
-</body>
-</html>
-EOF
+            echo '    </div>' >> .asv/html/index.html
+            echo '</body>' >> .asv/html/index.html
+            echo '</html>' >> .asv/html/index.html
           }
 
           # Validate HTML generation
