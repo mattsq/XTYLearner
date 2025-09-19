@@ -339,6 +339,7 @@ jobs:
           pattern: asv-results-*
           path: artifact-downloads
           merge-multiple: true
+          separate-directories: true
       - name: Consolidate benchmark results
         run: |
           set -euo pipefail
