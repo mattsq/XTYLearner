@@ -354,7 +354,7 @@ jobs:
           find artifact-downloads -type d -name "results" | head -10
           echo "=== Looking for JSON files ==="
           find artifact-downloads -name "*.json" | head -10
-          
+
           # Debug: Show artifact directory structure in detail
           echo "=== Full artifact directory structure ==="
           ls -la artifact-downloads/ || echo "artifact-downloads not found"
@@ -373,9 +373,18 @@ jobs:
           echo "=== Available result files ==="
           find artifact-downloads -path "*/results/github-actions/*.json" -not -name "machine.json" | sort
 
-          # Find all result files to merge
+          # Find all result files to merge - try multiple possible paths
+          echo "=== Searching for result files ==="
+          echo "Pattern 1: */results/github-actions/*.json"
+          find artifact-downloads -path "*/results/github-actions/*.json" -not -name "machine.json" | sort
+          echo "Pattern 2: */*.json (any JSON in subdirs)"
+          find artifact-downloads -name "*.json" -not -name "machine.json" | sort
+          echo "Pattern 3: *.json (direct JSON files)"
+          find artifact-downloads -maxdepth 2 -name "*.json" -not -name "machine.json" | sort
+
+          # Use the most flexible pattern that finds JSON files
           mapfile -t result_files < <(find artifact-downloads \
-            -path "*/results/github-actions/*.json" -not -name "machine.json" | sort)
+            -name "*.json" -not -name "machine.json" -not -path "*/html/*" | sort)
           result_count=${#result_files[@]}
 
           echo "Found $result_count result files to consolidate:"
