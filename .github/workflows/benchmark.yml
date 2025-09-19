@@ -383,6 +383,16 @@ jobs:
           find artifact-downloads -maxdepth 2 -name "*.json" -not -name "machine.json" | sort
 
           # Use the most flexible pattern that finds JSON files
+          echo "=== Testing different search approaches ==="
+          echo "All JSON files found:"
+          find artifact-downloads -name "*.json" | sort
+          echo "Excluding machine.json:"
+          find artifact-downloads -name "*.json" -not -name "machine.json" | sort
+          echo "Excluding HTML directory:"
+          find artifact-downloads -name "*.json" -not -name "machine.json" -not -path "*/html/*" | sort
+          echo "Including only results-like files:"
+          find artifact-downloads -name "*.json" -not -name "machine.json" -not -path "*/html/*" -not -name "*.html" | sort
+          
           mapfile -t result_files < <(find artifact-downloads \
             -name "*.json" -not -name "machine.json" -not -path "*/html/*" | sort)
           result_count=${#result_files[@]}
@@ -390,11 +400,19 @@ jobs:
           echo "Found $result_count result files to consolidate:"
           for file in "${result_files[@]}"; do
             filename=$(basename "$file")
-            if jq -e '.results' "$file" >/dev/null 2>&1; then
-              model_names=$(jq -r '.results | keys | join(", ")' "$file" 2>/dev/null || echo "unknown")
-              echo "  - $filename: $model_names"
+            echo "Processing file: $file"
+            if [ -f "$file" ]; then
+              echo "  File exists, checking JSON structure..."
+              if jq -e '.results' "$file" >/dev/null 2>&1; then
+                model_names=$(jq -r '.results | keys | join(", ")' "$file" 2>/dev/null || echo "unknown")
+                echo "  - $filename: $model_names"
+              else
+                echo "  - $filename: (no results key)"
+                echo "  File contents preview:"
+                head -3 "$file" 2>/dev/null || echo "  Cannot read file"
+              fi
             else
-              echo "  - $filename: (no results)"
+              echo "  - $filename: (file not found at $file)"
             fi
           done
 
