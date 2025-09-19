@@ -468,11 +468,11 @@ jobs:
             cp "${result_files[0]}" ".asv/results/github-actions/$(basename "${result_files[0]}")"
             # Count models from the params[1] array in the first benchmark
             model_count=$(jq -r '
-              to_entries | 
-              map(select(.key != "version")) | 
-              first | 
-              .value.params[1] | 
-              length
+              if has("results") then
+                .results | to_entries | first | .value.params[1] | length
+              else
+                to_entries | map(select(.key != "version")) | first | .value.params[1] | length
+              end
             ' "${result_files[0]}" 2>/dev/null || echo "0")
           else
             # Multiple files - merge into a single consolidated result file
@@ -491,51 +491,127 @@ jobs:
             for ((i=1; i<${#result_files[@]}; i++)); do
               merge_file="${result_files[i]}"
               echo "Merging results from: $(basename "$merge_file")"
+              
+              # Debug: Show file contents before merge
+              echo "=== Base file structure ==="
+              jq -r 'keys[]' "$output_file" 2>/dev/null || echo "Failed to read base file keys"
+              echo "=== Merge file structure ==="
+              jq -r 'keys[]' "$merge_file" 2>/dev/null || echo "Failed to read merge file keys"
+              
+              # Debug: Show benchmark key and params structure
+              echo "=== Base file benchmark params ==="
+              jq -r 'to_entries | map(select(.key != "version")) | first | .key as $k | .value.params[1] | "Key: " + $k + " Models: " + tostring' "$output_file" 2>/dev/null || echo "Failed to read base params"
+              echo "=== Merge file benchmark params ==="
+              jq -r 'to_entries | map(select(.key != "version")) | first | .key as $k | .value.params[1] | "Key: " + $k + " Models: " + tostring' "$merge_file" 2>/dev/null || echo "Failed to read merge params"
 
               # Deep merge: combine the params arrays for each benchmark
-              jq -s '
-                .[0] as $base | .[1] as $merge |
+              echo "=== Attempting jq merge ==="
+              if ! jq -s '
+                .[0] as $base | .[1] as $merge | 
                 $base | 
-                # For each benchmark in the results, merge the params[1] arrays (model names)
-                to_entries | map(
-                  if .key == "version" then
-                    .
-                  else
-                    .key as $bench_key |
-                    if ($merge | has($bench_key)) then
-                      .value.params[1] = (.value.params[1] + $merge[$bench_key].params[1] | unique | sort)
-                    else
-                      .
+                if has("results") then
+                  # Handle structure with .results wrapper
+                  .results = (
+                    .results as $br | $merge.results as $mr |
+                    $br | to_entries | map(
+                      .key as $bench_key |
+                      if ($mr | has($bench_key)) then
+                        .value.params[1] = (.value.params[1] + $mr[$bench_key].params[1] | unique | sort)
+                      else
+                        .
+                      end
+                    ) | from_entries
+                  )
+                else
+                  # Handle direct benchmark structure (current case)
+                  to_entries | map(
+                    if .key == "version" then 
+                      . 
+                    else 
+                      .key as $bench_key |
+                      if ($merge | has($bench_key)) then
+                        .value.params[1] = (.value.params[1] + $merge[$bench_key].params[1] | unique | sort)
+                      else
+                        .
+                      end
                     end
-                  end
-                ) | from_entries
-              ' "$output_file" "$merge_file" > "${output_file}.tmp" && mv "${output_file}.tmp" "$output_file"
+                  ) | from_entries
+                end
+              ' "$output_file" "$merge_file" > "${output_file}.tmp"; then
+                echo "ERROR: jq merge failed, falling back to simple approach"
+                # Fallback: Use Python to merge
+                cat > merge_files.py << 'PYTHON_EOF'
+import json
+import sys
+
+with open(sys.argv[1]) as f:
+    base = json.load(f)
+with open(sys.argv[2]) as f:
+    merge_data = json.load(f)
+
+# Handle both .results wrapper and direct benchmark structure
+if "results" in base and "results" in merge_data:
+    # Structure with .results wrapper
+    base_benchmarks = base["results"]
+    merge_benchmarks = merge_data["results"] 
+    
+    for key, value in merge_benchmarks.items():
+        if key in base_benchmarks:
+            base_models = base_benchmarks[key]["params"][1]
+            merge_models = value["params"][1]
+            combined = list(set(base_models + merge_models))
+            combined.sort()
+            base_benchmarks[key]["params"][1] = combined
+        else:
+            base_benchmarks[key] = value
+else:
+    # Direct benchmark structure
+    for key, value in merge_data.items():
+        if key == "version":
+            continue
+        if key in base:
+            base_models = base[key]["params"][1]
+            merge_models = value["params"][1]
+            combined = list(set(base_models + merge_models))
+            combined.sort()
+            base[key]["params"][1] = combined
+        else:
+            base[key] = value
+
+print(json.dumps(base, indent=2))
+PYTHON_EOF
+                python merge_files.py "$output_file" "$merge_file" > "${output_file}.tmp"
+                rm merge_files.py
+              fi
+              
+              mv "${output_file}.tmp" "$output_file"
 
               if [ $? -ne 0 ]; then
                 echo "ERROR: Failed to merge $(basename "$merge_file")"
                 exit 1
               fi
+              
+              echo "=== Merge completed successfully ==="
             done
 
             # Count models from the params[1] array in the first benchmark
             model_count=$(jq -r '
-              to_entries | 
-              map(select(.key != "version")) | 
-              first | 
-              .value.params[1] | 
-              length
+              if has("results") then
+                .results | to_entries | first | .value.params[1] | length
+              else
+                to_entries | map(select(.key != "version")) | first | .value.params[1] | length
+              end
             ' "$output_file" 2>/dev/null || echo "0")
             echo "Consolidated result contains $model_count models"
             
             # Debug: Show the actual model names
             echo "Models in consolidated result:"
             jq -r '
-              to_entries | 
-              map(select(.key != "version")) | 
-              first | 
-              .value.params[1][] | 
-              . as $model | 
-              "  - " + $model
+              if has("results") then
+                .results | to_entries | first | .value.params[1][] | "  - " + .
+              else
+                to_entries | map(select(.key != "version")) | first | .value.params[1][] | "  - " + .
+              end
             ' "$output_file" 2>/dev/null || echo "  (unable to list models)"
           fi
 
