@@ -466,14 +466,10 @@ jobs:
             # Single file - just copy it with standard naming
             echo "Single result file - copying directly"
             cp "${result_files[0]}" ".asv/results/github-actions/$(basename "${result_files[0]}")"
-            # Count models from the params[1] array (for ASV result files)
+            # Count results from the benchmark result array length
             model_count=$(jq -r '
-              if has("params") and (.params | length) > 1 then
-                if (.params[1] | type) == "array" then
-                  .params[1] | length
-                else
-                  1
-                end
+              if has("results") then
+                .results | to_entries | first | .value | length
               else
                 0
               end
@@ -530,15 +526,24 @@ jobs:
               jq -r 'if has("results") then .results | to_entries | first | .value | keys[] else "No results" end' \
                 "$output_file" 2>/dev/null || echo "Failed to show benchmark keys"
 
-              # Skip merge for now to debug structure
-              echo "=== DEBUGGING: Skipping merge to analyze structure ==="
-              echo "Will implement proper merge once structure is understood"
-              
-              # Copy base file as placeholder
-              cp "$output_file" "${output_file}.tmp"
-              
-              # Fake successful merge for debugging
-              if false; then
+              # Merge ASV result files by concatenating benchmark result arrays
+              echo "=== Merging ASV result arrays ==="
+              if ! jq -s '
+                .[0] as $base | .[1] as $merge |
+                $base |
+                # For each benchmark in results, concatenate the result arrays
+                .results = (
+                  .results as $br | $merge.results as $mr |
+                  $br | to_entries | map(
+                    .key as $bench_key |
+                    if ($mr | has($bench_key)) then
+                      .value = (.value + $mr[$bench_key])
+                    else
+                      .
+                    end
+                  ) | from_entries
+                )
+              ' "$output_file" "$merge_file" > "${output_file}.tmp"; then
                 echo "ERROR: jq merge failed, falling back to simple approach"
                 # Fallback: Use Python to merge
                 echo "import json" > merge_files.py
@@ -549,20 +554,24 @@ jobs:
                 echo "with open(sys.argv[2]) as f:" >> merge_files.py
                 echo "    merge_data = json.load(f)" >> merge_files.py
                 echo "" >> merge_files.py
-                echo "# Handle ASV result files with top-level params" >> merge_files.py
-                echo "if \"params\" in base and \"params\" in merge_data:" >> merge_files.py
-                echo "    # ASV result files: merge params[1] (model names)" >> merge_files.py
-                echo "    if len(base[\"params\"]) > 1 and len(merge_data[\"params\"]) > 1:" >> merge_files.py
-                echo "        base_models = base[\"params\"][1] if isinstance(base[\"params\"][1], list) else [base[\"params\"][1]]" >> merge_files.py
-                echo "        merge_models = merge_data[\"params\"][1] if isinstance(merge_data[\"params\"][1], list) else [merge_data[\"params\"][1]]" >> merge_files.py
-                echo "        combined = list(set(base_models + merge_models))" >> merge_files.py
-                echo "        combined.sort()" >> merge_files.py
-                echo "        base[\"params\"][1] = combined" >> merge_files.py
-                echo "        print(f\"Merged models: {combined}\", file=sys.stderr)" >> merge_files.py
-                echo "    else:" >> merge_files.py
-                echo "        print(\"Insufficient params arrays to merge\", file=sys.stderr)" >> merge_files.py
+                echo "# Handle ASV result files by concatenating result arrays" >> merge_files.py
+                echo "if \"results\" in base and \"results\" in merge_data:" >> merge_files.py
+                echo "    # Merge benchmark result arrays" >> merge_files.py
+                echo "    for bench_key in merge_data[\"results\"]:" >> merge_files.py
+                echo "        if bench_key in base[\"results\"]:" >> merge_files.py
+                echo "            # Concatenate result arrays" >> merge_files.py
+                echo "            base_results = base[\"results\"][bench_key]" >> merge_files.py
+                echo "            merge_results = merge_data[\"results\"][bench_key]" >> merge_files.py
+                echo "            if isinstance(base_results, list) and isinstance(merge_results, list):" >> merge_files.py
+                echo "                base[\"results\"][bench_key] = base_results + merge_results" >> merge_files.py
+                echo "                print(f\"Merged {bench_key}: {len(base_results)} + {len(merge_results)} = {len(base[\\\"results\\\"][bench_key])} results\", file=sys.stderr)" >> merge_files.py
+                echo "            else:" >> merge_files.py
+                echo "                print(f\"Skipping {bench_key}: not arrays\", file=sys.stderr)" >> merge_files.py
+                echo "        else:" >> merge_files.py
+                echo "            base[\"results\"][bench_key] = merge_data[\"results\"][bench_key]" >> merge_files.py
+                echo "            print(f\"Added new benchmark: {bench_key}\", file=sys.stderr)" >> merge_files.py
                 echo "else:" >> merge_files.py
-                echo "    print(\"No params arrays found in files\", file=sys.stderr)" >> merge_files.py
+                echo "    print(\"No results arrays found in files\", file=sys.stderr)" >> merge_files.py
                 echo "" >> merge_files.py
                 echo "print(json.dumps(base, indent=2))" >> merge_files.py
                 python merge_files.py "$output_file" "$merge_file" > "${output_file}.tmp"
@@ -579,33 +588,26 @@ jobs:
               echo "=== Merge completed successfully ==="
             done
 
-            # Count models from the params[1] array (for ASV result files)
+            # Count results from the merged benchmark result array length
             model_count=$(jq -r '
-              if has("params") and (.params | length) > 1 then
-                if (.params[1] | type) == "array" then
-                  .params[1] | length
-                else
-                  1
-                end
+              if has("results") then
+                .results | to_entries | first | .value | length
               else
                 0
               end
             ' "$output_file" 2>/dev/null || echo "0")
             echo "Consolidated result contains $model_count models"
 
-            # Debug: Show the actual model names
-            echo "Models in consolidated result:"
+            # Debug: Show the merged result array length
+            echo "Result array info:"
             jq -r '
-              if has("params") and (.params | length) > 1 then
-                if (.params[1] | type) == "array" then
-                  .params[1][] | "  - " + .
-                else
-                  "  - " + (.params[1] | tostring)
-                end
+              if has("results") then
+                .results | to_entries | first | 
+                "  - " + .key + ": " + (.value | length | tostring) + " results"
               else
-                "  (no model params found)"
+                "  (no results found)"
               end
-            ' "$output_file" 2>/dev/null || echo "  (unable to list models)"
+            ' "$output_file" 2>/dev/null || echo "  (unable to analyze results)"
           fi
 
           echo "=== Consolidation Summary ==="
