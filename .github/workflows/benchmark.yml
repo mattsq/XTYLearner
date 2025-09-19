@@ -466,7 +466,14 @@ jobs:
             # Single file - just copy it with standard naming
             echo "Single result file - copying directly"
             cp "${result_files[0]}" ".asv/results/github-actions/$(basename "${result_files[0]}")"
-            model_count=$(jq -r '.results | keys | length' "${result_files[0]}" 2>/dev/null || echo "0")
+            # Count results from the benchmark result array length
+            model_count=$(jq -r '
+              if has("results") then
+                .results | to_entries | first | .value | length
+              else
+                0
+              end
+            ' "${result_files[0]}" 2>/dev/null || echo "0")
           else
             # Multiple files - merge into a single consolidated result file
             echo "Multiple result files - creating consolidated result"
@@ -485,20 +492,122 @@ jobs:
               merge_file="${result_files[i]}"
               echo "Merging results from: $(basename "$merge_file")"
 
-              # Simple merge: combine the results objects
-              jq -s '
+              # Debug: Show file contents before merge
+              echo "=== Base file structure ==="
+              jq -r 'keys[]' "$output_file" 2>/dev/null || echo "Failed to read base file keys"
+              echo "=== Merge file structure ==="
+              jq -r 'keys[]' "$merge_file" 2>/dev/null || echo "Failed to read merge file keys"
+
+              # Debug: Show actual file structure
+              echo "=== Base file top-level params ==="
+              jq -r 'if has("params") then .params | "Params: " + tostring else "No top-level params" end' \
+                "$output_file" 2>/dev/null || echo "Failed to read base params"
+              echo "=== Merge file top-level params ==="
+              jq -r 'if has("params") then .params | "Params: " + tostring else "No top-level params" end' \
+                "$merge_file" 2>/dev/null || echo "Failed to read merge params"
+              
+              # Show results structure
+              echo "=== Results structure ==="
+              jq -r 'if has("results") then (.results | type) + " with " + (.results | length | tostring) + " elements" else "No results key" end' \
+                "$output_file" 2>/dev/null || echo "Failed to analyze results"
+              
+              # Show what's inside results
+              echo "=== Results content ==="
+              jq -r 'if has("results") then .results | keys[] else "No results" end' \
+                "$output_file" 2>/dev/null || echo "Failed to show results keys"
+              
+              # Show first benchmark structure 
+              echo "=== First benchmark in results ==="
+              jq -r 'if has("results") then .results | to_entries | first | .key + ": " + (.value | type) else "No results" end' \
+                "$output_file" 2>/dev/null || echo "Failed to show benchmark"
+              
+              # Try to find where model info is stored
+              echo "=== Looking for model information ==="
+              jq -r 'if has("results") then .results | to_entries | first | .value | keys[] else "No results" end' \
+                "$output_file" 2>/dev/null || echo "Failed to show benchmark keys"
+
+              # Merge ASV result files by concatenating benchmark result arrays
+              echo "=== Merging ASV result arrays ==="
+              if ! jq -s '
                 .[0] as $base | .[1] as $merge |
-                $base | .results = ($base.results + $merge.results)
-              ' "$output_file" "$merge_file" > "${output_file}.tmp" && mv "${output_file}.tmp" "$output_file"
+                $base |
+                # For each benchmark in results, concatenate the result arrays
+                .results = (
+                  .results as $br | $merge.results as $mr |
+                  $br | to_entries | map(
+                    .key as $bench_key |
+                    if ($mr | has($bench_key)) then
+                      .value = (.value + $mr[$bench_key])
+                    else
+                      .
+                    end
+                  ) | from_entries
+                )
+              ' "$output_file" "$merge_file" > "${output_file}.tmp"; then
+                echo "ERROR: jq merge failed, falling back to simple approach"
+                # Fallback: Use Python to merge
+                echo "import json" > merge_files.py
+                echo "import sys" >> merge_files.py
+                echo "" >> merge_files.py
+                echo "with open(sys.argv[1]) as f:" >> merge_files.py
+                echo "    base = json.load(f)" >> merge_files.py
+                echo "with open(sys.argv[2]) as f:" >> merge_files.py
+                echo "    merge_data = json.load(f)" >> merge_files.py
+                echo "" >> merge_files.py
+                echo "# Handle ASV result files by concatenating result arrays" >> merge_files.py
+                echo "if \"results\" in base and \"results\" in merge_data:" >> merge_files.py
+                echo "    # Merge benchmark result arrays" >> merge_files.py
+                echo "    for bench_key in merge_data[\"results\"]:" >> merge_files.py
+                echo "        if bench_key in base[\"results\"]:" >> merge_files.py
+                echo "            # Concatenate result arrays" >> merge_files.py
+                echo "            base_results = base[\"results\"][bench_key]" >> merge_files.py
+                echo "            merge_results = merge_data[\"results\"][bench_key]" >> merge_files.py
+                echo "            if isinstance(base_results, list) and isinstance(merge_results, list):" >> merge_files.py
+                echo "                base[\"results\"][bench_key] = base_results + merge_results" >> merge_files.py
+                echo "                print(f\"Merged {bench_key}: {len(base_results)} + {len(merge_results)} = {len(base[\\\"results\\\"][bench_key])} results\", file=sys.stderr)" >> merge_files.py
+                echo "            else:" >> merge_files.py
+                echo "                print(f\"Skipping {bench_key}: not arrays\", file=sys.stderr)" >> merge_files.py
+                echo "        else:" >> merge_files.py
+                echo "            base[\"results\"][bench_key] = merge_data[\"results\"][bench_key]" >> merge_files.py
+                echo "            print(f\"Added new benchmark: {bench_key}\", file=sys.stderr)" >> merge_files.py
+                echo "else:" >> merge_files.py
+                echo "    print(\"No results arrays found in files\", file=sys.stderr)" >> merge_files.py
+                echo "" >> merge_files.py
+                echo "print(json.dumps(base, indent=2))" >> merge_files.py
+                python merge_files.py "$output_file" "$merge_file" > "${output_file}.tmp"
+                rm merge_files.py
+              fi
+
+              mv "${output_file}.tmp" "$output_file"
 
               if [ $? -ne 0 ]; then
                 echo "ERROR: Failed to merge $(basename "$merge_file")"
                 exit 1
               fi
+
+              echo "=== Merge completed successfully ==="
             done
 
-            model_count=$(jq -r '.results | keys | length' "$output_file" 2>/dev/null || echo "0")
-            echo "Consolidated result contains $model_count benchmark types"
+            # Count results from the merged benchmark result array length
+            model_count=$(jq -r '
+              if has("results") then
+                .results | to_entries | first | .value | length
+              else
+                0
+              end
+            ' "$output_file" 2>/dev/null || echo "0")
+            echo "Consolidated result contains $model_count models"
+
+            # Debug: Show the merged result array length
+            echo "Result array info:"
+            jq -r '
+              if has("results") then
+                .results | to_entries | first | 
+                "  - " + .key + ": " + (.value | length | tostring) + " results"
+              else
+                "  (no results found)"
+              end
+            ' "$output_file" 2>/dev/null || echo "  (unable to analyze results)"
           fi
 
           echo "=== Consolidation Summary ==="
@@ -637,21 +746,21 @@ jobs:
 
           # Find the actual HTML directory structure in artifact
           html_dir=""
-          
+
           # Try different possible locations
           possible_dirs=(
             "asv-consolidated/.asv/html"
-            "asv-consolidated/html" 
+            "asv-consolidated/html"
             "asv-consolidated/.asv/html-test"
           )
-          
+
           for dir in "${possible_dirs[@]}"; do
             if [ -d "$dir" ] && [ -f "$dir/index.html" ]; then
               html_dir="$dir"
               break
             fi
           done
-          
+
           # If no standard directory found, search for any index.html
           if [ -z "$html_dir" ]; then
             echo "Standard HTML directories not found, searching for index.html..."
@@ -661,7 +770,7 @@ jobs:
               echo "Found index.html at: $index_file"
             fi
           fi
-          
+
           if [ -z "$html_dir" ]; then
             echo "ERROR: Cannot find HTML directory in artifact"
             echo "Available directories:"
