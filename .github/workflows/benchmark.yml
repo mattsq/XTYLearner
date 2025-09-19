@@ -338,8 +338,7 @@ jobs:
         with:
           pattern: asv-results-*
           path: artifact-downloads
-          merge-multiple: true
-          separate-directories: true
+          merge-multiple: false
       - name: Consolidate benchmark results
         run: |
           set -euo pipefail
@@ -372,7 +371,7 @@ jobs:
 
           # Merge all benchmark result files (only from results directory, not HTML)
           echo "=== Available result files ==="
-          find artifact-downloads -path "*/results/github-actions/*.json" -not -name "machine.json" | sort
+          find artifact-downloads -path "*/asv-results-*/.asv/results/github-actions/*.json" -not -name "machine.json" | sort
 
           # Find all result files to merge - try multiple possible paths
           echo "=== Searching for result files ==="
@@ -394,8 +393,10 @@ jobs:
           echo "Including only results-like files:"
           find artifact-downloads -name "*.json" -not -name "machine.json" -not -path "*/html/*" -not -name "*.html" | sort
           
+          # With merge-multiple: false, each artifact is in its own directory
+          # Expected structure: artifact-downloads/asv-results-MODEL/.asv/results/github-actions/*.json
           mapfile -t result_files < <(find artifact-downloads \
-            -name "*.json" -not -name "machine.json" -not -path "*/html/*" | sort)
+            -path "*/asv-results-*/.asv/results/github-actions/*.json" -not -name "machine.json" | sort)
           result_count=${#result_files[@]}
 
           echo "Found $result_count result files to consolidate:"
