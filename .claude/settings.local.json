@@ -18,7 +18,8 @@
       "Bash(echo $BENCHMARK_MODELS)",
       "Bash(git log:*)",
       "WebFetch(domain:mattsq.github.io)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": [],

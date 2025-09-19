@@ -491,24 +491,28 @@ jobs:
             for ((i=1; i<${#result_files[@]}; i++)); do
               merge_file="${result_files[i]}"
               echo "Merging results from: $(basename "$merge_file")"
-              
+
               # Debug: Show file contents before merge
               echo "=== Base file structure ==="
               jq -r 'keys[]' "$output_file" 2>/dev/null || echo "Failed to read base file keys"
               echo "=== Merge file structure ==="
               jq -r 'keys[]' "$merge_file" 2>/dev/null || echo "Failed to read merge file keys"
-              
+
               # Debug: Show benchmark key and params structure
               echo "=== Base file benchmark params ==="
-              jq -r 'to_entries | map(select(.key != "version")) | first | .key as $k | .value.params[1] | "Key: " + $k + " Models: " + tostring' "$output_file" 2>/dev/null || echo "Failed to read base params"
+              jq -r 'to_entries | map(select(.key != "version")) | first |
+                     .key as $k | .value.params[1] | "Key: " + $k + " Models: " + tostring' \
+                "$output_file" 2>/dev/null || echo "Failed to read base params"
               echo "=== Merge file benchmark params ==="
-              jq -r 'to_entries | map(select(.key != "version")) | first | .key as $k | .value.params[1] | "Key: " + $k + " Models: " + tostring' "$merge_file" 2>/dev/null || echo "Failed to read merge params"
+              jq -r 'to_entries | map(select(.key != "version")) | first |
+                     .key as $k | .value.params[1] | "Key: " + $k + " Models: " + tostring' \
+                "$merge_file" 2>/dev/null || echo "Failed to read merge params"
 
               # Deep merge: combine the params arrays for each benchmark
               echo "=== Attempting jq merge ==="
               if ! jq -s '
-                .[0] as $base | .[1] as $merge | 
-                $base | 
+                .[0] as $base | .[1] as $merge |
+                $base |
                 if has("results") then
                   # Handle structure with .results wrapper
                   .results = (
@@ -525,9 +529,9 @@ jobs:
                 else
                   # Handle direct benchmark structure (current case)
                   to_entries | map(
-                    if .key == "version" then 
-                      . 
-                    else 
+                    if .key == "version" then
+                      .
+                    else
                       .key as $bench_key |
                       if ($merge | has($bench_key)) then
                         .value.params[1] = (.value.params[1] + $merge[$bench_key].params[1] | unique | sort)
@@ -540,57 +544,54 @@ jobs:
               ' "$output_file" "$merge_file" > "${output_file}.tmp"; then
                 echo "ERROR: jq merge failed, falling back to simple approach"
                 # Fallback: Use Python to merge
-                cat > merge_files.py << 'PYTHON_EOF'
-import json
-import sys
-
-with open(sys.argv[1]) as f:
-    base = json.load(f)
-with open(sys.argv[2]) as f:
-    merge_data = json.load(f)
-
-# Handle both .results wrapper and direct benchmark structure
-if "results" in base and "results" in merge_data:
-    # Structure with .results wrapper
-    base_benchmarks = base["results"]
-    merge_benchmarks = merge_data["results"] 
-    
-    for key, value in merge_benchmarks.items():
-        if key in base_benchmarks:
-            base_models = base_benchmarks[key]["params"][1]
-            merge_models = value["params"][1]
-            combined = list(set(base_models + merge_models))
-            combined.sort()
-            base_benchmarks[key]["params"][1] = combined
-        else:
-            base_benchmarks[key] = value
-else:
-    # Direct benchmark structure
-    for key, value in merge_data.items():
-        if key == "version":
-            continue
-        if key in base:
-            base_models = base[key]["params"][1]
-            merge_models = value["params"][1]
-            combined = list(set(base_models + merge_models))
-            combined.sort()
-            base[key]["params"][1] = combined
-        else:
-            base[key] = value
-
-print(json.dumps(base, indent=2))
-PYTHON_EOF
+                echo "import json" > merge_files.py
+                echo "import sys" >> merge_files.py
+                echo "" >> merge_files.py
+                echo "with open(sys.argv[1]) as f:" >> merge_files.py
+                echo "    base = json.load(f)" >> merge_files.py
+                echo "with open(sys.argv[2]) as f:" >> merge_files.py
+                echo "    merge_data = json.load(f)" >> merge_files.py
+                echo "" >> merge_files.py
+                echo "# Handle both .results wrapper and direct benchmark structure" >> merge_files.py
+                echo "if \"results\" in base and \"results\" in merge_data:" >> merge_files.py
+                echo "    # Structure with .results wrapper" >> merge_files.py
+                echo "    base_benchmarks = base[\"results\"]" >> merge_files.py
+                echo "    merge_benchmarks = merge_data[\"results\"]" >> merge_files.py
+                echo "    for key, value in merge_benchmarks.items():" >> merge_files.py
+                echo "        if key in base_benchmarks:" >> merge_files.py
+                echo "            base_models = base_benchmarks[key][\"params\"][1]" >> merge_files.py
+                echo "            merge_models = value[\"params\"][1]" >> merge_files.py
+                echo "            combined = list(set(base_models + merge_models))" >> merge_files.py
+                echo "            combined.sort()" >> merge_files.py
+                echo "            base_benchmarks[key][\"params\"][1] = combined" >> merge_files.py
+                echo "        else:" >> merge_files.py
+                echo "            base_benchmarks[key] = value" >> merge_files.py
+                echo "else:" >> merge_files.py
+                echo "    # Direct benchmark structure" >> merge_files.py
+                echo "    for key, value in merge_data.items():" >> merge_files.py
+                echo "        if key == \"version\":" >> merge_files.py
+                echo "            continue" >> merge_files.py
+                echo "        if key in base:" >> merge_files.py
+                echo "            base_models = base[key][\"params\"][1]" >> merge_files.py
+                echo "            merge_models = value[\"params\"][1]" >> merge_files.py
+                echo "            combined = list(set(base_models + merge_models))" >> merge_files.py
+                echo "            combined.sort()" >> merge_files.py
+                echo "            base[key][\"params\"][1] = combined" >> merge_files.py
+                echo "        else:" >> merge_files.py
+                echo "            base[key] = value" >> merge_files.py
+                echo "" >> merge_files.py
+                echo "print(json.dumps(base, indent=2))" >> merge_files.py
                 python merge_files.py "$output_file" "$merge_file" > "${output_file}.tmp"
                 rm merge_files.py
               fi
-              
+
               mv "${output_file}.tmp" "$output_file"
 
               if [ $? -ne 0 ]; then
                 echo "ERROR: Failed to merge $(basename "$merge_file")"
                 exit 1
               fi
-              
+
               echo "=== Merge completed successfully ==="
             done
 
@@ -603,7 +604,7 @@ PYTHON_EOF
               end
             ' "$output_file" 2>/dev/null || echo "0")
             echo "Consolidated result contains $model_count models"
-            
+
             # Debug: Show the actual model names
             echo "Models in consolidated result:"
             jq -r '
@@ -751,21 +752,21 @@ PYTHON_EOF
 
           # Find the actual HTML directory structure in artifact
           html_dir=""
-          
+
           # Try different possible locations
           possible_dirs=(
             "asv-consolidated/.asv/html"
-            "asv-consolidated/html" 
+            "asv-consolidated/html"
             "asv-consolidated/.asv/html-test"
           )
-          
+
           for dir in "${possible_dirs[@]}"; do
             if [ -d "$dir" ] && [ -f "$dir/index.html" ]; then
               html_dir="$dir"
               break
             fi
           done
-          
+
           # If no standard directory found, search for any index.html
           if [ -z "$html_dir" ]; then
             echo "Standard HTML directories not found, searching for index.html..."
@@ -775,7 +776,7 @@ PYTHON_EOF
               echo "Found index.html at: $index_file"
             fi
           fi
-          
+
           if [ -z "$html_dir" ]; then
             echo "ERROR: Cannot find HTML directory in artifact"
             echo "Available directories:"
