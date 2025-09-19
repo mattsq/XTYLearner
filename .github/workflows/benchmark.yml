@@ -635,16 +635,39 @@ jobs:
           echo "=== Looking for HTML files ==="
           find asv-consolidated -name "*.html" | head -10
 
-          # Find the actual HTML directory (could be .asv/html or just html)
+          # Find the actual HTML directory structure in artifact
           html_dir=""
-          if [ -d "asv-consolidated/.asv/html" ]; then
-            html_dir="asv-consolidated/.asv/html"
-          elif [ -d "asv-consolidated/html" ]; then
-            html_dir="asv-consolidated/html"
-          else
+          
+          # Try different possible locations
+          possible_dirs=(
+            "asv-consolidated/.asv/html"
+            "asv-consolidated/html" 
+            "asv-consolidated/.asv/html-test"
+          )
+          
+          for dir in "${possible_dirs[@]}"; do
+            if [ -d "$dir" ] && [ -f "$dir/index.html" ]; then
+              html_dir="$dir"
+              break
+            fi
+          done
+          
+          # If no standard directory found, search for any index.html
+          if [ -z "$html_dir" ]; then
+            echo "Standard HTML directories not found, searching for index.html..."
+            index_file=$(find asv-consolidated -name "index.html" -type f | head -1)
+            if [ -n "$index_file" ]; then
+              html_dir=$(dirname "$index_file")
+              echo "Found index.html at: $index_file"
+            fi
+          fi
+          
+          if [ -z "$html_dir" ]; then
             echo "ERROR: Cannot find HTML directory in artifact"
             echo "Available directories:"
             find asv-consolidated -type d
+            echo "Available HTML files:"
+            find asv-consolidated -name "*.html" -type f
             exit 1
           fi
 
