@@ -514,24 +514,31 @@ jobs:
               echo "=== Results structure ==="
               jq -r 'if has("results") then (.results | type) + " with " + (.results | length | tostring) + " elements" else "No results key" end' \
                 "$output_file" 2>/dev/null || echo "Failed to analyze results"
+              
+              # Show what's inside results
+              echo "=== Results content ==="
+              jq -r 'if has("results") then .results | keys[] else "No results" end' \
+                "$output_file" 2>/dev/null || echo "Failed to show results keys"
+              
+              # Show first benchmark structure 
+              echo "=== First benchmark in results ==="
+              jq -r 'if has("results") then .results | to_entries | first | .key + ": " + (.value | type) else "No results" end' \
+                "$output_file" 2>/dev/null || echo "Failed to show benchmark"
+              
+              # Try to find where model info is stored
+              echo "=== Looking for model information ==="
+              jq -r 'if has("results") then .results | to_entries | first | .value | keys[] else "No results" end' \
+                "$output_file" 2>/dev/null || echo "Failed to show benchmark keys"
 
-              # Merge result files by combining top-level params arrays
-              echo "=== Attempting result file merge ==="
-              if ! jq -s '
-                .[0] as $base | .[1] as $merge |
-                $base |
-                # For ASV result files, merge the top-level params array
-                if has("params") and ($merge | has("params")) then
-                  # ASV result files: params[1] contains model names
-                  if (.params | length) > 1 and (($merge.params | length) > 1) then
-                    .params[1] = (.params[1] + $merge.params[1] | unique | sort)
-                  else
-                    .
-                  end
-                else
-                  .
-                end
-              ' "$output_file" "$merge_file" > "${output_file}.tmp"; then
+              # Skip merge for now to debug structure
+              echo "=== DEBUGGING: Skipping merge to analyze structure ==="
+              echo "Will implement proper merge once structure is understood"
+              
+              # Copy base file as placeholder
+              cp "$output_file" "${output_file}.tmp"
+              
+              # Fake successful merge for debugging
+              if false; then
                 echo "ERROR: jq merge failed, falling back to simple approach"
                 # Fallback: Use Python to merge
                 echo "import json" > merge_files.py
