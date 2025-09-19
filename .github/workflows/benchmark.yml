@@ -354,6 +354,14 @@ jobs:
           find artifact-downloads -type d -name "results" | head -10
           echo "=== Looking for JSON files ==="
           find artifact-downloads -name "*.json" | head -10
+          
+          # Debug: Show artifact directory structure in detail
+          echo "=== Full artifact directory structure ==="
+          ls -la artifact-downloads/ || echo "artifact-downloads not found"
+          find artifact-downloads -type d | while read dir; do
+            echo "Directory: $dir"
+            ls -la "$dir" 2>/dev/null | head -5
+          done
 
           # Create consolidated results directory
           mkdir -p .asv/results/github-actions
