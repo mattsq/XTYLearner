@@ -12,13 +12,17 @@
                 "'synthetic_mixed'"
             ],
             [
-                "'cycle_dual'"
+                "'cycle_dual'",
+                "'mean_teacher'",
+                "'prob_circuit'",
+                "'ganite'",
+                "'flow_ssc'"
             ]
         ],
         "timeout": 600,
         "type": "track",
         "unit": "unit",
-        "version": "d429049ca0ef91db7c7e97d0a24660ed6ee9c9f8da60f6d6795876b5f4b192e9"
+        "version": "cd6f3d1dfef8d3bed2d01a328d15d21d92d008bfc6b0c3badb384ea1df5c841b"
     },
     "version": 2
 }
