@@ -1,0 +1,159 @@
+#!/usr/bin/env python3
+import json
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+from pathlib import Path
+import argparse
+
+def generate_charts(history_file, output_dir):
+    output_path = Path(output_dir)
+    output_path.mkdir(exist_ok=True)
+    
+    # Load history
+    with open(history_file) as f:
+        history = json.load(f)
+    
+    if not history:
+        print("No history data found")
+        return
+    
+    # Extract latest results for summary
+    latest = history[-1]
+    
+    # Create summary plot
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    
+    # Plot 1: RMSE by model
+    rmse_data = {}
+    accuracy_data = {}
+    
+    for result in latest["results"]:
+        if "val_outcome_rmse" in result["name"]:
+            model = result["name"].split("_")[0]
+            rmse_data[model] = result["value"]
+        elif "val_treatment_accuracy" in result["name"]:
+            model = result["name"].split("_")[0]
+            accuracy_data[model] = result["value"]
+    
+    if rmse_data:
+        models = list(rmse_data.keys())
+        values = list(rmse_data.values())
+        ax1.bar(models, values)
+        ax1.set_title('Model RMSE (Lower is Better)')
+        ax1.set_ylabel('RMSE')
+        ax1.tick_params(axis='x', rotation=45)
+    
+    if accuracy_data:
+        models = list(accuracy_data.keys())
+        values = list(accuracy_data.values())
+        ax2.bar(models, values)
+        ax2.set_title('Model Treatment Accuracy (Higher is Better)')
+        ax2.set_ylabel('Accuracy')
+        ax2.tick_params(axis='x', rotation=45)
+    
+    plt.tight_layout()
+    plt.savefig(output_path / 'benchmark_summary.png', dpi=150, bbox_inches='tight')
+    plt.close()
+    
+    # Generate simple HTML dashboard
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>XTYLearner Benchmark Dashboard</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 40px; }}
+            .header {{ border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }}
+            .summary {{ background: #f5f5f5; padding: 20px; border-radius: 5px; margin-bottom: 30px; }}
+            .metric {{ display: inline-block; margin: 10px 20px; }}
+            .metric-value {{ font-size: 1.5em; font-weight: bold; color: #2c3e50; }}
+            .metric-name {{ color: #7f8c8d; }}
+            .chart {{ text-align: center; margin: 30px 0; }}
+            table {{ border-collapse: collapse; width: 100%; margin: 20px 0; }}
+            th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
+            th {{ background-color: #f2f2f2; }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>🚀 XTYLearner Model Benchmarks</h1>
+            <p>Last updated: {latest["timestamp"]} | Commit: {latest["commit"][:8]}</p>
+        </div>
+        
+        <div class="summary">
+            <h2>📊 Summary</h2>
+            <div class="metric">
+                <div class="metric-value">{len(latest["results"])}</div>
+                <div class="metric-name">Total Benchmarks</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{len(latest["metadata"]["models"])}</div>
+                <div class="metric-name">Models Tested</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{len(latest["metadata"]["datasets"])}</div>
+                <div class="metric-name">Datasets Used</div>
+            </div>
+        </div>
+        
+        <div class="chart">
+            <h2>📈 Performance Overview</h2>
+            <img src="benchmark_summary.png" alt="Benchmark Summary" style="max-width: 100%; height: auto;">
+        </div>
+        
+        <h2>📋 Detailed Results</h2>
+        <table>
+            <tr>
+                <th>Model</th>
+                <th>Dataset</th>
+                <th>Metric</th>
+                <th>Value</th>
+                <th>Unit</th>
+                <th>Confidence Interval</th>
+            </tr>
+    """
+    
+    for result in sorted(latest["results"], key=lambda x: x["name"]):
+        parts = result["name"].split("_", 2)
+        model = parts[0] if len(parts) > 0 else "unknown"
+        dataset = parts[1] if len(parts) > 1 else "unknown"
+        metric = parts[2] if len(parts) > 2 else "unknown"
+        
+        ci_range = f"[{result['range'][0]:.3f}, {result['range'][1]:.3f}]"
+        
+        html_content += f"""
+            <tr>
+                <td>{model}</td>
+                <td>{dataset}</td>
+                <td>{metric}</td>
+                <td>{result['value']:.4f}</td>
+                <td>{result['unit']}</td>
+                <td>{ci_range}</td>
+            </tr>
+        """
+    
+    html_content += """
+        </table>
+        
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #666;">
+            <p>Generated by XTYLearner Benchmark Suite</p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    with open(output_path / 'index.html', 'w', encoding='utf-8') as f:
+        f.write(html_content)
+    
+    print(f"Charts generated in {output_path}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--history", required=True)
+    parser.add_argument("--output-dir", required=True)
+    args = parser.parse_args()
+    
+    generate_charts(args.history, args.output_dir)
