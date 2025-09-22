@@ -393,7 +393,7 @@ jobs:
               </html>
               """
               
-              with open(output_path / 'index.html', 'w') as f:
+              with open(output_path / 'index.html', 'w', encoding='utf-8') as f:
                   f.write(html_content)
               
               print(f"Charts generated in {output_path}")
