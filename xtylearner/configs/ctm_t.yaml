@@ -1,3 +1,4 @@
+---
 model: ctm_t
 optim:
   lr: 3e-4

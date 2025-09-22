@@ -10,7 +10,7 @@ authors = [
 ]
 
 dependencies = [
-    "torch",
+    "torch>=2.0,<2.3",
     "scikit-learn",
     "numpy",
     "nflows>=0.14",
