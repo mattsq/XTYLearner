@@ -3,7 +3,6 @@
 
 import argparse
 import json
-import hashlib
 import time
 import os
 import sys
@@ -19,6 +18,16 @@ from xtylearner.data import get_dataset
 from xtylearner.training import Trainer
 import torch
 from torch.utils.data import DataLoader, TensorDataset
+
+
+@dataclass
+class BenchmarkDataBundle:
+    """Reusable data structures for benchmark iterations."""
+
+    train_loader: DataLoader
+    val_loader: DataLoader
+    x_dim: int
+    y_dim: int
 
 
 @dataclass
@@ -40,6 +49,8 @@ class ModelBenchmarker:
     def __init__(self, config_path: str = "benchmark_config.json"):
         self.config = self._load_config(config_path)
         self.results = []
+        torch.set_num_threads(self.config.get("torch_num_threads", 1))
+        self._data_cache: Dict[Tuple[str, int], BenchmarkDataBundle] = {}
         
     def _load_config(self, path: str) -> Dict:
         """Load configuration with defaults tailored for XTYLearner."""
@@ -61,28 +72,71 @@ class ModelBenchmarker:
                 config = json.load(f)
                 return {**defaults, **config}
         return defaults
+
+    def _prepare_data(self, dataset_name: str) -> BenchmarkDataBundle:
+        """Create (or reuse) dataset splits and data loaders."""
+
+        cache_key = (dataset_name, self.config["sample_size"])
+        if cache_key in self._data_cache:
+            return self._data_cache[cache_key]
+
+        dataset_kwargs: Dict[str, Any] = {
+            "n_samples": self.config["sample_size"],
+            "d_x": 2,
+        }
+        if dataset_name == "synthetic_mixed":
+            dataset_kwargs.update({"label_ratio": 0.5})
+
+        dataset_seed = np.random.randint(0, 10000)
+        dataset_kwargs["seed"] = dataset_seed
+        full_ds = get_dataset(dataset_name, **dataset_kwargs)
+
+        half = len(full_ds) // 2
+        train_tensors = tuple(t[:half] for t in full_ds.tensors)
+        val_tensors = tuple(t[half:] for t in full_ds.tensors)
+
+        train_ds = TensorDataset(*train_tensors)
+        val_ds = TensorDataset(*val_tensors)
+
+        train_loader = DataLoader(train_ds, batch_size=10, shuffle=True)
+        val_loader = DataLoader(val_ds, batch_size=10)
+
+        bundle = BenchmarkDataBundle(
+            train_loader=train_loader,
+            val_loader=val_loader,
+            x_dim=train_ds.tensors[0].size(1),
+            y_dim=train_ds.tensors[1].size(1),
+        )
+        self._data_cache[cache_key] = bundle
+        return bundle
     
     def benchmark_model(self, model_name: str, dataset_name: str) -> List[BenchmarkResult]:
         """Run benchmarks with multiple passes for statistical accuracy."""
         results = []
         np.random.seed(self.config["random_seed"])
         torch.manual_seed(self.config["random_seed"])
-        
+
         print(f"Benchmarking {model_name} on {dataset_name}...")
-        
+
+        data_bundle = self._prepare_data(dataset_name)
+
         # Warmup runs (not counted)
-        print(f"Running {self.config['warmup_iterations']} warmup iterations...")
-        for i in range(self.config["warmup_iterations"]):
-            print(f"  Warmup {i+1}/{self.config['warmup_iterations']}")
-            self._run_single_benchmark(model_name, dataset_name)
-        
+        warmup_iterations = self.config["warmup_iterations"]
+        if warmup_iterations:
+            print(f"Running {warmup_iterations} warmup iterations...")
+            for i in range(warmup_iterations):
+                print(f"  Warmup {i+1}/{warmup_iterations}")
+                self._run_warmup_pass(model_name, data_bundle)
+        else:
+            print("Skipping warmup iterations (configured as 0).")
+
         # Actual measurements
         print(f"Running {self.config['iterations']} measurement iterations...")
         metric_samples = {metric: [] for metric in self.config["metrics"]}
-        
+
         for i in range(self.config["iterations"]):
             print(f"  Iteration {i+1}/{self.config['iterations']}")
-            iteration_results = self._run_single_benchmark(model_name, dataset_name)
+            iteration_results = self._run_single_benchmark(model_name, data_bundle)
             
             for metric in self.config["metrics"]:
                 if metric in iteration_results:
@@ -117,63 +171,74 @@ class ModelBenchmarker:
         
         return results
     
-    def _run_single_benchmark(self, model_name: str, dataset_name: str) -> Dict[str, float]:
+    def _build_model_components(
+        self, model_name: str, data_bundle: BenchmarkDataBundle
+    ) -> Tuple[Any, Any]:
+        """Instantiate a model and its optimiser based on ``model_name``."""
+
+        model_kwargs = {"d_x": data_bundle.x_dim, "d_y": data_bundle.y_dim, "k": 2}
+
+        if model_name == "lp_knn":
+            model_kwargs["n_neighbors"] = 3
+        elif model_name == "ctm_t":
+            model_kwargs = {"d_in": data_bundle.x_dim + data_bundle.y_dim + 1}
+
+        model = get_model(model_name, **model_kwargs)
+
+        if hasattr(model, "loss_G") and hasattr(model, "loss_D"):
+            optimizer: Any = torch.optim.Adam(model.parameters(), lr=0.001)
+        else:
+            params = [
+                p
+                for p in getattr(model, "parameters", lambda: [])()
+                if p.requires_grad
+            ]
+            if not params:
+                params = [torch.zeros(1, requires_grad=True)]
+            optimizer = torch.optim.Adam(params, lr=0.001)
+
+        return model, optimizer
+
+    def _run_warmup_pass(
+        self, model_name: str, data_bundle: BenchmarkDataBundle
+    ) -> None:
+        """Perform a lightweight warmup to stabilise kernels and data pipelines."""
+
+        try:
+            model, optimizer = self._build_model_components(model_name, data_bundle)
+            trainer = Trainer(
+                model,
+                optimizer,
+                data_bundle.train_loader,
+                val_loader=data_bundle.val_loader,
+                logger=None,
+            )
+            trainer.fit(1)
+            trainer.evaluate(data_bundle.val_loader)
+        except Exception as exc:
+            print(f"    Warmup skipped due to error: {exc}")
+
+    def _run_single_benchmark(
+        self, model_name: str, data_bundle: BenchmarkDataBundle
+    ) -> Dict[str, float]:
         """Run a single benchmark iteration and return metrics."""
         try:
-            torch.set_num_threads(1)  # Consistent performance
-            
-            # Create dataset
-            if dataset_name == "synthetic_mixed":
-                full_ds = get_dataset(dataset_name, 
-                                    n_samples=self.config["sample_size"], 
-                                    d_x=2, 
-                                    label_ratio=0.5, 
-                                    seed=np.random.randint(0, 10000))
-            else:
-                full_ds = get_dataset(dataset_name, 
-                                    n_samples=self.config["sample_size"], 
-                                    d_x=2, 
-                                    seed=np.random.randint(0, 10000))
-            
-            # Split dataset
-            half = len(full_ds) // 2
-            train_ds = TensorDataset(*(t[:half] for t in full_ds.tensors))
-            val_ds = TensorDataset(*(t[half:] for t in full_ds.tensors))
-            
-            train_loader = DataLoader(train_ds, batch_size=10, shuffle=True)
-            val_loader = DataLoader(val_ds, batch_size=10)
-            
-            # Create model
-            x_dim = train_ds.tensors[0].size(1)
-            y_dim = train_ds.tensors[1].size(1)
-            model_kwargs = {"d_x": x_dim, "d_y": y_dim, "k": 2}
-            
-            # Special cases for specific models
-            if model_name == "lp_knn":
-                model_kwargs["n_neighbors"] = 3
-            elif model_name == "ctm_t":
-                model_kwargs = {"d_in": x_dim + y_dim + 1}
-            
-            model = get_model(model_name, **model_kwargs)
-            
-            # Create optimizer
-            if hasattr(model, "loss_G") and hasattr(model, "loss_D"):
-                # GAN-style model
-                opt = torch.optim.Adam(model.parameters(), lr=0.001)
-            else:
-                params = [p for p in getattr(model, "parameters", lambda: [])() if p.requires_grad]
-                if not params:
-                    params = [torch.zeros(1, requires_grad=True)]
-                opt = torch.optim.Adam(params, lr=0.001)
-            
+            model, opt = self._build_model_components(model_name, data_bundle)
+
             # Train and evaluate
             start_time = time.perf_counter()
-            trainer = Trainer(model, opt, train_loader, val_loader=val_loader, logger=None)
+            trainer = Trainer(
+                model,
+                opt,
+                data_bundle.train_loader,
+                val_loader=data_bundle.val_loader,
+                logger=None,
+            )
             trainer.fit(self.config["training_epochs"])
             train_time = time.perf_counter() - start_time
-            
+
             # Get metrics
-            val_metrics = trainer.evaluate(val_loader)
+            val_metrics = trainer.evaluate(data_bundle.val_loader)
             
             # Return standardized metrics
             return {
@@ -199,15 +264,17 @@ class ModelBenchmarker:
         clean_samples = [s for s in samples if not np.isnan(s)]
         if not clean_samples:
             return (0, 0)
-        
+
         if self.config["statistical_method"] == "bootstrap":
             n_bootstrap = 1000
-            bootstrap_means = []
-            
-            for _ in range(n_bootstrap):
-                resample = np.random.choice(clean_samples, size=len(clean_samples), replace=True)
-                bootstrap_means.append(np.mean(resample))
-            
+            sample_array = np.asarray(clean_samples, dtype=float)
+            resamples = np.random.choice(
+                sample_array,
+                size=(n_bootstrap, sample_array.size),
+                replace=True,
+            )
+            bootstrap_means = resamples.mean(axis=1)
+
             alpha = 1 - self.config["confidence_level"]
             lower = np.percentile(bootstrap_means, alpha/2 * 100)
             upper = np.percentile(bootstrap_means, (1 - alpha/2) * 100)
