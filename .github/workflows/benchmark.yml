@@ -422,7 +422,6 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./charts
-          destination_dir: benchmarks
           
       - name: Upload benchmark history
         if: github.ref == 'refs/heads/main'
