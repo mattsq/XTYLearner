@@ -59,13 +59,13 @@ jobs:
           # Create matrix based on PR vs main branch
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             # Limited matrix for PRs - quick smoke test
-            matrix='{"model":["cycle_dual"],"dataset":["synthetic"]}'
+            matrix='{"model":["cycle_dual","mean_teacher"],"dataset":["synthetic"]}'
           elif [[ "${{ github.event.inputs.full_benchmark }}" == "true" ]]; then
-            # Full matrix for manual dispatch
-            matrix='{"model":["cycle_dual","mean_teacher","prob_circuit","ganite","flow_ssc"],"dataset":["synthetic","synthetic_mixed"]}'
+            # Full matrix for manual dispatch - comprehensive set of diverse models
+            matrix='{"model":["cycle_dual","mean_teacher","prob_circuit","ganite","flow_ssc","vat","fixmatch","dragon_net","diffusion_cevae","bridge_diff","cacore","ss_cevae","tab_jepa","masked_tabular_transformer","gnn_scm","joint_ebm","factor_vae_plus","semiite","vacim","multitask"],"dataset":["synthetic","synthetic_mixed"]}'
           else
-            # Default matrix for main branch
-            matrix='{"model":["cycle_dual","mean_teacher","prob_circuit"],"dataset":["synthetic","synthetic_mixed"]}'
+            # Default matrix for main branch - expanded set for regular testing
+            matrix='{"model":["cycle_dual","mean_teacher","prob_circuit","ganite","flow_ssc","vat","fixmatch","dragon_net","diffusion_cevae","bridge_diff","cacore","ss_cevae"],"dataset":["synthetic","synthetic_mixed"]}'
           fi
           
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
@@ -76,11 +76,11 @@ jobs:
     needs: setup-matrix
     if: needs.setup-matrix.outputs.should_run == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix) }}
-      max-parallel: 4  # Prevent runner exhaustion
+      max-parallel: 6  # Increased for more models
     
     steps:
       - uses: actions/checkout@v4
@@ -108,8 +108,8 @@ jobs:
           
           echo "Running benchmark for model: ${{ matrix.model }}, dataset: ${{ matrix.dataset }}"
           
-          # Run with timeout
-          timeout 1200 python eval.py \
+          # Run with timeout (extended for complex models)
+          timeout 1800 python eval.py \
             --model ${{ matrix.model }} \
             --dataset ${{ matrix.dataset }} \
             --output results-${{ matrix.model }}-${{ matrix.dataset }}.json || {
