@@ -2,711 +2,711 @@
     <!DOCTYPE html>
     <html>
     <head>
+        <meta charset="utf-8">
         <title>XTYLearner Benchmark Dashboard</title>
         <style>
-            body { font-family: Arial, sans-serif; margin: 40px; }
+            body { font-family: Arial, sans-serif; margin: 40px; color: #2c3e50; }
             .header { border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
             .summary { background: #f5f5f5; padding: 20px; border-radius: 5px; margin-bottom: 30px; }
-            .metric { display: inline-block; margin: 10px 20px; }
-            .metric-value { font-size: 1.5em; font-weight: bold; color: #2c3e50; }
-            .metric-name { color: #7f8c8d; }
+            .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; }
+            .summary-card { background: #ffffff; border-radius: 5px; padding: 16px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+            .summary-card h3 { margin-top: 0; margin-bottom: 12px; font-size: 1rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6c7a89; }
+            .summary-card .value { font-size: 2rem; font-weight: bold; color: #2c3e50; }
+            .summary-card ul { margin: 12px 0 0; padding-left: 20px; }
+            .summary-card li { margin-bottom: 4px; }
             .chart { text-align: center; margin: 30px 0; }
+            .chart img { max-width: 100%; height: auto; border: 1px solid #e1e1e1; border-radius: 6px; }
             table { border-collapse: collapse; width: 100%; margin: 20px 0; }
-            th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+            th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
             th { background-color: #f2f2f2; }
+            section.metric-section { margin-bottom: 40px; }
+            footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; }
         </style>
     </head>
     <body>
         <div class="header">
             <h1>🚀 XTYLearner Model Benchmarks</h1>
-            <p>Last updated: 2025-09-22T09:05:04.042787 | Commit: 15ac2936</p>
+            <p>Last updated: 2025-09-22T11:13:16.131543 | Commit: 024880f3</p>
         </div>
-        
+
         <div class="summary">
             <h2>📊 Summary</h2>
-            <div class="metric">
-                <div class="metric-value">72</div>
-                <div class="metric-name">Total Benchmarks</div>
-            </div>
-            <div class="metric">
-                <div class="metric-value">12</div>
-                <div class="metric-name">Models Tested</div>
-            </div>
-            <div class="metric">
-                <div class="metric-value">8</div>
-                <div class="metric-name">Datasets Used</div>
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <h3>Total Benchmarks</h3>
+                    <div class="value">72</div>
+                </div>
+                <div class="summary-card">
+                    <h3>Models Tested</h3>
+                    <div class="value">12</div>
+                    <ul>
+                <li>bridge</li>
+                <li>cacore</li>
+                <li>cycle</li>
+                <li>diffusion</li>
+                <li>dragon</li>
+                <li>fixmatch</li>
+                <li>flow</li>
+                <li>ganite</li>
+                <li>mean</li>
+                <li>prob</li>
+                <li>ss</li>
+                <li>vat</li>
+                    </ul>
+                </div>
+                <div class="summary-card">
+                    <h3>Datasets Used</h3>
+                    <div class="value">8</div>
+                    <ul>
+                <li>cevae</li>
+                <li>circuit</li>
+                <li>diff</li>
+                <li>dual</li>
+                <li>net</li>
+                <li>ssc</li>
+                <li>synthetic</li>
+                <li>teacher</li>
+                    </ul>
+                </div>
             </div>
         </div>
-        
+
         <div class="chart">
             <h2>📈 Performance Overview</h2>
-            <img src="benchmark_summary.png" alt="Benchmark Summary" style="max-width: 100%; height: auto;">
+            <img src="benchmark_summary.png" alt="Benchmark Summary">
         </div>
-        
-        <h2>📋 Detailed Results</h2>
-        <table>
+
+        <section class="metric-section">
+            <h2>Validation Outcome RMSE (lower is better)</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Dataset</th>
+                        <th>Model</th>
+                        <th>Value</th>
+                        <th>95% CI</th>
+                        <th>Unit</th>
+                        <th>Samples</th>
+                    </tr>
+                </thead>
+                <tbody>
             <tr>
-                <th>Model</th>
-                <th>Dataset</th>
-                <th>Metric</th>
-                <th>Value</th>
-                <th>Unit</th>
-                <th>Confidence Interval</th>
-            </tr>
-    
-            <tr>
-                <td>bridge</td>
-                <td>diff</td>
-                <td>synthetic_mixed_train_time_seconds</td>
-                <td>88.2552</td>
-                <td>seconds</td>
-                <td>[87.590, 88.933]</td>
-            </tr>
-        
-            <tr>
-                <td>bridge</td>
-                <td>diff</td>
-                <td>synthetic_mixed_val_outcome_rmse</td>
-                <td>3.1199</td>
-                <td>rmse</td>
-                <td>[1.946, 4.435]</td>
-            </tr>
-        
-            <tr>
-                <td>bridge</td>
-                <td>diff</td>
-                <td>synthetic_mixed_val_treatment_accuracy</td>
-                <td>0.8595</td>
-                <td>accuracy</td>
-                <td>[0.798, 0.926]</td>
-            </tr>
-        
-            <tr>
-                <td>bridge</td>
-                <td>diff</td>
-                <td>synthetic_train_time_seconds</td>
-                <td>48.7982</td>
-                <td>seconds</td>
-                <td>[48.728, 48.874]</td>
-            </tr>
-        
-            <tr>
-                <td>bridge</td>
-                <td>diff</td>
-                <td>synthetic_val_outcome_rmse</td>
-                <td>1.8024</td>
-                <td>rmse</td>
-                <td>[1.272, 2.332]</td>
-            </tr>
-        
-            <tr>
-                <td>bridge</td>
-                <td>diff</td>
-                <td>synthetic_val_treatment_accuracy</td>
-                <td>0.8760</td>
-                <td>accuracy</td>
-                <td>[0.820, 0.944]</td>
-            </tr>
-        
-            <tr>
-                <td>cacore</td>
                 <td>synthetic</td>
-                <td>mixed_train_time_seconds</td>
-                <td>0.1732</td>
-                <td>seconds</td>
-                <td>[0.172, 0.174]</td>
-            </tr>
-        
-            <tr>
-                <td>cacore</td>
-                <td>synthetic</td>
-                <td>mixed_val_outcome_rmse</td>
-                <td>0.8655</td>
-                <td>rmse</td>
-                <td>[0.811, 0.926]</td>
-            </tr>
-        
-            <tr>
-                <td>cacore</td>
-                <td>synthetic</td>
-                <td>mixed_val_treatment_accuracy</td>
-                <td>0.7938</td>
-                <td>accuracy</td>
-                <td>[0.710, 0.878]</td>
-            </tr>
-        
-            <tr>
-                <td>cacore</td>
-                <td>synthetic</td>
-                <td>train_time_seconds</td>
-                <td>0.1551</td>
-                <td>seconds</td>
-                <td>[0.154, 0.157]</td>
-            </tr>
-        
-            <tr>
-                <td>cacore</td>
-                <td>synthetic</td>
-                <td>val_outcome_rmse</td>
-                <td>0.7751</td>
-                <td>rmse</td>
-                <td>[0.699, 0.845]</td>
-            </tr>
-        
-            <tr>
-                <td>cacore</td>
-                <td>synthetic</td>
-                <td>val_treatment_accuracy</td>
-                <td>0.8600</td>
-                <td>accuracy</td>
-                <td>[0.824, 0.888]</td>
-            </tr>
-        
-            <tr>
-                <td>cycle</td>
-                <td>dual</td>
-                <td>synthetic_mixed_train_time_seconds</td>
-                <td>0.2032</td>
-                <td>seconds</td>
-                <td>[0.203, 0.204]</td>
-            </tr>
-        
-            <tr>
-                <td>cycle</td>
-                <td>dual</td>
-                <td>synthetic_mixed_val_outcome_rmse</td>
-                <td>0.4479</td>
-                <td>rmse</td>
-                <td>[0.332, 0.588]</td>
-            </tr>
-        
-            <tr>
-                <td>cycle</td>
-                <td>dual</td>
-                <td>synthetic_mixed_val_treatment_accuracy</td>
-                <td>0.9343</td>
-                <td>accuracy</td>
-                <td>[0.888, 0.978]</td>
-            </tr>
-        
-            <tr>
-                <td>cycle</td>
-                <td>dual</td>
-                <td>synthetic_train_time_seconds</td>
-                <td>0.1803</td>
-                <td>seconds</td>
-                <td>[0.180, 0.181]</td>
-            </tr>
-        
-            <tr>
-                <td>cycle</td>
-                <td>dual</td>
-                <td>synthetic_val_outcome_rmse</td>
-                <td>0.3148</td>
-                <td>rmse</td>
-                <td>[0.236, 0.394]</td>
-            </tr>
-        
-            <tr>
-                <td>cycle</td>
-                <td>dual</td>
-                <td>synthetic_val_treatment_accuracy</td>
-                <td>0.9520</td>
-                <td>accuracy</td>
-                <td>[0.920, 0.992]</td>
-            </tr>
-        
-            <tr>
-                <td>diffusion</td>
-                <td>cevae</td>
-                <td>synthetic_mixed_train_time_seconds</td>
-                <td>0.3114</td>
-                <td>seconds</td>
-                <td>[0.304, 0.322]</td>
-            </tr>
-        
-            <tr>
-                <td>diffusion</td>
-                <td>cevae</td>
-                <td>synthetic_mixed_val_outcome_rmse</td>
-                <td>1.6300</td>
-                <td>rmse</td>
-                <td>[1.023, 2.308]</td>
-            </tr>
-        
-            <tr>
-                <td>diffusion</td>
-                <td>cevae</td>
-                <td>synthetic_mixed_val_treatment_accuracy</td>
-                <td>0.8258</td>
-                <td>accuracy</td>
-                <td>[0.738, 0.917]</td>
-            </tr>
-        
-            <tr>
-                <td>diffusion</td>
-                <td>cevae</td>
-                <td>synthetic_train_time_seconds</td>
-                <td>0.2667</td>
-                <td>seconds</td>
-                <td>[0.265, 0.269]</td>
-            </tr>
-        
-            <tr>
-                <td>diffusion</td>
-                <td>cevae</td>
-                <td>synthetic_val_outcome_rmse</td>
-                <td>1.5306</td>
-                <td>rmse</td>
-                <td>[0.887, 2.210]</td>
-            </tr>
-        
-            <tr>
-                <td>diffusion</td>
-                <td>cevae</td>
-                <td>synthetic_val_treatment_accuracy</td>
-                <td>0.8400</td>
-                <td>accuracy</td>
-                <td>[0.772, 0.908]</td>
-            </tr>
-        
-            <tr>
-                <td>dragon</td>
-                <td>net</td>
-                <td>synthetic_mixed_train_time_seconds</td>
-                <td>0.1883</td>
-                <td>seconds</td>
-                <td>[0.188, 0.189]</td>
-            </tr>
-        
-            <tr>
-                <td>dragon</td>
-                <td>net</td>
-                <td>synthetic_mixed_val_outcome_rmse</td>
-                <td>1.5685</td>
-                <td>rmse</td>
-                <td>[1.039, 2.105]</td>
-            </tr>
-        
-            <tr>
-                <td>dragon</td>
-                <td>net</td>
-                <td>synthetic_mixed_val_treatment_accuracy</td>
-                <td>0.6632</td>
-                <td>accuracy</td>
-                <td>[0.595, 0.728]</td>
-            </tr>
-        
-            <tr>
-                <td>dragon</td>
-                <td>net</td>
-                <td>synthetic_train_time_seconds</td>
-                <td>0.1606</td>
-                <td>seconds</td>
-                <td>[0.160, 0.161]</td>
-            </tr>
-        
-            <tr>
-                <td>dragon</td>
-                <td>net</td>
-                <td>synthetic_val_outcome_rmse</td>
-                <td>1.1862</td>
-                <td>rmse</td>
-                <td>[0.723, 1.650]</td>
-            </tr>
-        
-            <tr>
-                <td>dragon</td>
-                <td>net</td>
-                <td>synthetic_val_treatment_accuracy</td>
-                <td>0.7200</td>
-                <td>accuracy</td>
-                <td>[0.636, 0.804]</td>
-            </tr>
-        
-            <tr>
-                <td>fixmatch</td>
-                <td>synthetic</td>
-                <td>mixed_train_time_seconds</td>
-                <td>0.1692</td>
-                <td>seconds</td>
-                <td>[0.166, 0.172]</td>
-            </tr>
-        
-            <tr>
-                <td>fixmatch</td>
-                <td>synthetic</td>
-                <td>mixed_val_outcome_rmse</td>
-                <td>0.5824</td>
-                <td>rmse</td>
-                <td>[0.449, 0.807]</td>
-            </tr>
-        
-            <tr>
-                <td>fixmatch</td>
-                <td>synthetic</td>
-                <td>mixed_val_treatment_accuracy</td>
-                <td>0.9126</td>
-                <td>accuracy</td>
-                <td>[0.862, 0.968]</td>
-            </tr>
-        
-            <tr>
-                <td>fixmatch</td>
-                <td>synthetic</td>
-                <td>train_time_seconds</td>
-                <td>0.1166</td>
-                <td>seconds</td>
-                <td>[0.116, 0.118]</td>
-            </tr>
-        
-            <tr>
-                <td>fixmatch</td>
-                <td>synthetic</td>
-                <td>val_outcome_rmse</td>
-                <td>0.2872</td>
-                <td>rmse</td>
-                <td>[0.196, 0.378]</td>
-            </tr>
-        
-            <tr>
-                <td>fixmatch</td>
-                <td>synthetic</td>
-                <td>val_treatment_accuracy</td>
-                <td>0.9600</td>
-                <td>accuracy</td>
-                <td>[0.928, 0.992]</td>
-            </tr>
-        
-            <tr>
-                <td>flow</td>
-                <td>ssc</td>
-                <td>synthetic_mixed_train_time_seconds</td>
-                <td>2.5888</td>
-                <td>seconds</td>
-                <td>[2.581, 2.595]</td>
-            </tr>
-        
-            <tr>
-                <td>flow</td>
-                <td>ssc</td>
-                <td>synthetic_mixed_val_outcome_rmse</td>
-                <td>0.5523</td>
-                <td>rmse</td>
-                <td>[0.444, 0.716]</td>
-            </tr>
-        
-            <tr>
-                <td>flow</td>
-                <td>ssc</td>
-                <td>synthetic_mixed_val_treatment_accuracy</td>
-                <td>0.8648</td>
-                <td>accuracy</td>
-                <td>[0.818, 0.908]</td>
-            </tr>
-        
-            <tr>
-                <td>flow</td>
-                <td>ssc</td>
-                <td>synthetic_train_time_seconds</td>
-                <td>1.8542</td>
-                <td>seconds</td>
-                <td>[1.841, 1.868]</td>
-            </tr>
-        
-            <tr>
-                <td>flow</td>
-                <td>ssc</td>
-                <td>synthetic_val_outcome_rmse</td>
-                <td>0.1725</td>
-                <td>rmse</td>
-                <td>[0.156, 0.195]</td>
-            </tr>
-        
-            <tr>
-                <td>flow</td>
-                <td>ssc</td>
-                <td>synthetic_val_treatment_accuracy</td>
-                <td>0.9600</td>
-                <td>accuracy</td>
-                <td>[0.932, 0.988]</td>
-            </tr>
-        
-            <tr>
-                <td>ganite</td>
-                <td>synthetic</td>
-                <td>mixed_train_time_seconds</td>
-                <td>nan</td>
-                <td>seconds</td>
-                <td>[0.000, 0.000]</td>
-            </tr>
-        
-            <tr>
-                <td>ganite</td>
-                <td>synthetic</td>
-                <td>mixed_val_outcome_rmse</td>
-                <td>nan</td>
-                <td>rmse</td>
-                <td>[0.000, 0.000]</td>
-            </tr>
-        
-            <tr>
-                <td>ganite</td>
-                <td>synthetic</td>
-                <td>mixed_val_treatment_accuracy</td>
-                <td>nan</td>
-                <td>accuracy</td>
-                <td>[0.000, 0.000]</td>
-            </tr>
-        
-            <tr>
-                <td>ganite</td>
-                <td>synthetic</td>
-                <td>train_time_seconds</td>
-                <td>nan</td>
-                <td>seconds</td>
-                <td>[0.000, 0.000]</td>
-            </tr>
-        
-            <tr>
-                <td>ganite</td>
-                <td>synthetic</td>
-                <td>val_outcome_rmse</td>
-                <td>nan</td>
-                <td>rmse</td>
-                <td>[0.000, 0.000]</td>
-            </tr>
-        
-            <tr>
-                <td>ganite</td>
-                <td>synthetic</td>
-                <td>val_treatment_accuracy</td>
-                <td>nan</td>
-                <td>accuracy</td>
-                <td>[0.000, 0.000]</td>
-            </tr>
-        
-            <tr>
-                <td>mean</td>
-                <td>teacher</td>
-                <td>synthetic_mixed_train_time_seconds</td>
-                <td>0.1653</td>
-                <td>seconds</td>
-                <td>[0.165, 0.166]</td>
-            </tr>
-        
-            <tr>
-                <td>mean</td>
-                <td>teacher</td>
-                <td>synthetic_mixed_val_outcome_rmse</td>
-                <td>0.4906</td>
-                <td>rmse</td>
-                <td>[0.345, 0.659]</td>
-            </tr>
-        
-            <tr>
-                <td>mean</td>
-                <td>teacher</td>
-                <td>synthetic_mixed_val_treatment_accuracy</td>
-                <td>0.9083</td>
-                <td>accuracy</td>
-                <td>[0.836, 0.978]</td>
-            </tr>
-        
-            <tr>
-                <td>mean</td>
-                <td>teacher</td>
-                <td>synthetic_train_time_seconds</td>
-                <td>0.1559</td>
-                <td>seconds</td>
-                <td>[0.154, 0.158]</td>
-            </tr>
-        
-            <tr>
-                <td>mean</td>
-                <td>teacher</td>
-                <td>synthetic_val_outcome_rmse</td>
-                <td>0.3072</td>
-                <td>rmse</td>
-                <td>[0.205, 0.427]</td>
-            </tr>
-        
-            <tr>
-                <td>mean</td>
-                <td>teacher</td>
-                <td>synthetic_val_treatment_accuracy</td>
-                <td>0.9320</td>
-                <td>accuracy</td>
-                <td>[0.884, 0.980]</td>
-            </tr>
-        
-            <tr>
-                <td>prob</td>
-                <td>circuit</td>
-                <td>synthetic_mixed_train_time_seconds</td>
-                <td>0.0078</td>
-                <td>seconds</td>
-                <td>[0.008, 0.008]</td>
-            </tr>
-        
-            <tr>
-                <td>prob</td>
-                <td>circuit</td>
-                <td>synthetic_mixed_val_outcome_rmse</td>
-                <td>0.2071</td>
-                <td>rmse</td>
-                <td>[0.106, 0.325]</td>
-            </tr>
-        
-            <tr>
-                <td>prob</td>
-                <td>circuit</td>
-                <td>synthetic_mixed_val_treatment_accuracy</td>
-                <td>0.9148</td>
-                <td>accuracy</td>
-                <td>[0.835, 0.993]</td>
-            </tr>
-        
-            <tr>
-                <td>prob</td>
-                <td>circuit</td>
-                <td>synthetic_train_time_seconds</td>
-                <td>0.0079</td>
-                <td>seconds</td>
-                <td>[0.008, 0.008]</td>
-            </tr>
-        
-            <tr>
-                <td>prob</td>
-                <td>circuit</td>
-                <td>synthetic_val_outcome_rmse</td>
+                <td>prob_circuit</td>
                 <td>0.0993</td>
+                <td>0.0904 – 0.1091</td>
                 <td>rmse</td>
-                <td>[0.090, 0.109]</td>
+                <td>5</td>
             </tr>
-        
             <tr>
-                <td>prob</td>
-                <td>circuit</td>
-                <td>synthetic_val_treatment_accuracy</td>
-                <td>0.9800</td>
-                <td>accuracy</td>
-                <td>[0.960, 0.996]</td>
-            </tr>
-        
-            <tr>
-                <td>ss</td>
-                <td>cevae</td>
-                <td>synthetic_mixed_train_time_seconds</td>
-                <td>0.4560</td>
-                <td>seconds</td>
-                <td>[0.449, 0.468]</td>
-            </tr>
-        
-            <tr>
-                <td>ss</td>
-                <td>cevae</td>
-                <td>synthetic_mixed_val_outcome_rmse</td>
-                <td>1.1351</td>
+                <td>synthetic</td>
+                <td>flow_ssc</td>
+                <td>0.1725</td>
+                <td>0.1563 – 0.1947</td>
                 <td>rmse</td>
-                <td>[0.852, 1.524]</td>
+                <td>5</td>
             </tr>
-        
             <tr>
-                <td>ss</td>
-                <td>cevae</td>
-                <td>synthetic_mixed_val_treatment_accuracy</td>
-                <td>0.9343</td>
-                <td>accuracy</td>
-                <td>[0.888, 0.978]</td>
-            </tr>
-        
-            <tr>
-                <td>ss</td>
-                <td>cevae</td>
-                <td>synthetic_train_time_seconds</td>
-                <td>0.2756</td>
-                <td>seconds</td>
-                <td>[0.275, 0.276]</td>
-            </tr>
-        
-            <tr>
-                <td>ss</td>
-                <td>cevae</td>
-                <td>synthetic_val_outcome_rmse</td>
-                <td>1.1025</td>
+                <td>synthetic</td>
+                <td>fixmatch</td>
+                <td>0.2872</td>
+                <td>0.1961 – 0.3784</td>
                 <td>rmse</td>
-                <td>[0.790, 1.518]</td>
+                <td>5</td>
             </tr>
-        
             <tr>
-                <td>ss</td>
-                <td>cevae</td>
-                <td>synthetic_val_treatment_accuracy</td>
-                <td>0.9520</td>
-                <td>accuracy</td>
-                <td>[0.920, 0.992]</td>
-            </tr>
-        
-            <tr>
-                <td>vat</td>
                 <td>synthetic</td>
-                <td>mixed_train_time_seconds</td>
-                <td>0.1729</td>
-                <td>seconds</td>
-                <td>[0.171, 0.177]</td>
-            </tr>
-        
-            <tr>
                 <td>vat</td>
-                <td>synthetic</td>
-                <td>mixed_val_outcome_rmse</td>
-                <td>0.5616</td>
-                <td>rmse</td>
-                <td>[0.396, 0.759]</td>
-            </tr>
-        
-            <tr>
-                <td>vat</td>
-                <td>synthetic</td>
-                <td>mixed_val_treatment_accuracy</td>
-                <td>0.9243</td>
-                <td>accuracy</td>
-                <td>[0.854, 0.994]</td>
-            </tr>
-        
-            <tr>
-                <td>vat</td>
-                <td>synthetic</td>
-                <td>train_time_seconds</td>
-                <td>0.1541</td>
-                <td>seconds</td>
-                <td>[0.152, 0.158]</td>
-            </tr>
-        
-            <tr>
-                <td>vat</td>
-                <td>synthetic</td>
-                <td>val_outcome_rmse</td>
                 <td>0.2914</td>
+                <td>0.2020 – 0.3786</td>
                 <td>rmse</td>
-                <td>[0.202, 0.379]</td>
+                <td>5</td>
             </tr>
-        
             <tr>
-                <td>vat</td>
                 <td>synthetic</td>
-                <td>val_treatment_accuracy</td>
-                <td>0.9280</td>
-                <td>accuracy</td>
-                <td>[0.880, 0.976]</td>
+                <td>mean_teacher</td>
+                <td>0.3072</td>
+                <td>0.2053 – 0.4267</td>
+                <td>rmse</td>
+                <td>5</td>
             </tr>
-        
-        </table>
-        
-        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #666;">
-            <p>Generated by XTYLearner Benchmark Suite</p>
-        </div>
+            <tr>
+                <td>synthetic</td>
+                <td>cycle_dual</td>
+                <td>0.3148</td>
+                <td>0.2355 – 0.3941</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>cacore</td>
+                <td>0.7751</td>
+                <td>0.6988 – 0.8446</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>ss_cevae</td>
+                <td>1.1025</td>
+                <td>0.7896 – 1.5181</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>dragon_net</td>
+                <td>1.1862</td>
+                <td>0.7228 – 1.6496</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>diffusion_cevae</td>
+                <td>1.5306</td>
+                <td>0.8868 – 2.2098</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>bridge_diff</td>
+                <td>1.8024</td>
+                <td>1.2724 – 2.3324</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>ganite</td>
+                <td>n/a</td>
+                <td>0.0000 – 0.0000</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>prob_circuit</td>
+                <td>0.2071</td>
+                <td>0.1055 – 0.3247</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>cycle_dual</td>
+                <td>0.4479</td>
+                <td>0.3320 – 0.5884</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>mean_teacher</td>
+                <td>0.4906</td>
+                <td>0.3453 – 0.6593</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>flow_ssc</td>
+                <td>0.5523</td>
+                <td>0.4440 – 0.7158</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>vat</td>
+                <td>0.5616</td>
+                <td>0.3962 – 0.7593</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>fixmatch</td>
+                <td>0.5824</td>
+                <td>0.4486 – 0.8069</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>cacore</td>
+                <td>0.8655</td>
+                <td>0.8110 – 0.9258</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>ss_cevae</td>
+                <td>1.1351</td>
+                <td>0.8519 – 1.5242</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>dragon_net</td>
+                <td>1.5685</td>
+                <td>1.0386 – 2.1048</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>diffusion_cevae</td>
+                <td>1.6300</td>
+                <td>1.0229 – 2.3079</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>bridge_diff</td>
+                <td>3.1199</td>
+                <td>1.9459 – 4.4347</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>ganite</td>
+                <td>n/a</td>
+                <td>0.0000 – 0.0000</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="metric-section">
+            <h2>Validation Treatment Accuracy (higher is better)</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Dataset</th>
+                        <th>Model</th>
+                        <th>Value</th>
+                        <th>95% CI</th>
+                        <th>Unit</th>
+                        <th>Samples</th>
+                    </tr>
+                </thead>
+                <tbody>
+            <tr>
+                <td>synthetic</td>
+                <td>ganite</td>
+                <td>n/a</td>
+                <td>0.000 – 0.000</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>prob_circuit</td>
+                <td>0.980</td>
+                <td>0.960 – 0.996</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>flow_ssc</td>
+                <td>0.960</td>
+                <td>0.932 – 0.988</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>fixmatch</td>
+                <td>0.960</td>
+                <td>0.928 – 0.992</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>ss_cevae</td>
+                <td>0.952</td>
+                <td>0.920 – 0.992</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>cycle_dual</td>
+                <td>0.952</td>
+                <td>0.920 – 0.992</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>mean_teacher</td>
+                <td>0.932</td>
+                <td>0.884 – 0.980</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>vat</td>
+                <td>0.928</td>
+                <td>0.880 – 0.976</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>bridge_diff</td>
+                <td>0.876</td>
+                <td>0.820 – 0.944</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>cacore</td>
+                <td>0.860</td>
+                <td>0.824 – 0.888</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>diffusion_cevae</td>
+                <td>0.840</td>
+                <td>0.772 – 0.908</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>dragon_net</td>
+                <td>0.720</td>
+                <td>0.636 – 0.804</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>ganite</td>
+                <td>n/a</td>
+                <td>0.000 – 0.000</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>ss_cevae</td>
+                <td>0.934</td>
+                <td>0.888 – 0.978</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>cycle_dual</td>
+                <td>0.934</td>
+                <td>0.888 – 0.978</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>vat</td>
+                <td>0.924</td>
+                <td>0.854 – 0.994</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>prob_circuit</td>
+                <td>0.915</td>
+                <td>0.835 – 0.993</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>fixmatch</td>
+                <td>0.913</td>
+                <td>0.862 – 0.968</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>mean_teacher</td>
+                <td>0.908</td>
+                <td>0.836 – 0.978</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>flow_ssc</td>
+                <td>0.865</td>
+                <td>0.818 – 0.908</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>bridge_diff</td>
+                <td>0.860</td>
+                <td>0.798 – 0.926</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>diffusion_cevae</td>
+                <td>0.826</td>
+                <td>0.738 – 0.917</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>cacore</td>
+                <td>0.794</td>
+                <td>0.710 – 0.878</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>dragon_net</td>
+                <td>0.663</td>
+                <td>0.595 – 0.728</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="metric-section">
+            <h2>Training Time (seconds, lower is better)</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Dataset</th>
+                        <th>Model</th>
+                        <th>Value</th>
+                        <th>95% CI</th>
+                        <th>Unit</th>
+                        <th>Samples</th>
+                    </tr>
+                </thead>
+                <tbody>
+            <tr>
+                <td>synthetic</td>
+                <td>prob_circuit</td>
+                <td>0.01</td>
+                <td>0.01 – 0.01</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>fixmatch</td>
+                <td>0.11</td>
+                <td>0.11 – 0.12</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>mean_teacher</td>
+                <td>0.15</td>
+                <td>0.15 – 0.15</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>cacore</td>
+                <td>0.15</td>
+                <td>0.15 – 0.15</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>vat</td>
+                <td>0.15</td>
+                <td>0.15 – 0.15</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>dragon_net</td>
+                <td>0.16</td>
+                <td>0.16 – 0.16</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>cycle_dual</td>
+                <td>0.18</td>
+                <td>0.18 – 0.18</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>diffusion_cevae</td>
+                <td>0.27</td>
+                <td>0.27 – 0.27</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>ss_cevae</td>
+                <td>0.29</td>
+                <td>0.28 – 0.29</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>flow_ssc</td>
+                <td>1.84</td>
+                <td>1.83 – 1.85</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>bridge_diff</td>
+                <td>48.22</td>
+                <td>48.12 – 48.30</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>ganite</td>
+                <td>n/a</td>
+                <td>0.00 – 0.00</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>prob_circuit</td>
+                <td>0.01</td>
+                <td>0.01 – 0.01</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>fixmatch</td>
+                <td>0.17</td>
+                <td>0.17 – 0.17</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>vat</td>
+                <td>0.17</td>
+                <td>0.17 – 0.17</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>cacore</td>
+                <td>0.17</td>
+                <td>0.17 – 0.17</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>mean_teacher</td>
+                <td>0.17</td>
+                <td>0.17 – 0.18</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>dragon_net</td>
+                <td>0.19</td>
+                <td>0.19 – 0.19</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>cycle_dual</td>
+                <td>0.21</td>
+                <td>0.21 – 0.21</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>diffusion_cevae</td>
+                <td>0.30</td>
+                <td>0.30 – 0.31</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>ss_cevae</td>
+                <td>0.44</td>
+                <td>0.44 – 0.44</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>flow_ssc</td>
+                <td>2.46</td>
+                <td>2.45 – 2.47</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>bridge_diff</td>
+                <td>90.58</td>
+                <td>89.86 – 91.31</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>ganite</td>
+                <td>n/a</td>
+                <td>0.00 – 0.00</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <footer>
+            <p>Generated by the XTYLearner Benchmark Suite.</p>
+        </footer>
     </body>
     </html>
     
