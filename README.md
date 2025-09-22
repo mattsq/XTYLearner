@@ -269,3 +269,4 @@ with ``--config`` to override any settings.
 The repository also provides ``configs/continuous.yaml`` as an example
 training setup for :class:`~xtylearner.models.GNN_SCM` with continuous
 treatments and active learning.
+trigger
