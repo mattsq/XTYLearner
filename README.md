@@ -3,6 +3,8 @@
 Flexible implementations of various learners for joint learning of pre-treatment,
 treatment and post-treatment outcomes.
 
+<!-- Test workflow permissions fix -->
+
 ## Installation
 
 XTYLearner requires Python 3.8 or newer. The package can be installed directly
