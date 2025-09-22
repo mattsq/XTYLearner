@@ -1,0 +1,12 @@
+{
+  "iterations": 5,
+  "warmup_iterations": 2,
+  "confidence_level": 0.95,
+  "metrics": ["val_outcome_rmse", "val_treatment_accuracy", "train_time_seconds"],
+  "models": ["cycle_dual", "mean_teacher", "prob_circuit", "ganite", "flow_ssc"],
+  "datasets": ["synthetic", "synthetic_mixed"],
+  "statistical_method": "bootstrap",
+  "training_epochs": 10,
+  "sample_size": 100,
+  "random_seed": 42
+}

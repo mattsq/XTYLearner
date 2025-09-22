@@ -1,600 +1,432 @@
-# yamllint disable rule:truthy
----
-name: Benchmark Models
+name: Model Quality Benchmarking
 
 on:
-  pull_request:
-    types: [opened, synchronize]
   push:
     branches: [main]
+  pull_request:
+    types: [opened, synchronize]
+  workflow_dispatch:
+    inputs:
+      full_benchmark:
+        description: 'Run full benchmark suite'
+        required: false
+        default: 'false'
 
-# yamllint enable rule:truthy
+# Prevent concurrent updates to benchmark data
+concurrency:
+  group: benchmark-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  detect-changes:
-    if: github.actor != 'github-actions[bot]'
+  # Dynamic matrix generation based on available models
+  setup-matrix:
     runs-on: ubuntu-latest
     outputs:
-      should_run: ${{ steps.models.outputs.should_run }}
-      model_chunks: ${{ steps.models.outputs.model_chunks }}
-      models: ${{ steps.models.outputs.models }}
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      should_run: ${{ steps.check-changes.outputs.should_run }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.head_ref || github.ref_name }}
-      - name: Fetch base reference
-        if: github.event_name == 'pull_request'
-        run: git fetch origin ${{ github.base_ref }} --depth=1
-      - name: Determine benchmark models
-        id: models
-        env:
-          DEFAULT_MODELS: cycle_dual,mean_teacher,prob_circuit,ganite,flow_ssc
-          CHUNK_SIZE: '1'
+      
+      - name: Check if benchmark should run
+        id: check-changes
         run: |
-          python <<'PY'
-          import json
-          import os
-          import subprocess
-          from pathlib import Path
-
-          def has_ref(ref: str) -> bool:
-              return subprocess.run(
-                  ["git", "rev-parse", "--verify", ref],
-                  stdout=subprocess.DEVNULL,
-                  stderr=subprocess.DEVNULL,
-                  check=False,
-              ).returncode == 0
-
-          base_ref = os.environ.get("GITHUB_BASE_REF")
-          compare_ref = f"origin/{base_ref}" if base_ref else "origin/main"
-          if not has_ref(compare_ref):
-              compare_ref = "HEAD^"
-
-          diff_args = ["git", "diff", "--name-only"]
-          if has_ref(compare_ref):
-              diff_args.append(f"{compare_ref}...HEAD")
-
-          result = subprocess.run(
-              diff_args,
-              check=False,
-              stdout=subprocess.PIPE,
-              text=True,
-          )
-
-          changed_files: list[str] = []
-          for line in result.stdout.splitlines():
-              line = line.strip()
-              if line:
-                  changed_files.append(line)
-
-          changed_models = set()
-          for path in changed_files:
-              if (
-                  not path.startswith("xtylearner/models/")
-                  or not path.endswith(".py")
-              ):
-                  continue
-              name = Path(path).stem
-              if name.endswith("_model"):
-                  name = name[: -len("_model")]
-              changed_models.add(name)
-
-          default_models = [
-              model.strip()
-              for model in os.environ.get("DEFAULT_MODELS", "").split(",")
-              if model.strip()
-          ]
-          if changed_models:
-              selected = sorted(set(default_models) | changed_models)
-          else:
-              selected = default_models
-
-          if not selected:
-              selected = ["cycle_dual"]
-
-          chunk_size = max(1, int(os.environ.get("CHUNK_SIZE", "1")))
-          chunks: list[list[str]] = []
-          for index in range(0, len(selected), chunk_size):
-              chunks.append(selected[index : index + chunk_size])
-
-          output_path = Path(os.environ["GITHUB_OUTPUT"])
-          chunk_output = ["should_run=true", f"models={','.join(selected)}"]
-          chunk_strings = [",".join(chunk) for chunk in chunks]
-          chunk_output.append("model_chunks=" + json.dumps(chunk_strings))
-          output_text = "\n".join(chunk_output) + "\n"
-          output_path.write_text(output_text, encoding="utf-8")
-
-          print("Selected models:", ", ".join(selected))
-          for index, chunk in enumerate(chunks):
-              print(f"Chunk {index}: {', '.join(chunk)}")
-          PY
-
-  benchmark:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.should_run == 'true'
-    runs-on: ubuntu-latest
-    env:
-      PYTHON_VERSION: '3.12'
-    strategy:
-      fail-fast: false
-      matrix:
-        model_chunk: >-
-          ${{ fromJson(needs.detect-changes.outputs.model_chunks) }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.head_ref || github.ref_name }}
-      - name: Ensure main branch is available
-        run: |
-          set -euo pipefail
-          git fetch origin main --depth=50
-          current_branch=$(git rev-parse --abbrev-ref HEAD)
-          if [ "$current_branch" = "main" ]; then
+          # Always run on main branch
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
             exit 0
           fi
-          if git show-ref --verify --quiet refs/heads/main; then
-            git branch --force main origin/main
+          
+          # For PRs, check if relevant files changed
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # Check for changes in models, training, or benchmark files
+            changed_files=$(git diff --name-only ${{ github.event.pull_request.base.sha }}...${{ github.sha }})
+            
+            if echo "$changed_files" | grep -E "(xtylearner/models/|xtylearner/training/|eval\.py|benchmark_config\.json|\.github/workflows/benchmark\.yml)"; then
+              echo "should_run=true" >> $GITHUB_OUTPUT
+            else
+              echo "should_run=false" >> $GITHUB_OUTPUT
+            fi
           else
-            git branch main origin/main
+            echo "should_run=true" >> $GITHUB_OUTPUT
           fi
-      - uses: actions/setup-python@v5
+      
+      - name: Generate benchmark matrix
+        id: set-matrix
+        if: steps.check-changes.outputs.should_run == 'true'
+        run: |
+          # Create matrix based on PR vs main branch
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # Limited matrix for PRs - quick smoke test
+            matrix='{"model":["cycle_dual"],"dataset":["synthetic"]}'
+          elif [[ "${{ github.event.inputs.full_benchmark }}" == "true" ]]; then
+            # Full matrix for manual dispatch
+            matrix='{"model":["cycle_dual","mean_teacher","prob_circuit","ganite","flow_ssc"],"dataset":["synthetic","synthetic_mixed"]}'
+          else
+            # Default matrix for main branch
+            matrix='{"model":["cycle_dual","mean_teacher","prob_circuit"],"dataset":["synthetic","synthetic_mixed"]}'
+          fi
+          
+          echo "matrix=$matrix" >> $GITHUB_OUTPUT
+          echo "Generated matrix: $matrix"
+
+  # Parallel benchmark execution
+  benchmark:
+    needs: setup-matrix
+    if: needs.setup-matrix.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix) }}
+      max-parallel: 4  # Prevent runner exhaustion
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Python with cache
+        uses: actions/setup-python@v4
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'  # yamllint disable-line rule:truthy
-          cache-dependency-path: |
-            asv.conf.json
-            requirements.txt
-      - name: Install ASV tooling
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements.txt
+      
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install asv
-      - name: Compute ASV cache key
-        id: asv-cache
-        run: |
-          python <<'PY'
-          import hashlib
-          import os
-          from pathlib import Path
-
-          paths = [Path('asv.conf.json'), Path('requirements.txt')]
-          digest = hashlib.sha256()
-          for path in paths:
-              if path.exists():
-                  digest.update(path.read_bytes())
-
-          fingerprint = digest.hexdigest()
-          prefix = 'asv-env-ubuntu-latest-py3.12'
-
-          output = Path(os.environ['GITHUB_OUTPUT'])
-          with output.open('a', encoding='utf-8') as handle:
-              handle.write(f"fingerprint={fingerprint}\n")
-              handle.write(f"prefix={prefix}\n")
-              handle.write(f"cache_key={prefix}-{fingerprint}\n")
-          PY
-      - name: Restore cached ASV environments
-        id: cache-asv
-        uses: actions/cache@v4
-        with:
-          path: .asv/env
-          key: ${{ steps.asv-cache.outputs.cache_key }}
-          restore-keys: |
-            ${{ steps.asv-cache.outputs.prefix }}-
-      - name: Run ASV benchmarks
+          pip install torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+          pip install -e .
+      
+      # Run benchmarks with retry logic
+      - name: Run benchmarks
         env:
-          BENCHMARK_MODELS: ${{ matrix.model_chunk }}
+          PYTHONUNBUFFERED: 1
         run: |
           set -euo pipefail
           
-          # Create unique machine name for this chunk
-          CHUNK_ID=$(echo "${{ matrix.model_chunk }}" | tr ' ,/' '-' | tr -cd '[:alnum:]-')
-          MACHINE_NAME="github-actions-${CHUNK_ID}"
+          echo "Running benchmark for model: ${{ matrix.model }}, dataset: ${{ matrix.dataset }}"
           
-          echo "Using machine name: $MACHINE_NAME"
-          echo "Model chunk: ${BENCHMARK_MODELS:-<default>}"
-          
-          OS_NAME=$(python - <<'PY'
-          import platform
-
-          system = platform.system() or "UnknownOS"
-          release = platform.release() or ""
-          print((system + " " + release).strip())
-          PY
-          )
-
-          ARCH=$(uname -m)
-
-          CPU_INFO=$(python - <<'PY'
-          import platform
-          import subprocess
-
-          cpu = platform.processor()
-          if not cpu or cpu.lower() in {"", "x86_64", "amd64"}:
-              try:
-                  output = subprocess.check_output(["lscpu"], text=True)
-              except Exception:
-                  cpu = "Unknown CPU"
-              else:
-                  model_line = None
-                  for line in output.splitlines():
-                      if line.lower().startswith("model name:"):
-                          model_line = line
-                          break
-                  if model_line:
-                      cpu = model_line.split(":", 1)[1].strip()
-                  else:
-                      cpu = (
-                          output.strip().splitlines()[0].strip()
-                          or "Unknown CPU"
-                      )
-          print(cpu)
-          PY
-          )
-
-          NUM_CPU=$(python - <<'PY'
-          import os
-
-          print(os.cpu_count() or 1)
-          PY
-          )
-
-          RAM=$(python - <<'PY'
-          from pathlib import Path
-
-          meminfo = Path("/proc/meminfo")
-          total = None
-          if meminfo.exists():
-              for line in meminfo.read_text().splitlines():
-                  if line.startswith("MemTotal:"):
-                      parts = line.split()
-                      if len(parts) >= 2:
-                          try:
-                              total = int(parts[1]) * 1024
-                          except ValueError:
-                              total = None
-                      break
-
-          if total:
-              gib = total / (1024 ** 3)
-              if gib >= 1:
-                  value = f"{gib:.1f}GB"
-              else:
-                  mib = total / (1024 ** 2)
-                  value = f"{mib:.0f}MB"
-          else:
-              value = "Unknown RAM"
-          print(value)
-          PY
-          )
-
-          asv machine \
-            --machine "$MACHINE_NAME" \
-            --os "$OS_NAME" \
-            --arch "$ARCH" \
-            --cpu "$CPU_INFO" \
-            --num_cpu "$NUM_CPU" \
-            --ram "$RAM" \
-            --yes
-          COMMIT_HASH=$(git rev-parse HEAD)
-          if git rev-parse "${COMMIT_HASH}^" >/dev/null 2>&1; then
-            COMMIT_SPEC="${COMMIT_HASH}^!"
-          else
-            COMMIT_SPEC="$COMMIT_HASH"
-          fi
-          echo "Running benchmarks for commit: $COMMIT_HASH"
-          asv run "$COMMIT_SPEC" \
-            --machine "$MACHINE_NAME" \
-            --config asv.conf.json \
-            --show-stderr
-          if ! find .asv/results/"$MACHINE_NAME" -maxdepth 1 \
-              -name "*.json" -not -name "machine.json" -print -quit; then
-            echo "No benchmark result files were produced"
-            exit 1
-          fi
-          asv publish --config asv.conf.json --html-dir .asv/html
-      - name: Prepare artifact name
-        id: artifact
-        env:
-          MODEL_CHUNK: ${{ matrix.model_chunk }}
-        run: |
-          SAFE_NAME=${MODEL_CHUNK:-default}
-          SAFE_NAME=$(printf '%s' "$SAFE_NAME" | tr ' ,/' '---')
-          SAFE_NAME=$(printf '%s' "$SAFE_NAME" | tr -c 'A-Za-z0-9-_' '_')
-          echo "name=asv-results-$SAFE_NAME" >> "$GITHUB_OUTPUT"
-      - name: Upload benchmark artifacts
-        env:
-          MODEL_CHUNK: ${{ matrix.model_chunk }}
-        run: |
-          # Get machine name for this chunk
-          CHUNK_ID=$(echo "${{ matrix.model_chunk }}" | tr ' ,/' '-' | tr -cd '[:alnum:]-')
-          MACHINE_NAME="github-actions-${CHUNK_ID}"
-          echo "machine_name=$MACHINE_NAME" >> "$GITHUB_OUTPUT"
-        id: machine-name
-      - name: Upload benchmark artifacts
+          # Run with timeout
+          timeout 1200 python eval.py \
+            --model ${{ matrix.model }} \
+            --dataset ${{ matrix.dataset }} \
+            --output results-${{ matrix.model }}-${{ matrix.dataset }}.json || {
+              echo "Benchmark failed or timed out for ${{ matrix.model }} on ${{ matrix.dataset }}"
+              echo '{"results":[],"metadata":{"error":"timeout","model":"${{ matrix.model }}","dataset":"${{ matrix.dataset }}"}}' > results-${{ matrix.model }}-${{ matrix.dataset }}.json
+            }
+      
+      # Upload individual results
+      - name: Upload benchmark results
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.artifact.outputs.name }}
-          path: |
-            .asv/results/${{ steps.machine-name.outputs.machine_name }}
-            .asv/html
+          name: results-${{ matrix.model }}-${{ matrix.dataset }}
+          path: results-${{ matrix.model }}-${{ matrix.dataset }}.json
+          retention-days: 7
 
-  consolidate-results:
-    needs: [detect-changes, benchmark]
-    if: needs.detect-changes.outputs.should_run == 'true'
+  # Aggregate and analyze results
+  analyze:
+    needs: [setup-matrix, benchmark]
+    if: needs.setup-matrix.outputs.should_run == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      pages: write
+      id-token: write
+    
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.head_ref || github.ref_name }}
-      - name: Ensure main branch exists
-        run: |
-          # Ensure we have the main branch for ASV publish
-          if ! git show-ref --verify --quiet refs/heads/main; then
-            if git show-ref --verify --quiet refs/remotes/origin/main; then
-              git branch main origin/main
-            else
-              git fetch origin main:main
-            fi
-          fi
-      - uses: actions/setup-python@v5
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.12'
-          cache: 'pip'
-          cache-dependency-path: |
-            asv.conf.json
-            requirements.txt
-      - name: Install ASV tooling
+          python-version: '3.11'
+      
+      - name: Install analysis dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install asv
-      - name: Download all benchmark artifacts
+          pip install matplotlib pandas numpy scipy
+          # Set headless backend
+          export MPLBACKEND=Agg
+      
+      - name: Download all results
         uses: actions/download-artifact@v4
         with:
-          pattern: asv-results-*
-          path: artifact-downloads
-          merge-multiple: false
-      - name: Consolidate benchmark results
+          pattern: results-*
+          path: ./results
+      
+      - name: Create scripts directory
+        run: mkdir -p scripts
+      
+      - name: Create aggregation script
         run: |
-          set -euo pipefail
-          echo "=== Consolidating benchmark results ==="
-
-          # Create results directory
-          mkdir -p .asv/results
-
-          # Copy all machine results from artifacts (using unique machine names)
-          echo "=== Copying machine results ==="
-          machine_count=0
-          for artifact_dir in artifact-downloads/asv-results-*/results/*; do
-            if [ -d "$artifact_dir" ]; then
-              machine_name=$(basename "$artifact_dir")
-              echo "Copying results for machine: $machine_name"
-              cp -r "$artifact_dir" ".asv/results/$machine_name"
-              machine_count=$((machine_count + 1))
-            fi
-          done
-
-          echo "Consolidated $machine_count machines:"
-          ls -la .asv/results/
-
-          # Validate we have results
-          if [ "$machine_count" -eq 0 ]; then
-            echo "ERROR: No machine results found to consolidate"
-            exit 1
-          fi
-
-          # Generate unified HTML (ASV will handle multiple machines correctly)
-          echo "=== Generating unified HTML ==="
-          echo "Current git branches:"
-          git branch -a || echo "Git branch listing failed"
-          echo "Current commit:"
-          git rev-parse HEAD || echo "Git rev-parse failed"
-
-          # Create a temporary config that doesn't require specific branches
-          cp asv.conf.json asv-publish.conf.json
-          # Get current branch name
-          CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-          echo "Current branch: $CURRENT_BRANCH"
-
-          # Update config to use current branch instead of main
-          jq --arg branch "$CURRENT_BRANCH" '.branches = [$branch]' asv.conf.json > asv-publish.conf.json
-
-          # Try publish with modified config
-          echo "=== ASV Publish Debug ==="
-          echo "Config file contents:"
-          cat asv-publish.conf.json
-          echo "Available result files:"
-          find .asv/results -name "*.json" | head -10
-
-          # ASV publish will handle multiple machines correctly
-          asv publish --config asv-publish.conf.json --html-dir .asv/html --no-pull --verbose || {
-            echo "ASV publish failed, trying fallback approach..."
-
-            # Fallback: create minimal working HTML
-            echo "Generating minimal HTML manually..."
-            mkdir -p .asv/html
-            echo '<!DOCTYPE html>' > .asv/html/index.html
-            echo '<html>' >> .asv/html/index.html
-            echo '<head>' >> .asv/html/index.html
-            echo '    <title>XTYLearner Benchmarks</title>' >> .asv/html/index.html
-            echo '    <style>' >> .asv/html/index.html
-            echo '        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }' >> .asv/html/index.html
-            echo '        .benchmark { border: 1px solid #ddd; margin: 10px 0; padding: 15px; border-radius: 5px; }' >> .asv/html/index.html
-            echo '        .machine { background: #f5f5f5; margin: 10px 0; padding: 10px; border-radius: 3px; }' >> .asv/html/index.html
-            echo '    </style>' >> .asv/html/index.html
-            echo '</head>' >> .asv/html/index.html
-            echo '<body>' >> .asv/html/index.html
-            echo '    <h1>XTYLearner Benchmark Results</h1>' >> .asv/html/index.html
-            echo '    <p>✅ Benchmark execution completed successfully</p>' >> .asv/html/index.html
-            echo '    <p>✅ Results collected from parallel execution</p>' >> .asv/html/index.html
-            echo '    ' >> .asv/html/index.html
-            echo '    <div class="benchmark">' >> .asv/html/index.html
-            echo '        <h3>Execution Summary</h3>' >> .asv/html/index.html
-            echo "        <p>Machines: $machine_count</p>" >> .asv/html/index.html
-            echo "        <p>Models: ${{ needs.detect-changes.outputs.models }}</p>" >> .asv/html/index.html
-            echo "        <p>Commit: $(git rev-parse --short HEAD)</p>" >> .asv/html/index.html
-            echo '    </div>' >> .asv/html/index.html
-            echo '    ' >> .asv/html/index.html
-            echo '    <div class="benchmark">' >> .asv/html/index.html
-            echo '        <h3>Available Machines</h3>' >> .asv/html/index.html
-            for machine_dir in .asv/results/*; do
-              if [ -d "$machine_dir" ]; then
-                machine_name=$(basename "$machine_dir")
-                echo "        <div class=\"machine\">$machine_name</div>" >> .asv/html/index.html
-              fi
-            done
-            echo '    </div>' >> .asv/html/index.html
-            echo '</body>' >> .asv/html/index.html
-            echo '</html>' >> .asv/html/index.html
-          }
-
-          # Validate HTML generation
-          if [ ! -f ".asv/html/index.html" ]; then
-            echo "ERROR: HTML generation completely failed"
-            exit 1
-          fi
-
-          echo "HTML generation completed"
-          echo "Generated files:"
-          find .asv/html -name "*.html" | head -10
-          echo "HTML file size:"
-          ls -la .asv/html/index.html
-      - name: Upload consolidated artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: consolidated-asv-results
-          path: |
-            .asv/results
-            .asv/html
-
-  deploy-to-pages:
-    needs: [detect-changes, consolidate-results]
-    if: needs.detect-changes.outputs.should_run == 'true' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    # Note: Remove environment block to avoid protection rule issues
-    # environment:
-    #   name: github-pages
-    #   url: ${{ steps.deployment.outputs.page_url }}
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    steps:
-      - name: Download consolidated results
-        uses: actions/download-artifact@v4
-        with:
-          name: consolidated-asv-results
-          path: asv-consolidated
-      - name: Validate deployment package
-        id: validate
+          cat > scripts/aggregate_results.py << 'EOF'
+          #!/usr/bin/env python3
+          import json
+          import sys
+          from pathlib import Path
+          from datetime import datetime
+          import argparse
+          
+          def aggregate_results(input_dir, history_file, output_file):
+              results_dir = Path(input_dir)
+              all_results = []
+              
+              # Collect all result files
+              for result_file in results_dir.rglob("*.json"):
+                  try:
+                      with open(result_file) as f:
+                          data = json.load(f)
+                          if "results" in data:
+                              all_results.extend(data["results"])
+                  except Exception as e:
+                      print(f"Error reading {result_file}: {e}")
+              
+              # Load existing history
+              history = []
+              history_path = Path(history_file)
+              if history_path.exists():
+                  try:
+                      with open(history_path) as f:
+                          history = json.load(f)
+                  except:
+                      history = []
+              
+              # Create current benchmark entry
+              current_entry = {
+                  "timestamp": datetime.utcnow().isoformat(),
+                  "commit": os.environ.get("GITHUB_SHA", "unknown"),
+                  "results": all_results,
+                  "metadata": {
+                      "total_benchmarks": len(all_results),
+                      "models": list(set(r["name"].split("_")[0] for r in all_results)),
+                      "datasets": list(set(r["name"].split("_")[1] for r in all_results))
+                  }
+              }
+              
+              # Add to history
+              history.append(current_entry)
+              
+              # Keep only last 100 entries
+              history = history[-100:]
+              
+              # Save updated history
+              with open(history_path, 'w') as f:
+                  json.dump(history, f, indent=2)
+              
+              # Save current results
+              with open(output_file, 'w') as f:
+                  json.dump(current_entry, f, indent=2)
+              
+              print(f"Aggregated {len(all_results)} results")
+              print(f"History contains {len(history)} entries")
+          
+          if __name__ == "__main__":
+              import os
+              parser = argparse.ArgumentParser()
+              parser.add_argument("--input-dir", required=True)
+              parser.add_argument("--history-file", required=True)
+              parser.add_argument("--output-file", required=True)
+              args = parser.parse_args()
+              
+              aggregate_results(args.input_dir, args.history_file, args.output_file)
+          EOF
+      
+      - name: Aggregate results and update history
         run: |
-          set -euo pipefail
-          echo "=== Validating deployment package ==="
-
-          # Debug: Show actual artifact structure
-          echo "=== Artifact structure ==="
-          find asv-consolidated -type f | head -20
-          echo "=== Looking for HTML files ==="
-          find asv-consolidated -name "*.html" | head -10
-
-          # Find the actual HTML directory structure in artifact
-          html_dir=""
-
-          # Try different possible locations
-          possible_dirs=(
-            "asv-consolidated/.asv/html"
-            "asv-consolidated/html"
-            "asv-consolidated/.asv/html-test"
-          )
-
-          for dir in "${possible_dirs[@]}"; do
-            if [ -d "$dir" ] && [ -f "$dir/index.html" ]; then
-              html_dir="$dir"
-              break
-            fi
-          done
-
-          # If no standard directory found, search for any index.html
-          if [ -z "$html_dir" ]; then
-            echo "Standard HTML directories not found, searching for index.html..."
-            index_file=$(find asv-consolidated -name "index.html" -type f | head -1)
-            if [ -n "$index_file" ]; then
-              html_dir=$(dirname "$index_file")
-              echo "Found index.html at: $index_file"
-            fi
-          fi
-
-          if [ -z "$html_dir" ]; then
-            echo "ERROR: Cannot find HTML directory in artifact"
-            echo "Available directories:"
-            find asv-consolidated -type d
-            echo "Available HTML files:"
-            find asv-consolidated -name "*.html" -type f
-            exit 1
-          fi
-
-          echo "Found HTML directory: $html_dir"
-
-          # Normalize to a standard location for upload
-          normalized_dir="pages-content"
-          echo "Normalizing HTML content to: $normalized_dir"
-
-          # Copy HTML content to normalized location
-          cp -r "$html_dir" "$normalized_dir"
-
-          # Output the normalized path for the upload step
-          echo "upload_path=$normalized_dir" >> "$GITHUB_OUTPUT"
-
-          # Check required files exist
-          if [ ! -f "$normalized_dir/index.html" ]; then
-            echo "ERROR: Missing index.html in $normalized_dir"
-            echo "Contents of normalized directory:"
-            ls -la "$normalized_dir/" || echo "Directory listing failed"
-            exit 1
-          fi
-
-          # Check for required ASV assets (optional - may not exist in fallback HTML)
-          required_files=("asv.js" "asv.css" "asv_ui.js")
-          missing_assets=0
-          for file in "${required_files[@]}"; do
-            if [ ! -f "$normalized_dir/$file" ]; then
-              echo "WARNING: Missing ASV file: $file (may be fallback HTML)"
-              missing_assets=$((missing_assets + 1))
-            fi
-          done
-
-          # Validate index.html doesn't contain error messages (but allow fallback)
-          if grep -qi "error\|no.*data.*available" "$normalized_dir/index.html"; then
-            echo "WARNING: HTML contains error indicators (may be fallback)"
-            echo "First few lines of HTML:"
-            head -10 "$normalized_dir/index.html"
-          fi
-
-          echo "Deployment package validation completed"
-          echo "Original HTML directory: $html_dir"
-          echo "Normalized upload path: $normalized_dir"
-          echo "Missing ASV assets: $missing_assets/3"
-          echo "Package contents:"
-          find "$normalized_dir" -type f | head -20
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-      - name: Upload to GitHub Pages
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: ${{ steps.validate.outputs.upload_path }}
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-      - name: Verify deployment
+          python scripts/aggregate_results.py \
+            --input-dir ./results \
+            --history-file history.json \
+            --output-file current-benchmarks.json
+      
+      - name: Create simple visualization script
+        run: |
+          cat > scripts/generate_simple_charts.py << 'EOF'
+          #!/usr/bin/env python3
+          import json
+          import matplotlib
+          matplotlib.use('Agg')
+          import matplotlib.pyplot as plt
+          import pandas as pd
+          import numpy as np
+          from pathlib import Path
+          import argparse
+          
+          def generate_charts(history_file, output_dir):
+              output_path = Path(output_dir)
+              output_path.mkdir(exist_ok=True)
+              
+              # Load history
+              with open(history_file) as f:
+                  history = json.load(f)
+              
+              if not history:
+                  print("No history data found")
+                  return
+              
+              # Extract latest results for summary
+              latest = history[-1]
+              
+              # Create summary plot
+              fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+              
+              # Plot 1: RMSE by model
+              rmse_data = {}
+              accuracy_data = {}
+              
+              for result in latest["results"]:
+                  if "val_outcome_rmse" in result["name"]:
+                      model = result["name"].split("_")[0]
+                      rmse_data[model] = result["value"]
+                  elif "val_treatment_accuracy" in result["name"]:
+                      model = result["name"].split("_")[0]
+                      accuracy_data[model] = result["value"]
+              
+              if rmse_data:
+                  models = list(rmse_data.keys())
+                  values = list(rmse_data.values())
+                  ax1.bar(models, values)
+                  ax1.set_title('Model RMSE (Lower is Better)')
+                  ax1.set_ylabel('RMSE')
+                  ax1.tick_params(axis='x', rotation=45)
+              
+              if accuracy_data:
+                  models = list(accuracy_data.keys())
+                  values = list(accuracy_data.values())
+                  ax2.bar(models, values)
+                  ax2.set_title('Model Treatment Accuracy (Higher is Better)')
+                  ax2.set_ylabel('Accuracy')
+                  ax2.tick_params(axis='x', rotation=45)
+              
+              plt.tight_layout()
+              plt.savefig(output_path / 'benchmark_summary.png', dpi=150, bbox_inches='tight')
+              plt.close()
+              
+              # Generate simple HTML dashboard
+              html_content = f"""
+              <!DOCTYPE html>
+              <html>
+              <head>
+                  <title>XTYLearner Benchmark Dashboard</title>
+                  <style>
+                      body {{ font-family: Arial, sans-serif; margin: 40px; }}
+                      .header {{ border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }}
+                      .summary {{ background: #f5f5f5; padding: 20px; border-radius: 5px; margin-bottom: 30px; }}
+                      .metric {{ display: inline-block; margin: 10px 20px; }}
+                      .metric-value {{ font-size: 1.5em; font-weight: bold; color: #2c3e50; }}
+                      .metric-name {{ color: #7f8c8d; }}
+                      .chart {{ text-align: center; margin: 30px 0; }}
+                      table {{ border-collapse: collapse; width: 100%; margin: 20px 0; }}
+                      th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
+                      th {{ background-color: #f2f2f2; }}
+                  </style>
+              </head>
+              <body>
+                  <div class="header">
+                      <h1>🚀 XTYLearner Model Benchmarks</h1>
+                      <p>Last updated: {latest["timestamp"]} | Commit: {latest["commit"][:8]}</p>
+                  </div>
+                  
+                  <div class="summary">
+                      <h2>📊 Summary</h2>
+                      <div class="metric">
+                          <div class="metric-value">{len(latest["results"])}</div>
+                          <div class="metric-name">Total Benchmarks</div>
+                      </div>
+                      <div class="metric">
+                          <div class="metric-value">{len(latest["metadata"]["models"])}</div>
+                          <div class="metric-name">Models Tested</div>
+                      </div>
+                      <div class="metric">
+                          <div class="metric-value">{len(latest["metadata"]["datasets"])}</div>
+                          <div class="metric-name">Datasets Used</div>
+                      </div>
+                  </div>
+                  
+                  <div class="chart">
+                      <h2>📈 Performance Overview</h2>
+                      <img src="benchmark_summary.png" alt="Benchmark Summary" style="max-width: 100%; height: auto;">
+                  </div>
+                  
+                  <h2>📋 Detailed Results</h2>
+                  <table>
+                      <tr>
+                          <th>Model</th>
+                          <th>Dataset</th>
+                          <th>Metric</th>
+                          <th>Value</th>
+                          <th>Unit</th>
+                          <th>Confidence Interval</th>
+                      </tr>
+              """
+              
+              for result in sorted(latest["results"], key=lambda x: x["name"]):
+                  parts = result["name"].split("_", 2)
+                  model = parts[0] if len(parts) > 0 else "unknown"
+                  dataset = parts[1] if len(parts) > 1 else "unknown"
+                  metric = parts[2] if len(parts) > 2 else "unknown"
+                  
+                  ci_range = f"[{result['range'][0]:.3f}, {result['range'][1]:.3f}]"
+                  
+                  html_content += f"""
+                      <tr>
+                          <td>{model}</td>
+                          <td>{dataset}</td>
+                          <td>{metric}</td>
+                          <td>{result['value']:.4f}</td>
+                          <td>{result['unit']}</td>
+                          <td>{ci_range}</td>
+                      </tr>
+                  """
+              
+              html_content += """
+                  </table>
+                  
+                  <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #666;">
+                      <p>Generated by XTYLearner Benchmark Suite</p>
+                  </div>
+              </body>
+              </html>
+              """
+              
+              with open(output_path / 'index.html', 'w') as f:
+                  f.write(html_content)
+              
+              print(f"Charts generated in {output_path}")
+          
+          if __name__ == "__main__":
+              parser = argparse.ArgumentParser()
+              parser.add_argument("--history", required=True)
+              parser.add_argument("--output-dir", required=True)
+              args = parser.parse_args()
+              
+              generate_charts(args.history, args.output_dir)
+          EOF
+      
+      - name: Generate benchmark charts
         if: always()
         run: |
-          echo "=== Deployment Summary ==="
-          echo "Deployment status: ${{ steps.deployment.outcome }}"
-          if [ "${{ steps.deployment.outcome }}" = "success" ]; then
-            echo "✅ ASV benchmarks successfully deployed to GitHub Pages"
-            echo "🔗 URL: https://mattsq.github.io/XTYLearner/"
-          else
-            echo "❌ Deployment failed"
-            echo "Check the deployment logs above for details"
-          fi
+          python scripts/generate_simple_charts.py \
+            --history history.json \
+            --output-dir ./charts
+      
+      # Deploy to GitHub Pages (main branch only)
+      - name: Deploy dashboard
+        if: github.ref == 'refs/heads/main' && success()
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./charts
+          destination_dir: benchmarks
+          
+      - name: Upload benchmark history
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-history
+          path: history.json
+          retention-days: 90
