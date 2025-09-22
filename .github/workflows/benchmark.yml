@@ -243,6 +243,17 @@ jobs:
             --input-dir ./results \
             --history-file history.json \
             --output-file current-benchmarks.json
+
+      - name: Render markdown summary
+        if: always()
+        run: |
+          if [ -f current-benchmarks.json ]; then
+            python scripts/render_benchmark_summary.py \
+              --input current-benchmarks.json \
+              --output benchmark-summary.md
+          else
+            echo "_No benchmark results available._" > benchmark-summary.md
+          fi
       
       - name: Create simple visualization script
         run: |
@@ -414,6 +425,15 @@ jobs:
           python scripts/generate_simple_charts.py \
             --history history.json \
             --output-dir ./charts
+
+      - name: Attach benchmark summary to job summary
+        if: always()
+        run: |
+          if [ -f benchmark-summary.md ]; then
+            cat benchmark-summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "_No benchmark results available._" >> "$GITHUB_STEP_SUMMARY"
+          fi
       
       # Deploy to GitHub Pages (main branch only)
       - name: Deploy dashboard
