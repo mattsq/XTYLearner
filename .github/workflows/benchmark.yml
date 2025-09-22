@@ -71,9 +71,67 @@ jobs:
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
           echo "Generated matrix: $matrix"
 
+  prepare-runtime:
+    needs: setup-matrix
+    if: needs.setup-matrix.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python with cache
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+            pyproject.toml
+            uv.lock
+
+      - name: Restore pip and torch caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/torch
+          key: ${{ runner.os }}-deps-${{ hashFiles('requirements.txt', 'pyproject.toml', 'uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-deps-
+
+      - name: Restore prepared virtualenv
+        id: venv-cache
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-benchmark-venv-${{ hashFiles('requirements.txt', 'pyproject.toml', 'uv.lock', '.github/workflows/benchmark.yml') }}
+
+      - name: Build virtualenv
+        if: steps.venv-cache.outputs.cache-hit != 'true'
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+          pip install matplotlib pandas numpy scipy
+          pip install -e .
+
+      - name: Package prepared environment
+        run: |
+          tar -czf prepared-venv.tar.gz .venv
+
+      - name: Upload prepared environment
+        uses: actions/upload-artifact@v4
+        with:
+          name: prepared-venv
+          path: prepared-venv.tar.gz
+          retention-days: 3
+
   # Parallel benchmark execution
   benchmark:
-    needs: setup-matrix
+    needs: [setup-matrix, prepare-runtime]
     if: needs.setup-matrix.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -84,45 +142,110 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Setup Python with cache
-        uses: actions/setup-python@v4
+
+      - name: Download prepared environment
+        uses: actions/download-artifact@v4
         with:
-          python-version: '3.11'
-          cache: 'pip'
-          cache-dependency-path: requirements.txt
-      
-      - name: Install dependencies
+          name: prepared-venv
+          path: .
+
+      - name: Extract environment
+        id: extract-env
         run: |
-          python -m pip install --upgrade pip
-          pip install torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu
-          pip install -r requirements.txt
-          pip install -e .
-      
+          SECONDS=0
+          tar -xzf prepared-venv.tar.gz
+          echo "seconds=$SECONDS" >> $GITHUB_OUTPUT
+
+      - name: Ensure dataset cache directory
+        run: mkdir -p .cache/xtylearner
+
+      - name: Restore dataset cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/xtylearner
+          key: ${{ runner.os }}-dataset-${{ matrix.dataset }}-${{ hashFiles('eval.py') }}
+          restore-keys: |
+            ${{ runner.os }}-dataset-${{ matrix.dataset }}-
+
       # Run benchmarks with retry logic
       - name: Run benchmarks
+        id: run-benchmarks
         env:
           PYTHONUNBUFFERED: 1
         run: |
           set -euo pipefail
-          
+          SECONDS=0
+
           echo "Running benchmark for model: ${{ matrix.model }}, dataset: ${{ matrix.dataset }}"
-          
-          # Run with timeout (extended for complex models)
-          timeout 1800 python eval.py \
+
+          if ! timeout 1800 ./.venv/bin/python eval.py \
             --model ${{ matrix.model }} \
             --dataset ${{ matrix.dataset }} \
-            --output results-${{ matrix.model }}-${{ matrix.dataset }}.json || {
-              echo "Benchmark failed or timed out for ${{ matrix.model }} on ${{ matrix.dataset }}"
-              echo '{"results":[],"metadata":{"error":"timeout","model":"${{ matrix.model }}","dataset":"${{ matrix.dataset }}"}}' > results-${{ matrix.model }}-${{ matrix.dataset }}.json
-            }
-      
+            --output results-${{ matrix.model }}-${{ matrix.dataset }}.json; then
+            echo "Benchmark failed or timed out for ${{ matrix.model }} on ${{ matrix.dataset }}"
+            cat <<'EOF' > results-${{ matrix.model }}-${{ matrix.dataset }}.json
+{"results":[],"metadata":{"error":"timeout","model":"${{ matrix.model }}","dataset":"${{ matrix.dataset }}"}}
+EOF
+          fi
+
+          echo "seconds=$SECONDS" >> $GITHUB_OUTPUT
+
+      - name: Persist timing metadata
+        env:
+          MODEL: ${{ matrix.model }}
+          DATASET: ${{ matrix.dataset }}
+          ENV_SETUP_SECONDS: ${{ steps.extract-env.outputs.seconds }}
+          BENCHMARK_SECONDS: ${{ steps.run-benchmarks.outputs.seconds }}
+        run: |
+          ./.venv/bin/python - <<'PY'
+import json
+import os
+from pathlib import Path
+
+model = os.environ["MODEL"]
+dataset = os.environ["DATASET"]
+env_seconds = float(os.environ.get("ENV_SETUP_SECONDS", "0") or 0.0)
+benchmark_seconds = float(os.environ.get("BENCHMARK_SECONDS", "0") or 0.0)
+
+result_path = Path(f"results-{model}-{dataset}.json")
+timings = []
+if result_path.exists():
+    with result_path.open() as fh:
+        try:
+            payload = json.load(fh)
+        except json.JSONDecodeError:
+            payload = {}
+        if isinstance(payload, dict):
+            metadata = payload.get("metadata", {})
+            if isinstance(metadata, dict):
+                timings = metadata.get("timings", [])
+
+timing_record = {}
+if isinstance(timings, list):
+    for candidate in timings:
+        if isinstance(candidate, dict) and candidate.get("model") == model and candidate.get("dataset") == dataset:
+            timing_record.update(candidate)
+            break
+    else:
+        if timings and isinstance(timings[0], dict):
+            timing_record.update(timings[0])
+timing_record.setdefault("model", model)
+timing_record.setdefault("dataset", dataset)
+timing_record["environment_setup_seconds"] = env_seconds
+timing_record["execution_step_seconds"] = benchmark_seconds
+
+with Path(f"timing-{model}-{dataset}.json").open("w") as fh:
+    json.dump(timing_record, fh, indent=2)
+PY
+
       # Upload individual results
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
         with:
           name: results-${{ matrix.model }}-${{ matrix.dataset }}
-          path: results-${{ matrix.model }}-${{ matrix.dataset }}.json
+          path: |
+            results-${{ matrix.model }}-${{ matrix.dataset }}.json
+            timing-${{ matrix.model }}-${{ matrix.dataset }}.json
           retention-days: 7
 
   # Aggregate and analyze results
@@ -141,124 +264,60 @@ jobs:
         with:
           fetch-depth: 0
       
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: Download prepared environment
+        uses: actions/download-artifact@v4
         with:
-          python-version: '3.11'
-      
-      - name: Install analysis dependencies
+          name: prepared-venv
+          path: .
+
+      - name: Extract environment
         run: |
-          python -m pip install --upgrade pip
-          pip install matplotlib pandas numpy scipy
-          # Set headless backend
-          export MPLBACKEND=Agg
-      
+          tar -xzf prepared-venv.tar.gz
+
       - name: Download all results
         uses: actions/download-artifact@v4
         with:
           pattern: results-*
           path: ./results
-      
-      - name: Create scripts directory
-        run: mkdir -p scripts
-      
-      - name: Create aggregation script
-        run: |
-          cat > scripts/aggregate_results.py << 'EOF'
-          #!/usr/bin/env python3
-          import json
-          import sys
-          import os
-          from pathlib import Path
-          from datetime import datetime
-          import argparse
-          
-          def aggregate_results(input_dir, history_file, output_file):
-              results_dir = Path(input_dir)
-              all_results = []
-              
-              # Collect all result files
-              for result_file in results_dir.rglob("*.json"):
-                  try:
-                      with open(result_file) as f:
-                          data = json.load(f)
-                          if "results" in data:
-                              all_results.extend(data["results"])
-                  except Exception as e:
-                      print(f"Error reading {result_file}: {e}")
-              
-              # Load existing history
-              history = []
-              history_path = Path(history_file)
-              if history_path.exists():
-                  try:
-                      with open(history_path) as f:
-                          history = json.load(f)
-                  except:
-                      history = []
-              
-              # Create current benchmark entry
-              current_entry = {
-                  "timestamp": datetime.utcnow().isoformat(),
-                  "commit": os.environ.get("GITHUB_SHA", "unknown"),
-                  "results": all_results,
-                  "metadata": {
-                      "total_benchmarks": len(all_results),
-                      "models": list(set(r["name"].split("_")[0] for r in all_results)),
-                      "datasets": list(set(r["name"].split("_")[1] for r in all_results))
-                  }
-              }
-              
-              # Add to history
-              history.append(current_entry)
-              
-              # Keep only last 100 entries
-              history = history[-100:]
-              
-              # Save updated history
-              with open(history_path, 'w') as f:
-                  json.dump(history, f, indent=2)
-              
-              # Save current results
-              with open(output_file, 'w') as f:
-                  json.dump(current_entry, f, indent=2)
-              
-              print(f"Aggregated {len(all_results)} results")
-              print(f"History contains {len(history)} entries")
-          
-          if __name__ == "__main__":
-              import os
-              parser = argparse.ArgumentParser()
-              parser.add_argument("--input-dir", required=True)
-              parser.add_argument("--history-file", required=True)
-              parser.add_argument("--output-file", required=True)
-              args = parser.parse_args()
-              
-              aggregate_results(args.input_dir, args.history_file, args.output_file)
-          EOF
-      
+
       - name: Aggregate results and update history
         run: |
-          python scripts/aggregate_results.py \
+          ./.venv/bin/python scripts/aggregate_results.py \
             --input-dir ./results \
             --history-file history.json \
             --output-file current-benchmarks.json
 
       - name: Generate benchmark charts and summary
         if: always()
+        env:
+          MPLBACKEND: Agg
         run: |
-          python scripts/generate_simple_charts.py \
+          ./.venv/bin/python scripts/generate_simple_charts.py \
             --history history.json \
             --output-dir ./charts \
             --markdown-output benchmark-summary.md
 
-      - name: Attach benchmark summary to job summary
+      - name: Summarize benchmark timings
+        if: always()
+        run: |
+          ./.venv/bin/python scripts/summarize_timings.py \
+            --current current-benchmarks.json \
+            --timing-dir ./results \
+            --summary-out timing-summary.md
+
+      - name: Attach summaries to job summary
         if: always()
         run: |
           if [ -f benchmark-summary.md ]; then
             cat benchmark-summary.md >> "$GITHUB_STEP_SUMMARY"
           else
             echo "_No benchmark results available._" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f timing-summary.md ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            cat timing-summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "_No timing data captured._" >> "$GITHUB_STEP_SUMMARY"
           fi
       
       # Deploy to GitHub Pages (main branch only)
