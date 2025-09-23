@@ -238,35 +238,63 @@ def _select_top_series(
     return [((model, dataset), points) for (model, dataset), _, points in candidates]
 
 
-def _plot_trend_chart(
+def _slugify(text: str) -> str:
+    cleaned = "".join(char if char.isalnum() else "-" for char in text.strip().lower())
+    collapsed = "-".join(filter(None, cleaned.split("-")))
+    return collapsed or "unknown"
+
+
+def _plot_trend_charts_by_dataset(
     metric: MetricInfo,
     series: List[Tuple[Tuple[str, str], List[Tuple[str, float]]]],
     output_dir: Path,
-) -> Optional[str]:
+) -> Dict[str, str]:
     if not series:
-        return None
+        return {}
 
-    fig, ax = plt.subplots(figsize=(12, 6))
-
+    grouped: Dict[str, List[Tuple[str, List[Tuple[str, float]]]]] = defaultdict(list)
     for (model, dataset), points in series:
-        commits = [commit for commit, _ in points]
-        values = [value for _, value in points]
-        label = f"{model} on {dataset}"
-        ax.plot(commits, values, marker="o", label=label)
+        grouped[dataset].append((model, points))
 
-    ax.set_title(f"{metric.label} over recent commits")
-    ax.set_xlabel("Commit")
-    ax.set_ylabel(metric.label)
-    ax.grid(True, linestyle="--", alpha=0.3)
-    ax.legend(loc="best")
-    plt.xticks(rotation=45, ha="right")
-    plt.tight_layout()
+    image_names: Dict[str, str] = {}
 
-    filename = f"benchmark_trend_{metric.key}.png"
-    plt.savefig(output_dir / filename, dpi=150, bbox_inches="tight")
-    plt.close(fig)
+    for dataset, entries in grouped.items():
+        fig, ax = plt.subplots(figsize=(12, 6))
 
-    return filename
+        for model, points in entries:
+            commits = [commit for commit, _ in points]
+            values = [value for _, value in points]
+            ax.plot(commits, values, marker="o", label=model)
+
+        dataset_label = dataset or "unknown"
+        ax.set_title(f"{metric.label} – {dataset_label} over recent commits")
+        ax.set_xlabel("Commit")
+        ax.set_ylabel(metric.label)
+        ax.grid(True, linestyle="--", alpha=0.3)
+        plt.xticks(rotation=45, ha="right")
+
+        handles, labels = ax.get_legend_handles_labels()
+        if handles:
+            fig.subplots_adjust(bottom=0.28)
+            column_guess = max(1, math.ceil(len(labels) / 4))
+            ncols = min(4, column_guess)
+            ax.legend(
+                loc="upper center",
+                bbox_to_anchor=(0.5, -0.2),
+                ncol=ncols,
+                fontsize=8,
+                frameon=False,
+            )
+
+        plt.tight_layout()
+
+        filename = f"benchmark_trend_{metric.key}_{_slugify(dataset_label)}.png"
+        plt.savefig(output_dir / filename, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        image_names[dataset_label] = filename
+
+    return image_names
 
 
 def _build_trend_markdown(
@@ -544,7 +572,7 @@ def generate_charts(history_file: str, output_dir: str, markdown_output: Optiona
     markdown_summary = "_No benchmark results available._\n"
     latest: Optional[Mapping[str, Any]] = None
     normalised: List[Dict[str, Any]] = []
-    trend_images: Dict[str, str] = {}
+    trend_images: Dict[str, Dict[str, str]] = {}
     trend_markdown: List[str] = []
 
     if history:
@@ -564,9 +592,9 @@ def generate_charts(history_file: str, output_dir: str, markdown_output: Optiona
             selected_series = _select_top_series(time_series, info)
             if not selected_series:
                 continue
-            image_name = _plot_trend_chart(info, selected_series, output_path)
-            if image_name:
-                trend_images[info.key] = image_name
+            image_map = _plot_trend_charts_by_dataset(info, selected_series, output_path)
+            if image_map:
+                trend_images[info.key] = image_map
             trend_markdown.extend(_build_trend_markdown(info, selected_series))
 
     if normalised:
@@ -622,15 +650,15 @@ def generate_charts(history_file: str, output_dir: str, markdown_output: Optiona
     trend_sections_html = "        <p><em>No historical trend data available yet.</em></p>"
     trend_sections: List[str] = []
     for info in METRICS:
-        image_name = trend_images.get(info.key)
-        if not image_name:
-            continue
-        trend_sections.append(
-            "        <div class=\"chart\">\n"
-            f"            <h2>Trend – {escape(info.label)}</h2>\n"
-            f"            <img src=\"{escape(image_name)}\" alt=\"Trend for {escape(info.label)}\">\n"
-            "        </div>"
-        )
+        image_map = trend_images.get(info.key) or {}
+        for dataset_label, image_name in sorted(image_map.items(), key=lambda item: item[0].lower()):
+            heading = f"Trend – {info.label} on {dataset_label}"
+            trend_sections.append(
+                "        <div class=\"chart\">\n"
+                f"            <h2>{escape(heading)}</h2>\n"
+                f"            <img src=\"{escape(image_name)}\" alt=\"{escape(heading)}\">\n"
+                "        </div>"
+            )
 
     if trend_sections:
         trend_sections_html = "\n".join(trend_sections)
