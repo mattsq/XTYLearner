@@ -63,74 +63,7 @@ jobs:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           FULL_BENCHMARK: ${{ github.event.inputs.full_benchmark }}
         run: |
-          sed 's/^          //' <<'PY' | python
-                    import json
-                    import os
-
-                    event_name = os.environ.get("GITHUB_EVENT_NAME", "")
-                    full_benchmark = os.environ.get("FULL_BENCHMARK", "").lower() == "true"
-
-                    if event_name == "pull_request":
-                        matrix = {
-                            "model": [
-                                "cycle_dual",
-                                "mean_teacher",
-                            ],
-                            "dataset": ["synthetic"],
-                        }
-                    elif full_benchmark:
-                        matrix = {
-                            "model": [
-                                "cycle_dual",
-                                "mean_teacher",
-                                "prob_circuit",
-                                "ganite",
-                                "flow_ssc",
-                                "vat",
-                                "fixmatch",
-                                "dragon_net",
-                                "diffusion_cevae",
-                                "bridge_diff",
-                                "cacore",
-                                "ss_cevae",
-                                "tab_jepa",
-                                "masked_tabular_transformer",
-                                "gnn_scm",
-                                "joint_ebm",
-                                "factor_vae_plus",
-                                "semiite",
-                                "vacim",
-                                "multitask",
-                            ],
-                            "dataset": ["synthetic", "synthetic_mixed"],
-                        }
-                    else:
-                        matrix = {
-                            "model": [
-                                "cycle_dual",
-                                "mean_teacher",
-                                "prob_circuit",
-                                "ganite",
-                                "flow_ssc",
-                                "vat",
-                                "fixmatch",
-                                "dragon_net",
-                                "diffusion_cevae",
-                                "bridge_diff",
-                                "cacore",
-                                "ss_cevae",
-                            ],
-                            "dataset": ["synthetic", "synthetic_mixed"],
-                        }
-
-                    payload = json.dumps(matrix, separators=(",", ":"))
-                    output = os.environ.get("GITHUB_OUTPUT")
-                    if not output:
-                        raise SystemExit("GITHUB_OUTPUT not set")
-                    with open(output, "a", encoding="utf-8") as fh:
-                        fh.write(f"matrix={payload}\n")
-                    print(f"Generated matrix: {payload}")
-          PY
+          python3 scripts/generate_benchmark_matrix.py --output "$GITHUB_OUTPUT"
 
   prepare-runtime:
     needs: setup-matrix
@@ -250,26 +183,10 @@ jobs:
             --dataset ${{ matrix.dataset }} \
             --output results-${{ matrix.model }}-${{ matrix.dataset }}.json; then
             echo "Benchmark failed or timed out for ${{ matrix.model }} on ${{ matrix.dataset }}"
-            sed 's/^            //' <<'PY' | python
-                      import json
-                      from pathlib import Path
-
-                      fallback_path = Path(
-                          "results-${{ matrix.model }}-${{ matrix.dataset }}.json"
-                      )
-                      fallback_payload = {
-                          "results": [],
-                          "metadata": {
-                              "error": "timeout",
-                              "model": "${{ matrix.model }}",
-                              "dataset": "${{ matrix.dataset }}",
-                          },
-                      }
-                      fallback_path.write_text(
-                          json.dumps(fallback_payload, separators=(",", ":")),
-                          encoding="utf-8",
-                      )
-            PY
+            ./.venv/bin/python scripts/write_timeout_result.py \
+              --path "results-${{ matrix.model }}-${{ matrix.dataset }}.json" \
+              --model "${{ matrix.model }}" \
+              --dataset "${{ matrix.dataset }}"
           fi
 
           echo "seconds=$SECONDS" >> $GITHUB_OUTPUT
@@ -281,57 +198,13 @@ jobs:
           ENV_SETUP_SECONDS: ${{ steps.extract-env.outputs.seconds }}
           BENCHMARK_SECONDS: ${{ steps.run-benchmarks.outputs.seconds }}
         run: |
-          sed 's/^          //' <<'PY' | ./.venv/bin/python
-                    import json
-                    import os
-                    from pathlib import Path
-
-                    model = os.environ["MODEL"]
-                    dataset = os.environ["DATASET"]
-                    env_seconds = float(
-                        os.environ.get("ENV_SETUP_SECONDS", "0") or 0.0
-                    )
-                    benchmark_seconds = float(
-                        os.environ.get("BENCHMARK_SECONDS", "0") or 0.0
-                    )
-
-                    result_path = Path(f"results-{model}-{dataset}.json")
-                    timings = []
-                    if result_path.exists():
-                        with result_path.open(encoding="utf-8") as fh:
-                            try:
-                                payload = json.load(fh)
-                            except json.JSONDecodeError:
-                                payload = {}
-                            if isinstance(payload, dict):
-                                metadata = payload.get("metadata", {})
-                                if isinstance(metadata, dict):
-                                    timings = metadata.get("timings", [])
-
-                    timing_record = {}
-                    if isinstance(timings, list):
-                        for candidate in timings:
-                            if (
-                                isinstance(candidate, dict)
-                                and candidate.get("model") == model
-                                and candidate.get("dataset") == dataset
-                            ):
-                                timing_record.update(candidate)
-                                break
-                        else:
-                            if timings and isinstance(timings[0], dict):
-                                timing_record.update(timings[0])
-
-                    timing_record.setdefault("model", model)
-                    timing_record.setdefault("dataset", dataset)
-                    timing_record["environment_setup_seconds"] = env_seconds
-                    timing_record["execution_step_seconds"] = benchmark_seconds
-
-                    with Path(f"timing-{model}-{dataset}.json").open(
-                        "w", encoding="utf-8"
-                    ) as fh:
-                        json.dump(timing_record, fh, indent=2)
-          PY
+          ./.venv/bin/python scripts/update_timing_metadata.py \
+            --model "$MODEL" \
+            --dataset "$DATASET" \
+            --env-seconds "${ENV_SETUP_SECONDS:-0}" \
+            --benchmark-seconds "${BENCHMARK_SECONDS:-0}" \
+            --results-path "results-${{ matrix.model }}-${{ matrix.dataset }}.json" \
+            --output-path "timing-${{ matrix.model }}-${{ matrix.dataset }}.json"
 
       # Upload individual results
       - name: Upload benchmark results
