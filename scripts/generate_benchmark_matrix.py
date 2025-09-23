@@ -65,7 +65,33 @@ def as_bool(value: str | None) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "y"}
 
 
-def choose_matrix(event_name: str, full_benchmark: bool) -> dict[str, Sequence[str]]:
+KNOWN_MODELS = set(FULL_MATRIX["model"]) | {"cycle_dual", "mean_teacher"}
+
+
+def parse_changed_models(value: str | None) -> list[str]:
+    if not value:
+        return []
+    models = [item.strip() for item in value.split(",") if item.strip()]
+    filtered = []
+    for name in models:
+        if name in KNOWN_MODELS:
+            filtered.append(name)
+        else:
+            # allow direct filenames e.g. "bridge_diff" or "bridge_diff_model"
+            name = name.replace("_model", "")
+            if name in KNOWN_MODELS:
+                filtered.append(name)
+    return sorted(set(filtered))
+
+
+def choose_matrix(
+    event_name: str,
+    full_benchmark: bool,
+    changed_models: Sequence[str],
+) -> dict[str, Sequence[str]]:
+    if changed_models:
+        models = changed_models
+        return {"model": models, "dataset": ["synthetic", "synthetic_mixed"]}
     if event_name == "pull_request":
         return PR_MATRIX
     if full_benchmark:
@@ -87,8 +113,10 @@ def main() -> int:
         help="Path to the GitHub Actions output file",
     )
     args = parser.parse_args()
+    changed_models_env = os.environ.get("CHANGED_MODELS")
+    changed_models = parse_changed_models(changed_models_env)
 
-    matrix = choose_matrix(args.event_name, as_bool(args.full_benchmark))
+    matrix = choose_matrix(args.event_name, as_bool(args.full_benchmark), changed_models)
     payload = json.dumps(matrix, separators=(",", ":"))
 
     if args.output:
