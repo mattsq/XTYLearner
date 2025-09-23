@@ -49,6 +49,11 @@ jobs:
 
             if echo "$changed_files" | grep -E "$pattern"; then
               echo "should_run=true" >> $GITHUB_OUTPUT
+
+              mapfile -t model_paths < <(echo "$changed_files" | grep -E '^xtylearner/models/' || true)
+              if [[ ${#model_paths[@]} -gt 0 ]]; then
+                printf 'changed_model_files=%s\n' "$(printf '%s,' "${model_paths[@]}" | sed 's/,$//')" >> "$GITHUB_OUTPUT"
+              fi
             else
               echo "should_run=false" >> $GITHUB_OUTPUT
             fi
@@ -62,6 +67,7 @@ jobs:
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           FULL_BENCHMARK: ${{ github.event.inputs.full_benchmark }}
+          CHANGED_MODEL_FILES: ${{ steps.check-changes.outputs.changed_model_files }}
         run: |
           python3 scripts/generate_benchmark_matrix.py --output "$GITHUB_OUTPUT"
 
