@@ -2,6 +2,7 @@
 
 # Dataset selection and options
 # Name corresponds to built-in loaders in ``xtylearner.data``
+---
 dataset:
   name: toy
   params:

@@ -6,6 +6,7 @@ import json
 import time
 import os
 import sys
+import hashlib
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 import numpy as np
@@ -51,6 +52,10 @@ class ModelBenchmarker:
         self.results = []
         torch.set_num_threads(self.config.get("torch_num_threads", 1))
         self._data_cache: Dict[Tuple[str, int], BenchmarkDataBundle] = {}
+        self._timing_info: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        cache_root = os.environ.get("XTYLEARNER_CACHE_DIR", ".cache/xtylearner")
+        self._cache_dir = Path(cache_root)
+        self._cache_dir.mkdir(parents=True, exist_ok=True)
         
     def _load_config(self, path: str) -> Dict:
         """Load configuration with defaults tailored for XTYLearner."""
@@ -87,13 +92,42 @@ class ModelBenchmarker:
         if dataset_name == "synthetic_mixed":
             dataset_kwargs.update({"label_ratio": 0.5})
 
-        dataset_seed = np.random.randint(0, 10000)
-        dataset_kwargs["seed"] = dataset_seed
-        full_ds = get_dataset(dataset_name, **dataset_kwargs)
+        cache_params = {
+            "dataset": dataset_name,
+            "n_samples": dataset_kwargs["n_samples"],
+            "d_x": dataset_kwargs["d_x"],
+        }
+        if dataset_name == "synthetic_mixed":
+            cache_params["label_ratio"] = dataset_kwargs["label_ratio"]
 
-        half = len(full_ds) // 2
-        train_tensors = tuple(t[:half] for t in full_ds.tensors)
-        val_tensors = tuple(t[half:] for t in full_ds.tensors)
+        cache_hash = hashlib.sha1(json.dumps(cache_params, sort_keys=True).encode()).hexdigest()[:12]
+        dataset_cache_dir = self._cache_dir / "datasets"
+        dataset_cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_file = dataset_cache_dir / f"{cache_hash}.pt"
+
+        if cache_file.exists():
+            payload = torch.load(cache_file)
+            train_tensors = tuple(payload["train"])
+            val_tensors = tuple(payload["val"])
+        else:
+            dataset_seed = np.random.randint(0, 10000)
+            dataset_kwargs["seed"] = dataset_seed
+            full_ds = get_dataset(dataset_name, **dataset_kwargs)
+
+            half = len(full_ds) // 2
+            train_tensors = tuple(t[:half].clone() for t in full_ds.tensors)
+            val_tensors = tuple(t[half:].clone() for t in full_ds.tensors)
+
+            tmp_file = cache_file.with_suffix(cache_file.suffix + ".tmp")
+            torch.save(
+                {
+                    "train": train_tensors,
+                    "val": val_tensors,
+                    "metadata": {"seed": dataset_seed, "params": cache_params},
+                },
+                tmp_file,
+            )
+            tmp_file.replace(cache_file)
 
         train_ds = TensorDataset(*train_tensors)
         val_ds = TensorDataset(*val_tensors)
@@ -118,22 +152,34 @@ class ModelBenchmarker:
 
         print(f"Benchmarking {model_name} on {dataset_name}...")
 
+        timing_record: Dict[str, Any] = {
+            "model": model_name,
+            "dataset": dataset_name,
+        }
+
+        prep_start = time.perf_counter()
         data_bundle = self._prepare_data(dataset_name)
+        timing_record["data_prep_seconds"] = time.perf_counter() - prep_start
 
         # Warmup runs (not counted)
         warmup_iterations = self.config["warmup_iterations"]
         if warmup_iterations:
             print(f"Running {warmup_iterations} warmup iterations...")
+            warmup_start = time.perf_counter()
             for i in range(warmup_iterations):
                 print(f"  Warmup {i+1}/{warmup_iterations}")
                 self._run_warmup_pass(model_name, data_bundle)
+            timing_record["warmup_seconds"] = time.perf_counter() - warmup_start
         else:
             print("Skipping warmup iterations (configured as 0).")
+            timing_record["warmup_seconds"] = 0.0
 
         # Actual measurements
         print(f"Running {self.config['iterations']} measurement iterations...")
         metric_samples = {metric: [] for metric in self.config["metrics"]}
 
+        iteration_start = time.perf_counter()
+        cumulative_train_time = 0.0
         for i in range(self.config["iterations"]):
             print(f"  Iteration {i+1}/{self.config['iterations']}")
             iteration_results = self._run_single_benchmark(model_name, data_bundle)
@@ -141,7 +187,18 @@ class ModelBenchmarker:
             for metric in self.config["metrics"]:
                 if metric in iteration_results:
                     metric_samples[metric].append(iteration_results[metric])
-        
+            train_time_value = iteration_results.get("train_time_seconds")
+            if isinstance(train_time_value, (int, float)) and not np.isnan(train_time_value):
+                cumulative_train_time += float(train_time_value)
+
+        timing_record["benchmark_seconds"] = time.perf_counter() - iteration_start
+        timing_record["train_time_seconds"] = cumulative_train_time
+        timing_record["total_seconds"] = (
+            timing_record["data_prep_seconds"]
+            + timing_record["warmup_seconds"]
+            + timing_record["benchmark_seconds"]
+        )
+
         # Calculate statistics for each metric
         for metric_name, samples in metric_samples.items():
             if not samples:
@@ -169,6 +226,7 @@ class ModelBenchmarker:
             results.append(result)
             print(f"    {metric_name}: {mean_val:.4f} ± {(confidence_interval[1] - confidence_interval[0])/2:.4f}")
         
+        self._timing_info[(model_name, dataset_name)] = timing_record
         return results
     
     def _build_model_components(
@@ -335,7 +393,8 @@ class ModelBenchmarker:
                     "python_version": sys.version,
                     "torch_version": torch.__version__,
                     "platform": sys.platform
-                }
+                },
+                "timings": list(self._timing_info.values()),
             }
         }
         

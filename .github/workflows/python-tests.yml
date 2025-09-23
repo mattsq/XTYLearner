@@ -1,53 +1,61 @@
+---
 name: Python Tests
 
+# yamllint disable rule:truthy
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
+# yamllint enable rule:truthy
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 1
-    - uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-        cache: 'pip'
-        cache-dependency-path: |
-          pyproject.toml
-          requirements.txt
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-    - name: Restore venv
-      uses: actions/cache/restore@v4
-      with:
-        path: .venv
-        key: venv-${{ runner.os }}-py3.11-${{ hashFiles('requirements.txt') }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            pyproject.toml
+            requirements.txt
 
-    - name: Build venv if needed
-      if: steps.restore-venv.outputs.cache-hit != 'true'
-      env:
-        PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
-      run: |
-        python -m venv .venv
-        . .venv/bin/activate
-        pip install -r requirements.txt
-        echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
-    - name: Install dependencies
-      env:
-        PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
-      run: |
-        python -m pip install --upgrade pip
-        pip install 'torch==2.3.1+cpu' -f https://download.pytorch.org/whl/cpu/torch_stable.html
-        pip install -e . pytest pytest-xdist --prefer-binary
-    - name: Run tests
-      run: |
-        pytest -vv -n auto
+      - name: Restore venv
+        uses: actions/cache/restore@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-py3.11-${{ hashFiles('requirements.txt') }}
 
-    - name: Save venv
-      uses: actions/cache/save@v4
-      with:
-        path: .venv
-        key: venv-${{ runner.os }}-py3.11-${{ hashFiles('requirements.txt') }}
+      - name: Ensure venv on PATH
+        run: echo ".venv/bin" >> $GITHUB_PATH
+
+      - name: Build venv if needed
+        if: steps.restore-venv.outputs.cache-hit != 'true'
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          deactivate
+
+      - name: Install project dependencies
+        run: |
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Run tests
+        run: |
+          . .venv/bin/activate
+          pytest -vv -n auto
+
+      - name: Save venv
+        uses: actions/cache/save@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-py3.11-${{ hashFiles('requirements.txt') }}
