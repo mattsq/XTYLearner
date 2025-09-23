@@ -6,8 +6,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from typing import Sequence
+import re
+import sys
+from pathlib import Path
+from typing import Sequence, List
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 PR_MATRIX = {
     "model": ["cycle_dual", "mean_teacher"],
@@ -65,7 +71,75 @@ def as_bool(value: str | None) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "y"}
 
 
-def choose_matrix(event_name: str, full_benchmark: bool) -> dict[str, Sequence[str]]:
+KNOWN_MODELS = set(FULL_MATRIX["model"]) | set(DEFAULT_MATRIX["model"]) | set(PR_MATRIX["model"])
+
+
+def discover_module_model_map() -> dict[str, list[str]]:
+    """Parse model files to determine which registry names they provide."""
+
+    models_dir = REPO_ROOT / "xtylearner" / "models"
+    pattern = re.compile(r"@register_model\(\s*['\"]([^'\"]+)['\"]\s*\)")
+    module_map: dict[str, list[str]] = {}
+
+    for path in models_dir.glob("**/*.py"):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+
+        names = pattern.findall(text)
+        if not names:
+            continue
+
+        module = (
+            path.relative_to(REPO_ROOT)
+            .with_suffix("")
+            .as_posix()
+            .replace("/", ".")
+        )
+        module_map[module] = names
+
+    return module_map
+
+
+MODULE_MODEL_MAP = discover_module_model_map()
+
+
+def parse_csv(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def files_to_models(files: Sequence[str]) -> List[str]:
+    if not files:
+        return []
+
+    resolved: list[str] = []
+    for file_path in files:
+        if not file_path or not file_path.endswith(".py"):
+            continue
+        module = file_path.replace("/", ".").rsplit(".py", 1)[0]
+        if module.endswith(".__init__"):
+            module = module.rsplit(".", 1)[0]
+        matches = MODULE_MODEL_MAP.get(module)
+        if matches:
+            resolved.extend(matches)
+
+    return sorted({name for name in resolved if name in KNOWN_MODELS})
+
+
+def choose_matrix(
+    event_name: str,
+    full_benchmark: bool,
+    changed_models: Sequence[str],
+    changed_model_files: Sequence[str],
+) -> dict[str, Sequence[str]]:
+    models = set(name for name in changed_models if name in KNOWN_MODELS)
+    models.update(files_to_models(changed_model_files))
+
+    if models:
+        return {"model": sorted(models), "dataset": ["synthetic", "synthetic_mixed"]}
     if event_name == "pull_request":
         return PR_MATRIX
     if full_benchmark:
@@ -88,7 +162,15 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    matrix = choose_matrix(args.event_name, as_bool(args.full_benchmark))
+    changed_models = parse_csv(os.environ.get("CHANGED_MODELS"))
+    changed_files = parse_csv(os.environ.get("CHANGED_MODEL_FILES"))
+
+    matrix = choose_matrix(
+        args.event_name,
+        as_bool(args.full_benchmark),
+        changed_models,
+        changed_files,
+    )
     payload = json.dumps(matrix, separators=(",", ":"))
 
     if args.output:
