@@ -49,6 +49,9 @@ class CaCoRE(nn.Module):
             Size of the latent representation ``h(x)``. Defaults to ``64``.
         cpc_weight: float, optional
             Weight of the InfoNCE regulariser. Defaults to ``1.0``.
+        cpc_temperature: float, optional
+            Temperature applied to the InfoNCE logits. Lower values sharpen the
+            similarity distribution. Defaults to ``0.1``.
         activation: type[nn.Module], optional
             Activation function inserted between linear layers. Defaults to
             :class:`torch.nn.ReLU`.
@@ -150,26 +153,23 @@ class CaCoRE(nn.Module):
 
         # Outcome loss only on rows with observed treatment
         labelled = t_obs >= 0
+        loss_y = h.sum() * 0.0
         if labelled.any():
             t_lab = t_obs[labelled]
             t_onehot_lab = F.one_hot(t_lab, num_classes=self.k).float()
             h_t_lab = torch.cat([h[labelled], t_onehot_lab], dim=-1)
             y_hat = self.outcome_head(h_t_lab)
-        else:
-            y_hat = None
-        loss_y = torch.tensor(0.0, device=x.device)
-        if labelled.any():
             loss_y = F.mse_loss(y_hat, y[labelled])
 
         # Treatment prediction loss
         h_y = torch.cat([h, y], dim=-1)
         logits_t = self.propensity_head(h_y)
-        loss_t = torch.tensor(0.0, device=x.device)
+        loss_t = logits_t.sum() * 0.0
         if labelled.any():
             loss_t = F.cross_entropy(logits_t[labelled], t_obs[labelled])
 
         # Contrastive InfoNCE over observed (y,t)
-        loss_cpc = torch.tensor(0.0, device=x.device)
+        loss_cpc = h.sum() * 0.0
         if labelled.any():
             z_input = torch.cat([y[labelled], t_onehot_lab], dim=-1)
             z = self.joint_embed(z_input)
