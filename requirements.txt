@@ -1,4 +1,5 @@
-torch==2.2.2
+torch==2.2.2+cpu; platform_system == "Linux"
+torch==2.2.2; platform_system != "Linux"
 scikit-learn==1.7.2
 numpy==1.26.4
 nflows==0.14
