@@ -6,10 +6,12 @@ from __future__ import annotations
 import argparse
 import json
 import math
+from collections import defaultdict
 from dataclasses import dataclass
 from html import escape
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from datetime import datetime
 
 import matplotlib
 
@@ -51,6 +53,9 @@ METRICS: Sequence[MetricInfo] = (
         value_format="{:.2f}",
     ),
 )
+
+MAX_TREND_POINTS = 12
+MAX_SERIES_PER_METRIC = 6
 
 
 def _format_value(value: Optional[float], fmt: str) -> str:
@@ -132,6 +137,154 @@ def _sort_rows(rows: List[Dict[str, Any]], metric: MetricInfo) -> List[Dict[str,
         return (dataset, numeric)
 
     return sorted(rows, key=sort_key)
+
+
+def _parse_timestamp(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        if value.endswith("Z"):
+            try:
+                return datetime.fromisoformat(value[:-1])
+            except ValueError:
+                return None
+        return None
+
+
+TimeSeries = Dict[Tuple[str, str, str], List[Tuple[float, str, float]]]
+
+
+def _build_time_series(history: Sequence[Mapping[str, Any]]) -> TimeSeries:
+    series: TimeSeries = defaultdict(list)
+
+    for idx, entry in enumerate(history):
+        commit_full = entry.get("commit") or "unknown"
+        commit = commit_full[:7]
+        timestamp = _parse_timestamp(entry.get("timestamp"))
+        order = timestamp.timestamp() if timestamp else float(idx)
+        raw_results = entry.get("results", [])
+
+        for result in raw_results:
+            try:
+                normalised = _normalise_result(result)
+            except ValueError:
+                continue
+
+            value = normalised.get("value")
+            if value is None:
+                continue
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                continue
+            if not math.isfinite(numeric):
+                continue
+
+            key = (
+                normalised["metric"],
+                normalised["model"],
+                normalised["dataset"],
+            )
+            series[key].append((order, commit, numeric))
+
+    for key, points in series.items():
+        points.sort(key=lambda item: item[0])
+        series[key] = points[-MAX_TREND_POINTS:]
+
+    return series
+
+
+def _select_top_series(
+    series: TimeSeries, metric: MetricInfo
+) -> List[Tuple[Tuple[str, str], List[Tuple[str, float]]]]:
+    candidates: List[Tuple[Tuple[str, str], float, List[Tuple[str, float]]]] = []
+
+    for (metric_key, model, dataset), points in series.items():
+        if metric_key != metric.key or not points:
+            continue
+
+        deduped: List[Tuple[str, float]] = []
+        for _, commit, value in points:
+            if deduped and deduped[-1][0] == commit:
+                deduped[-1] = (commit, value)
+            else:
+                deduped.append((commit, value))
+
+        if not deduped:
+            continue
+
+        latest_value = deduped[-1][1]
+        candidates.append(((model, dataset), latest_value, deduped))
+
+    reverse = metric.sort_reverse
+    candidates.sort(key=lambda item: item[1], reverse=reverse)
+
+    selected = []
+    for (model, dataset), _, points in candidates[:MAX_SERIES_PER_METRIC]:
+        selected.append(((model, dataset), points))
+
+    return selected
+
+
+def _plot_trend_chart(
+    metric: MetricInfo,
+    series: List[Tuple[Tuple[str, str], List[Tuple[str, float]]]],
+    output_dir: Path,
+) -> Optional[str]:
+    if not series:
+        return None
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    for (model, dataset), points in series:
+        commits = [commit for commit, _ in points]
+        values = [value for _, value in points]
+        label = f"{model} on {dataset}"
+        ax.plot(commits, values, marker="o", label=label)
+
+    ax.set_title(f"{metric.label} over recent commits")
+    ax.set_xlabel("Commit")
+    ax.set_ylabel(metric.label)
+    ax.grid(True, linestyle="--", alpha=0.3)
+    ax.legend(loc="best")
+    plt.xticks(rotation=45, ha="right")
+    plt.tight_layout()
+
+    filename = f"benchmark_trend_{metric.key}.png"
+    plt.savefig(output_dir / filename, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+    return filename
+
+
+def _build_trend_markdown(
+    metric: MetricInfo,
+    series: List[Tuple[Tuple[str, str], List[Tuple[str, float]]]],
+) -> List[str]:
+    if not series:
+        return []
+
+    lines = [f"#### {metric.label} trends", "", "| Model | Dataset | Latest Commit | Value | Δ vs previous |", "|:--|:--|:--|--:|--:|"]
+
+    for (model, dataset), points in series:
+        latest_commit, latest_value = points[-1]
+        prev_value = points[-2][1] if len(points) > 1 else None
+        delta = None if prev_value is None else latest_value - prev_value
+        delta_str = "n/a" if delta is None else metric.value_format.format(delta)
+        lines.append(
+            "| {model} | {dataset} | {commit} | {value} | {delta} |".format(
+                model=model,
+                dataset=dataset,
+                commit=latest_commit,
+                value=metric.value_format.format(latest_value),
+                delta=delta_str,
+            )
+        )
+
+    lines.append("")
+    return lines
 
 
 def build_markdown_tables(results: Sequence[Dict[str, Any]]) -> str:
@@ -267,7 +420,12 @@ def _plot_metric(axis: plt.Axes, series: Mapping[str, float], title: str, ylabel
         label.set_horizontalalignment("right")
 
 
-def _render_html(latest: Optional[Mapping[str, Any]], summary: Dict[str, Any], html_tables: str) -> str:
+def _render_html(
+    latest: Optional[Mapping[str, Any]],
+    summary: Dict[str, Any],
+    html_tables: str,
+    trend_sections: str,
+) -> str:
     timestamp = latest.get("timestamp") if latest else None
     commit = latest.get("commit") if latest else None
     timestamp_str = timestamp or "n/a"
@@ -343,6 +501,8 @@ def _render_html(latest: Optional[Mapping[str, Any]], summary: Dict[str, Any], h
             <img src=\"benchmark_summary.png\" alt=\"Benchmark Summary\">
         </div>
 
+{trend_sections}
+
 {html_tables}
 
         <footer>
@@ -363,6 +523,8 @@ def generate_charts(history_file: str, output_dir: str, markdown_output: Optiona
     markdown_summary = "_No benchmark results available._\n"
     latest: Optional[Mapping[str, Any]] = None
     normalised: List[Dict[str, Any]] = []
+    trend_images: Dict[str, str] = {}
+    trend_markdown: List[str] = []
 
     if history:
         latest = history[-1]
@@ -373,6 +535,18 @@ def generate_charts(history_file: str, output_dir: str, markdown_output: Optiona
             except ValueError as exc:
                 print(f"Error normalising results: {exc}")
                 normalised = []
+
+    time_series = _build_time_series(history) if history else {}
+
+    if time_series:
+        for info in METRICS:
+            selected_series = _select_top_series(time_series, info)
+            if not selected_series:
+                continue
+            image_name = _plot_trend_chart(info, selected_series, output_path)
+            if image_name:
+                trend_images[info.key] = image_name
+            trend_markdown.extend(_build_trend_markdown(info, selected_series))
 
     if normalised:
         markdown_summary = build_markdown_tables(normalised)
@@ -415,7 +589,26 @@ def generate_charts(history_file: str, output_dir: str, markdown_output: Optiona
             summary["datasets"] = sorted(set(datasets_meta))
             summary["datasets_count"] = len(summary["datasets"])
 
-    html_content = _render_html(latest, summary, html_tables)
+    if trend_markdown:
+        markdown_summary = markdown_summary.rstrip() + "\n\n" + "\n".join(trend_markdown)
+
+    trend_sections_html = "        <p><em>No historical trend data available yet.</em></p>"
+    trend_sections: List[str] = []
+    for info in METRICS:
+        image_name = trend_images.get(info.key)
+        if not image_name:
+            continue
+        trend_sections.append(
+            "        <div class=\"chart\">\n"
+            f"            <h2>Trend – {escape(info.label)}</h2>\n"
+            f"            <img src=\"{escape(image_name)}\" alt=\"Trend for {escape(info.label)}\">\n"
+            "        </div>"
+        )
+
+    if trend_sections:
+        trend_sections_html = "\n".join(trend_sections)
+
+    html_content = _render_html(latest, summary, html_tables, trend_sections_html)
     (output_path / "index.html").write_text(html_content, encoding="utf-8")
 
     if markdown_output:
