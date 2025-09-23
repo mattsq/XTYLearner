@@ -6527,5 +6527,1406 @@
         "ssc"
       ]
     }
+  },
+  {
+    "timestamp": "2025-09-23T22:38:49.688368",
+    "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+    "results": [
+      {
+        "name": "ss_cevae_synthetic_val_outcome_rmse",
+        "value": 0.9137746143341063,
+        "unit": "rmse",
+        "range": [
+          0.8561284613609315,
+          0.9599620079994201
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:38:11.236086",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "ss_cevae",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "ss_cevae_synthetic_val_treatment_accuracy",
+        "value": 1.0,
+        "unit": "accuracy",
+        "range": [
+          1.0,
+          1.0
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:38:11.236668",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "ss_cevae",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "ss_cevae_synthetic_train_time_seconds",
+        "value": 0.2964006471999994,
+        "unit": "seconds",
+        "range": [
+          0.2924351622000003,
+          0.30140014179999924
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:38:11.237161",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "ss_cevae",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "bridge_diff_synthetic_val_outcome_rmse",
+        "value": 1.8055597043037417,
+        "unit": "rmse",
+        "range": [
+          1.4238774180412292,
+          2.2213790607452397
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:38:14.823076",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "bridge_diff",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "bridge_diff_synthetic_val_treatment_accuracy",
+        "value": 0.987999997138977,
+        "unit": "accuracy",
+        "range": [
+          0.9799999952316284,
+          0.9959999990463256
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:38:14.823627",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "bridge_diff",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "bridge_diff_synthetic_train_time_seconds",
+        "value": 4.725414127999997,
+        "unit": "seconds",
+        "range": [
+          4.705601227129999,
+          4.7562867851149955
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:38:14.824073",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "bridge_diff",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "ganite_synthetic_mixed_val_outcome_rmse",
+        "value": NaN,
+        "unit": "rmse",
+        "range": [
+          0,
+          0
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:55.438713",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "ganite",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "ganite_synthetic_mixed_val_treatment_accuracy",
+        "value": NaN,
+        "unit": "accuracy",
+        "range": [
+          0,
+          0
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:55.438839",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "ganite",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "ganite_synthetic_mixed_train_time_seconds",
+        "value": NaN,
+        "unit": "seconds",
+        "range": [
+          0,
+          0
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:55.438904",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "ganite",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "cacore_synthetic_val_outcome_rmse",
+        "value": 0.7709183001518249,
+        "unit": "rmse",
+        "range": [
+          0.7624905645251272,
+          0.7778573274612427
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:49.834896",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "cacore",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "cacore_synthetic_val_treatment_accuracy",
+        "value": 0.823999991416931,
+        "unit": "accuracy",
+        "range": [
+          0.7919999957084656,
+          0.8479999876022338
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:49.835396",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "cacore",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "cacore_synthetic_train_time_seconds",
+        "value": 0.16720707659999762,
+        "unit": "seconds",
+        "range": [
+          0.16595980679999797,
+          0.1681270709999964
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:49.835864",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "cacore",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "vat_synthetic_mixed_val_outcome_rmse",
+        "value": 0.3021659350395203,
+        "unit": "rmse",
+        "range": [
+          0.26525522410869595,
+          0.3390902114361524
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:58.576602",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "vat",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "vat_synthetic_mixed_val_treatment_accuracy",
+        "value": 0.9666666626930237,
+        "unit": "accuracy",
+        "range": [
+          0.9666666626930237,
+          0.9666666626930237
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:58.577157",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "vat",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "vat_synthetic_mixed_train_time_seconds",
+        "value": 0.17070116819999867,
+        "unit": "seconds",
+        "range": [
+          0.16948575859999976,
+          0.17168047279999854
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:58.577628",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "vat",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "diffusion_cevae_synthetic_mixed_val_outcome_rmse",
+        "value": 1.0516140246391297,
+        "unit": "rmse",
+        "range": [
+          1.030424783229828,
+          1.0812033891677857
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:41.418059",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "diffusion_cevae",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "diffusion_cevae_synthetic_mixed_val_treatment_accuracy",
+        "value": 0.919238097667694,
+        "unit": "accuracy",
+        "range": [
+          0.8613333368301392,
+          0.9771428585052491
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:41.418615",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "diffusion_cevae",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "diffusion_cevae_synthetic_mixed_train_time_seconds",
+        "value": 0.304450339600001,
+        "unit": "seconds",
+        "range": [
+          0.2966384214000016,
+          0.3115955393999997
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:41.419063",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "diffusion_cevae",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "mean_teacher_synthetic_mixed_val_outcome_rmse",
+        "value": 0.2925259113311768,
+        "unit": "rmse",
+        "range": [
+          0.25189168989658356,
+          0.33316013276576995
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:31.223117",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "mean_teacher",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "mean_teacher_synthetic_mixed_val_treatment_accuracy",
+        "value": 0.9828571438789367,
+        "unit": "accuracy",
+        "range": [
+          0.9600000023841858,
+          1.0
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:31.223641",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "mean_teacher",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "mean_teacher_synthetic_mixed_train_time_seconds",
+        "value": 0.1577704433999969,
+        "unit": "seconds",
+        "range": [
+          0.15749555519999775,
+          0.15804548179999642
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:31.224123",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "mean_teacher",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "ganite_synthetic_val_outcome_rmse",
+        "value": NaN,
+        "unit": "rmse",
+        "range": [
+          0,
+          0
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:53.832281",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "ganite",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "ganite_synthetic_val_treatment_accuracy",
+        "value": NaN,
+        "unit": "accuracy",
+        "range": [
+          0,
+          0
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:53.832383",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "ganite",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "ganite_synthetic_train_time_seconds",
+        "value": NaN,
+        "unit": "seconds",
+        "range": [
+          0,
+          0
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:53.832444",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "ganite",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "bridge_diff_synthetic_mixed_val_outcome_rmse",
+        "value": 1.8789312505722044,
+        "unit": "rmse",
+        "range": [
+          1.5246480901241306,
+          2.1747204828262325
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:38:26.583312",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "bridge_diff",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "bridge_diff_synthetic_mixed_val_treatment_accuracy",
+        "value": 0.9510476207733154,
+        "unit": "accuracy",
+        "range": [
+          0.9121904802322389,
+          0.9885714292526245
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:38:26.583789",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "bridge_diff",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "bridge_diff_synthetic_mixed_train_time_seconds",
+        "value": 5.454911157599997,
+        "unit": "seconds",
+        "range": [
+          5.441196127999999,
+          5.468037956599995
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:38:26.584266",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "bridge_diff",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "flow_ssc_synthetic_val_outcome_rmse",
+        "value": 0.16586637616157535,
+        "unit": "rmse",
+        "range": [
+          0.14362015902996067,
+          0.18254317224025723
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:06.891045",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "flow_ssc",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "flow_ssc_synthetic_val_treatment_accuracy",
+        "value": 0.9599999976158143,
+        "unit": "accuracy",
+        "range": [
+          0.9439999985694886,
+          0.9759999966621399
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:06.891592",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "flow_ssc",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "flow_ssc_synthetic_train_time_seconds",
+        "value": 1.9060733194000021,
+        "unit": "seconds",
+        "range": [
+          1.8785811100000003,
+          1.9368256264000039
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:06.892042",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "flow_ssc",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "fixmatch_synthetic_mixed_val_outcome_rmse",
+        "value": 0.3346536862850189,
+        "unit": "rmse",
+        "range": [
+          0.26825709879398346,
+          0.41407939212024203
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:21.703872",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "fixmatch",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "fixmatch_synthetic_mixed_val_treatment_accuracy",
+        "value": 0.9933333325386048,
+        "unit": "accuracy",
+        "range": [
+          0.9799999976158142,
+          1.0
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:21.704388",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "fixmatch",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "fixmatch_synthetic_mixed_train_time_seconds",
+        "value": 0.1583105993999993,
+        "unit": "seconds",
+        "range": [
+          0.15671163740000224,
+          0.1598130145999903
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:21.704885",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "fixmatch",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "mean_teacher_synthetic_val_outcome_rmse",
+        "value": 0.18596167713403705,
+        "unit": "rmse",
+        "range": [
+          0.16886390477418897,
+          0.2034730088710785
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:29.274294",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "mean_teacher",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "mean_teacher_synthetic_val_treatment_accuracy",
+        "value": 1.0,
+        "unit": "accuracy",
+        "range": [
+          1.0,
+          1.0
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:29.274805",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "mean_teacher",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "mean_teacher_synthetic_train_time_seconds",
+        "value": 0.14228342420000076,
+        "unit": "seconds",
+        "range": [
+          0.1420123774000004,
+          0.14260119680000258
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:29.275295",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "mean_teacher",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "dragon_net_synthetic_mixed_val_outcome_rmse",
+        "value": 1.0095499825477598,
+        "unit": "rmse",
+        "range": [
+          0.9000831460952758,
+          1.119016819000244
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:25.901024",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "dragon_net",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "dragon_net_synthetic_mixed_val_treatment_accuracy",
+        "value": 0.4869523906707764,
+        "unit": "accuracy",
+        "range": [
+          0.42809524714946745,
+          0.5704047714471817
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:25.901574",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "dragon_net",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "dragon_net_synthetic_mixed_train_time_seconds",
+        "value": 0.1836994807999986,
+        "unit": "seconds",
+        "range": [
+          0.18301056219999765,
+          0.18427028256999523
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:25.902043",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "dragon_net",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "fixmatch_synthetic_val_outcome_rmse",
+        "value": 0.15456175267696382,
+        "unit": "rmse",
+        "range": [
+          0.1388996034860611,
+          0.17022390186786654
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:20.904757",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "fixmatch",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "fixmatch_synthetic_val_treatment_accuracy",
+        "value": 0.9959999990463256,
+        "unit": "accuracy",
+        "range": [
+          0.987999997138977,
+          1.0
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:20.905367",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "fixmatch",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "fixmatch_synthetic_train_time_seconds",
+        "value": 0.11702071819999986,
+        "unit": "seconds",
+        "range": [
+          0.1160638127999988,
+          0.11781624160000063
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:20.905890",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "fixmatch",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "vat_synthetic_val_outcome_rmse",
+        "value": 0.18539170801639557,
+        "unit": "rmse",
+        "range": [
+          0.16427296578884126,
+          0.2094034951925278
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:56.626838",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "vat",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "vat_synthetic_val_treatment_accuracy",
+        "value": 0.9639999914169313,
+        "unit": "accuracy",
+        "range": [
+          0.9599999904632568,
+          0.9719999933242798
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:56.627391",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "vat",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "vat_synthetic_train_time_seconds",
+        "value": 0.14903162420000057,
+        "unit": "seconds",
+        "range": [
+          0.14868584397999962,
+          0.1493220776000001
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:56.627862",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "vat",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "cycle_dual_synthetic_val_outcome_rmse",
+        "value": 0.15552914321422578,
+        "unit": "rmse",
+        "range": [
+          0.1514353907108307,
+          0.15934091448783874
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:28.218361",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "cycle_dual",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "cycle_dual_synthetic_val_treatment_accuracy",
+        "value": 1.0,
+        "unit": "accuracy",
+        "range": [
+          1.0,
+          1.0
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:28.218900",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "cycle_dual",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "cycle_dual_synthetic_train_time_seconds",
+        "value": 0.17649552499997298,
+        "unit": "seconds",
+        "range": [
+          0.17597583019996818,
+          0.17701660639997954
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:28.219413",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "cycle_dual",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "prob_circuit_synthetic_mixed_val_outcome_rmse",
+        "value": 0.10279710815882859,
+        "unit": "rmse",
+        "range": [
+          0.10279710815882855,
+          0.10279710815882863
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:29.879087",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "prob_circuit",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "prob_circuit_synthetic_mixed_val_treatment_accuracy",
+        "value": 1.0,
+        "unit": "accuracy",
+        "range": [
+          1.0,
+          1.0
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:29.879897",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "prob_circuit",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "prob_circuit_synthetic_mixed_train_time_seconds",
+        "value": 0.007991343000048801,
+        "unit": "seconds",
+        "range": [
+          0.007872513400070603,
+          0.00810183353504101
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:29.880680",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "prob_circuit",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "flow_ssc_synthetic_mixed_val_outcome_rmse",
+        "value": 0.4523649191856385,
+        "unit": "rmse",
+        "range": [
+          0.407447749376297,
+          0.4972820889949799
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:12.364257",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "flow_ssc",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "flow_ssc_synthetic_mixed_val_treatment_accuracy",
+        "value": 0.7939047741889953,
+        "unit": "accuracy",
+        "range": [
+          0.7779047751426698,
+          0.807619059085846
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:12.364780",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "flow_ssc",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "flow_ssc_synthetic_mixed_train_time_seconds",
+        "value": 2.438383611399999,
+        "unit": "seconds",
+        "range": [
+          2.4285586211999983,
+          2.4495594633999986
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:12.365284",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "flow_ssc",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "ss_cevae_synthetic_mixed_val_outcome_rmse",
+        "value": 1.0102848196029663,
+        "unit": "rmse",
+        "range": [
+          0.9803510880470275,
+          1.0464675855636596
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:38:16.404101",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "ss_cevae",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "ss_cevae_synthetic_mixed_val_treatment_accuracy",
+        "value": 1.0,
+        "unit": "accuracy",
+        "range": [
+          1.0,
+          1.0
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:38:16.404596",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "ss_cevae",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "ss_cevae_synthetic_mixed_train_time_seconds",
+        "value": 0.43850763519999986,
+        "unit": "seconds",
+        "range": [
+          0.43742715200000076,
+          0.43939994099999924
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:38:16.405043",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "ss_cevae",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "diffusion_cevae_synthetic_val_outcome_rmse",
+        "value": 0.9075051856040954,
+        "unit": "rmse",
+        "range": [
+          0.8565714380145074,
+          0.9566358137130738
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:42.198359",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "diffusion_cevae",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "diffusion_cevae_synthetic_val_treatment_accuracy",
+        "value": 0.9119999933242797,
+        "unit": "accuracy",
+        "range": [
+          0.8599999952316285,
+          0.963999991416931
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:42.198893",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "diffusion_cevae",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "diffusion_cevae_synthetic_train_time_seconds",
+        "value": 0.2593346285999957,
+        "unit": "seconds",
+        "range": [
+          0.25829986679999306,
+          0.26035553679999734
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:42.199385",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "diffusion_cevae",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "cacore_synthetic_mixed_val_outcome_rmse",
+        "value": 0.9301528286933898,
+        "unit": "rmse",
+        "range": [
+          0.9047583246231079,
+          0.9591316652297973
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:54.175989",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "cacore",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "cacore_synthetic_mixed_val_treatment_accuracy",
+        "value": 0.6841904878616333,
+        "unit": "accuracy",
+        "range": [
+          0.6361904871463776,
+          0.7316690600216389
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:54.176534",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "cacore",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "cacore_synthetic_mixed_train_time_seconds",
+        "value": 0.18015888740000036,
+        "unit": "seconds",
+        "range": [
+          0.17982059320000304,
+          0.1804936785999928
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:54.177035",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "cacore",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "dragon_net_synthetic_val_outcome_rmse",
+        "value": 0.889155317544937,
+        "unit": "rmse",
+        "range": [
+          0.6544776405394077,
+          1.1355819940567016
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:22.551033",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "dragon_net",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "dragon_net_synthetic_val_treatment_accuracy",
+        "value": 0.6320000064373016,
+        "unit": "accuracy",
+        "range": [
+          0.5920000112056731,
+          0.6720000064373016
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:22.551720",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "dragon_net",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "dragon_net_synthetic_train_time_seconds",
+        "value": 0.1575161296000033,
+        "unit": "seconds",
+        "range": [
+          0.157296331200007,
+          0.1577070441399991
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:37:22.552367",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "dragon_net",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "prob_circuit_synthetic_val_outcome_rmse",
+        "value": 0.09693229158487585,
+        "unit": "rmse",
+        "range": [
+          0.09693229158487583,
+          0.09693229158487587
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:29.035205",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "prob_circuit",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "prob_circuit_synthetic_val_treatment_accuracy",
+        "value": 1.0,
+        "unit": "accuracy",
+        "range": [
+          1.0,
+          1.0
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:29.035794",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "prob_circuit",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "prob_circuit_synthetic_train_time_seconds",
+        "value": 0.007953495600000337,
+        "unit": "seconds",
+        "range": [
+          0.007828579125000134,
+          0.008085032800001102
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:29.036363",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "prob_circuit",
+          "dataset_name": "synthetic"
+        }
+      },
+      {
+        "name": "cycle_dual_synthetic_mixed_val_outcome_rmse",
+        "value": 0.1860441529750824,
+        "unit": "rmse",
+        "range": [
+          0.15396752953529358,
+          0.22569937050342564
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:33.368124",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "cycle_dual",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "cycle_dual_synthetic_mixed_val_treatment_accuracy",
+        "value": 1.0,
+        "unit": "accuracy",
+        "range": [
+          1.0,
+          1.0
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:33.368681",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "cycle_dual",
+          "dataset_name": "synthetic_mixed"
+        }
+      },
+      {
+        "name": "cycle_dual_synthetic_mixed_train_time_seconds",
+        "value": 0.21063931980000347,
+        "unit": "seconds",
+        "range": [
+          0.20910729900000433,
+          0.21217134060000262
+        ],
+        "samples": 5,
+        "timestamp": "2025-09-23T22:36:33.369194",
+        "commit": "80a1d634d6d01ba74dd2adfbb629e61c4c26cb27",
+        "environment": {
+          "runner_os": "Linux",
+          "python_version": "3.11.13",
+          "torch_version": "2.2.2+cpu",
+          "model_name": "cycle_dual",
+          "dataset_name": "synthetic_mixed"
+        }
+      }
+    ],
+    "metadata": {
+      "total_benchmarks": 72,
+      "models": [
+        "ganite",
+        "flow",
+        "ss",
+        "vat",
+        "fixmatch",
+        "dragon",
+        "prob",
+        "cycle",
+        "diffusion",
+        "cacore",
+        "bridge",
+        "mean"
+      ],
+      "datasets": [
+        "teacher",
+        "cevae",
+        "synthetic",
+        "diff",
+        "ssc",
+        "circuit",
+        "dual",
+        "net"
+      ]
+    }
   }
 ]
