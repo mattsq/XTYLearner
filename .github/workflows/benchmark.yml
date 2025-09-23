@@ -69,6 +69,8 @@ jobs:
     needs: setup-matrix
     if: needs.setup-matrix.outputs.should_run == 'true'
     runs-on: ubuntu-latest
+    outputs:
+      venv-key: ${{ steps.venv-key.outputs.value }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -94,18 +96,21 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-deps-
 
+      - name: Compute virtualenv cache key
+        id: venv-key
+        env:
+          RUNNER_OS: ${{ runner.os }}
+          HASH: >-
+            ${{ hashFiles('requirements.txt', 'pyproject.toml', 'uv.lock', '.github/workflows/benchmark.yml') }}
+        run: |
+          echo "value=${RUNNER_OS}-benchmark-venv-${HASH}" >> $GITHUB_OUTPUT
+
       - name: Restore prepared virtualenv
         id: venv-cache
         uses: actions/cache@v4
         with:
           path: .venv
-          key: >-
-            ${{ runner.os }}-benchmark-venv-${{ hashFiles(
-              'requirements.txt',
-              'pyproject.toml',
-              'uv.lock',
-              '.github/workflows/benchmark.yml'
-            ) }}
+          key: ${{ steps.venv-key.outputs.value }}
 
       - name: Build virtualenv
         if: steps.venv-cache.outputs.cache-hit != 'true'
@@ -113,21 +118,24 @@ jobs:
           python -m venv .venv
           source .venv/bin/activate
           python -m pip install --upgrade pip
-          pip install torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu
-          pip install -r requirements.txt
-          pip install matplotlib pandas numpy scipy
-          pip install -e .
+          pip install --no-cache-dir torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install --no-cache-dir -r requirements.txt
+          pip install --no-cache-dir matplotlib pandas numpy scipy
+          pip install --no-cache-dir -e .
 
-      - name: Package prepared environment
+      - name: Strip unused artifacts from virtualenv
         run: |
-          tar -czf prepared-venv.tar.gz .venv
+          find .venv -type d -name '__pycache__' -prune -exec rm -rf {} +
+          find .venv -path "*/torch/lib/libnv*" -delete || true
+          find .venv -path "*/torch/lib/*cuda*" -delete || true
+          find .venv -maxdepth 3 -type f -name '*.whl' -delete || true
 
-      - name: Upload prepared environment
-        uses: actions/upload-artifact@v4
+      - name: Save prepared virtualenv cache
+        if: steps.venv-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
         with:
-          name: prepared-venv
-          path: prepared-venv.tar.gz
-          retention-days: 3
+          path: .venv
+          key: ${{ steps.venv-key.outputs.value }}
 
   # Parallel benchmark execution
   benchmark:
@@ -143,18 +151,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download prepared environment
-        uses: actions/download-artifact@v4
-        with:
-          name: prepared-venv
-          path: .
-
-      - name: Extract environment
+      - name: Restore prepared virtualenv
         id: extract-env
+        uses: actions/cache/restore@v4
+        with:
+          path: .venv
+          key: ${{ needs.prepare-runtime.outputs.venv-key }}
+
+      - name: Ensure venv availability
         run: |
-          SECONDS=0
-          tar -xzf prepared-venv.tar.gz
-          echo "seconds=$SECONDS" >> $GITHUB_OUTPUT
+          if [ ! -x .venv/bin/python ]; then
+            echo "Prepared virtualenv cache missing" >&2
+            exit 1
+          fi
+          echo ".venv/bin" >> "$GITHUB_PATH"
 
       - name: Ensure dataset cache directory
         run: mkdir -p .cache/xtylearner
@@ -195,7 +205,7 @@ jobs:
         env:
           MODEL: ${{ matrix.model }}
           DATASET: ${{ matrix.dataset }}
-          ENV_SETUP_SECONDS: ${{ steps.extract-env.outputs.seconds }}
+          ENV_SETUP_SECONDS: 0
           BENCHMARK_SECONDS: ${{ steps.run-benchmarks.outputs.seconds }}
         run: |
           ./.venv/bin/python scripts/update_timing_metadata.py \
@@ -232,15 +242,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download prepared environment
-        uses: actions/download-artifact@v4
+      - name: Restore prepared virtualenv
+        uses: actions/cache/restore@v4
         with:
-          name: prepared-venv
-          path: .
+          path: .venv
+          key: ${{ needs.prepare-runtime.outputs.venv-key }}
 
-      - name: Extract environment
+      - name: Ensure virtualenv on PATH
         run: |
-          tar -xzf prepared-venv.tar.gz
+          if [ ! -x .venv/bin/python ]; then
+            echo "Prepared virtualenv cache missing" >&2
+            exit 1
+          fi
+          echo ".venv/bin" >> $GITHUB_PATH
 
       - name: Download all results
         uses: actions/download-artifact@v4
