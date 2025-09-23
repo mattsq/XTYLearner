@@ -96,13 +96,14 @@ class BridgeDiff(nn.Module):
         self.classifier = Classifier(d_x, d_y, k)
 
     # ----- utilities -----
-    def _sigma(self, t: torch.Tensor) -> torch.Tensor:
-        # Clamp t to prevent extreme values and ensure numerical stability
-        t_clamped = torch.clamp(t, 0.0, 1.0)
+    def _sigma(self, tau: torch.Tensor) -> torch.Tensor:
+        """Noise scale for a diffusion time ``tau`` in ``[0, 1]``."""
+
+        tau = torch.clamp(tau, 0.0, 1.0)
         ratio = self.sigma_max / self.sigma_min
-        # Use log-space computation for better numerical stability
-        log_sigma = math.log(self.sigma_min) + t_clamped * math.log(ratio)
-        return torch.clamp(log_sigma.exp(), self.sigma_min, self.sigma_max)
+        log_sigma = math.log(self.sigma_min) + tau * math.log(ratio)
+        sigma = log_sigma.exp()
+        return torch.clamp(sigma, self.sigma_min, self.sigma_max)
 
     # ----- training objective -----
     def loss(
@@ -110,25 +111,23 @@ class BridgeDiff(nn.Module):
         x: torch.Tensor,
         y: torch.Tensor,
         t_obs: torch.Tensor,
-        warmup: int = 10,
-        current_epoch: int = 0,
+        warmup: int = 0,
+        current_epoch: int | None = None,
     ) -> torch.Tensor:
         b = x.size(0)
         device = x.device
-        u = torch.rand(b, device=device)
-        tau = (
-            u * (math.log(self.sigma_max) - math.log(self.sigma_min))
-            + math.log(self.sigma_min)
-        ).exp()
-        sig = tau.unsqueeze(-1)
+        tau = torch.rand(b, device=device)
+        sigma = self._sigma(tau).unsqueeze(-1)
         eps = torch.randn_like(y)
-        y_noisy = y + sig * eps
+        y_noisy = y + sigma * eps
 
         logits = self.classifier(x, y)
-        p_post = F.softmax(logits.detach(), dim=-1)
+        p_post = F.softmax(logits, dim=-1)
 
         obs_mask = t_obs != -1
-        loss_obs = torch.tensor(0.0, device=device, requires_grad=True)
+        loss_obs = y.new_zeros(())
+        eps_stab = 1e-6
+
         if obs_mask.any():
             s_obs = self.score_net(
                 y_noisy[obs_mask],
@@ -136,38 +135,42 @@ class BridgeDiff(nn.Module):
                 t_obs[obs_mask].clamp_min(0),
                 tau[obs_mask],
             )
-            # Add small epsilon for numerical stability
-            eps_val = 1e-8
-            sig_obs = sig[obs_mask] + eps_val
-            mse = (s_obs + eps[obs_mask] / sig_obs) ** 2
-            loss_obs = (sig_obs ** 2 * mse).mean()
+            sig_obs = sigma[obs_mask].clamp_min(eps_stab)
+            inv_sig = sig_obs.reciprocal()
+            mse = (s_obs + eps[obs_mask] * inv_sig) ** 2
+            loss_obs = (sig_obs**2 * mse).mean()
 
         unobs_mask = obs_mask.logical_not()
-        loss_unobs = torch.tensor(0.0, device=device, requires_grad=True)
+        loss_unobs = y.new_zeros(())
         if unobs_mask.any():
-            # Add small epsilon for numerical stability
-            eps_val = 1e-8
-            sig_unobs = sig[unobs_mask] + eps_val
-            mse_all = []
-            for t_val in range(self.k):
-                s_t = self.score_net(
-                    y_noisy[unobs_mask],
-                    x[unobs_mask],
-                    torch.full_like(t_obs[unobs_mask], t_val),
-                    tau[unobs_mask],
-                )
-                mse = ((s_t + eps[unobs_mask] / sig_unobs) ** 2).mean(dim=-1)
-                mse_all.append(mse)
-            mse_all = torch.stack(mse_all, dim=1)
-            loss_unobs = (
-                (p_post[unobs_mask] * (sig_unobs**2) * mse_all).sum(dim=1).mean()
-            )
+            sig_unobs = sigma[unobs_mask].clamp_min(eps_stab)
+            eps_unobs = eps[unobs_mask]
+            tau_unobs = tau[unobs_mask]
+            x_unobs = x[unobs_mask]
+            y_unobs = y_noisy[unobs_mask]
+
+            x_rep = x_unobs.repeat_interleave(self.k, dim=0)
+            y_rep = y_unobs.repeat_interleave(self.k, dim=0)
+            tau_rep = tau_unobs.repeat_interleave(self.k, dim=0)
+            t_vals = torch.arange(self.k, device=device).repeat(x_unobs.size(0))
+
+            scores = self.score_net(y_rep, x_rep, t_vals, tau_rep)
+            scores = scores.view(x_unobs.size(0), self.k, self.d_y)
+
+            inv_sig = sig_unobs.reciprocal().unsqueeze(1)
+            eps_term = eps_unobs.unsqueeze(1) * inv_sig
+            mse = (scores + eps_term) ** 2
+            mse = mse.mean(dim=-1)
+
+            weight = (sig_unobs.squeeze(-1).unsqueeze(1) ** 2)
+            loss_unobs = (p_post[unobs_mask] * weight * mse).sum(dim=1).mean()
 
         # Apply warmup: disable unobserved loss during initial training epochs
-        if current_epoch < warmup:
-            loss_unobs = torch.tensor(0.0, device=device, requires_grad=True)
+        if current_epoch is not None and current_epoch < warmup:
+            loss_unobs = loss_unobs.detach()
+            loss_unobs = y.new_zeros(())
 
-        ce_loss = torch.tensor(0.0, device=device, requires_grad=True)
+        ce_loss = y.new_zeros(())
         if obs_mask.any():
             ce_loss = F.cross_entropy(logits[obs_mask], t_obs[obs_mask].clamp_min(0))
 
@@ -176,32 +179,54 @@ class BridgeDiff(nn.Module):
     # ----- sampler -----
     @torch.no_grad()
     def paired_sample(
-        self, x: torch.Tensor, n_steps: int = 50
-    ) -> tuple[torch.Tensor, ...]:
-        """Generate one draw ``y_t`` for each treatment ``t``."""
+        self,
+        x: torch.Tensor,
+        n_steps: int | None = None,
+        *,
+        n_samples: int = 1,
+        return_tensor: bool = False,
+    ) -> tuple[torch.Tensor, ...] | torch.Tensor:
+        """Generate one or more draws ``y_t`` for each treatment ``t``."""
+
         b = x.size(0)
         device = x.device
-        y = torch.randn(b, self.k, self.d_y, device=device) * self.sigma_max
+        if n_steps is None:
+            n_steps = min(self.timesteps, 50)
+        n_draws = max(1, n_samples)
+
+        y = torch.randn(n_draws, b, self.k, self.d_y, device=device) * self.sigma_max
+
+        x_rep = x.repeat_interleave(self.k, dim=0)
+        t_vals = torch.arange(self.k, device=device).repeat(b)
+        if n_draws > 1:
+            x_rep = x_rep.repeat(n_draws, 1)
+            t_vals = t_vals.repeat(n_draws)
 
         for step_idx in reversed(range(1, n_steps + 1)):
-            tau = torch.full((b, 1), step_idx / n_steps, device=device)
-            sig = self._sigma(tau)
-            for t_val in range(self.k):
-                score = self.score_net(
-                    y[:, t_val],
-                    x,
-                    torch.full((b,), t_val, dtype=torch.long, device=device),
-                    tau,
-                )
-                y[:, t_val] = y[:, t_val] + (sig**2) * score
+            tau_val = step_idx / n_steps
+            tau_tensor = torch.full(
+                (y.shape[0] * b * self.k, 1), tau_val, device=device
+            )
+
+            y_flat = y.view(-1, self.d_y)
+            score = self.score_net(y_flat, x_rep, t_vals, tau_tensor)
+            score = score.view_as(y)
+
+            sigma = self._sigma(torch.tensor([tau_val], device=device))[0]
+            y = y + (sigma**2) * score
+
             if step_idx > 1:
-                prev = tau - 1 / n_steps
-                sig_prev = self._sigma(prev)
-                # Ensure noise scale is non-negative for numerical stability
-                noise_scale = torch.clamp(sig**2 - sig_prev.pow(2), min=1e-8).sqrt()
-                noise = torch.randn_like(y[:, 0])
-                y = y + noise_scale.unsqueeze(-1) * noise.unsqueeze(1)
-        return tuple(y[:, t] for t in range(self.k))
+                prev_tau = (step_idx - 1) / n_steps
+                sig_prev = self._sigma(torch.tensor([prev_tau], device=device))[0]
+                noise_scale = math.sqrt(max((sigma**2 - sig_prev**2).item(), 1e-8))
+                noise = torch.randn_like(y)
+                y = y + noise_scale * noise
+
+        if return_tensor or n_draws > 1:
+            return y if n_draws > 1 else y.squeeze(0)
+
+        y_single = y.squeeze(0)
+        return tuple(y_single[:, t] for t in range(self.k))
 
     # ----- posterior utility -----
     @torch.no_grad()
@@ -216,17 +241,19 @@ class BridgeDiff(nn.Module):
         self,
         x: torch.Tensor,
         t: torch.Tensor,
-        n_steps: int = 50,
-        n_samples: int = 32,
+        n_steps: int | None = None,
+        n_samples: int = 16,
         return_mean: bool = True,
     ) -> torch.Tensor:
         """Generate ``n_samples`` draws and optionally average them."""
 
-        draws = []
-        for _ in range(n_samples):
-            y_all = self.paired_sample(x, n_steps)
-            draws.append(torch.stack(y_all, dim=1))  # [B, k, d_y]
-        y_stack = torch.stack(draws, dim=0)  # [n_samples, B, k, d_y]
+        samples = self.paired_sample(
+            x, n_steps=n_steps, n_samples=n_samples, return_tensor=True
+        )
+        if samples.dim() == 3:
+            y_stack = samples.unsqueeze(0)
+        else:
+            y_stack = samples
         t_long = t.view(-1, 1, 1).long()
 
         if return_mean:
