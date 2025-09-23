@@ -261,6 +261,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Restore previous history
+        run: |
+          if git ls-remote --exit-code origin gh-pages >/dev/null 2>&1; then
+            git fetch origin gh-pages --depth=1
+            git show origin/gh-pages:history.json > history.json || true
+          fi
+
       - name: Restore prepared virtualenv
         uses: actions/cache/restore@v4
         with:
@@ -307,6 +314,14 @@ jobs:
             --history history.json \
             --output-dir ./charts \
             --markdown-output benchmark-summary.md
+
+      - name: Stage history for pages
+        if: always()
+        run: |
+          if [ -f history.json ]; then
+            mkdir -p charts
+            cp history.json charts/history.json
+          fi
 
       - name: Summarize benchmark timings
         if: always()
