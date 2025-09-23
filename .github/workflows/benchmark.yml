@@ -1,5 +1,7 @@
+---
 name: Model Quality Benchmarking
 
+# yamllint disable rule:truthy
 on:
   push:
     branches: [main]
@@ -10,7 +12,8 @@ on:
       full_benchmark:
         description: 'Run full benchmark suite'
         required: false
-        default: 'false'
+        default: false
+# yamllint enable rule:truthy
 
 # Prevent concurrent updates to benchmark data
 concurrency:
@@ -28,7 +31,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Check if benchmark should run
         id: check-changes
         run: |
@@ -37,13 +40,14 @@ jobs:
             echo "should_run=true" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
+
           # For PRs, check if relevant files changed
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             # Check for changes in models, training, or benchmark files
             changed_files=$(git diff --name-only ${{ github.event.pull_request.base.sha }}...${{ github.sha }})
-            
-            if echo "$changed_files" | grep -E "(xtylearner/models/|xtylearner/training/|eval\.py|benchmark_config\.json|\.github/workflows/benchmark\.yml)"; then
+            pattern='(xtylearner/models/|xtylearner/training/|eval\.py|benchmark_config\.json|\.github/workflows/benchmark\.yml)'
+
+            if echo "$changed_files" | grep -E "$pattern"; then
               echo "should_run=true" >> $GITHUB_OUTPUT
             else
               echo "should_run=false" >> $GITHUB_OUTPUT
@@ -51,25 +55,82 @@ jobs:
           else
             echo "should_run=true" >> $GITHUB_OUTPUT
           fi
-      
+
       - name: Generate benchmark matrix
         id: set-matrix
         if: steps.check-changes.outputs.should_run == 'true'
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          FULL_BENCHMARK: ${{ github.event.inputs.full_benchmark }}
         run: |
-          # Create matrix based on PR vs main branch
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            # Limited matrix for PRs - quick smoke test
-            matrix='{"model":["cycle_dual","mean_teacher"],"dataset":["synthetic"]}'
-          elif [[ "${{ github.event.inputs.full_benchmark }}" == "true" ]]; then
-            # Full matrix for manual dispatch - comprehensive set of diverse models
-            matrix='{"model":["cycle_dual","mean_teacher","prob_circuit","ganite","flow_ssc","vat","fixmatch","dragon_net","diffusion_cevae","bridge_diff","cacore","ss_cevae","tab_jepa","masked_tabular_transformer","gnn_scm","joint_ebm","factor_vae_plus","semiite","vacim","multitask"],"dataset":["synthetic","synthetic_mixed"]}'
-          else
-            # Default matrix for main branch - expanded set for regular testing
-            matrix='{"model":["cycle_dual","mean_teacher","prob_circuit","ganite","flow_ssc","vat","fixmatch","dragon_net","diffusion_cevae","bridge_diff","cacore","ss_cevae"],"dataset":["synthetic","synthetic_mixed"]}'
-          fi
-          
-          echo "matrix=$matrix" >> $GITHUB_OUTPUT
-          echo "Generated matrix: $matrix"
+          sed 's/^          //' <<'PY' | python
+                    import json
+                    import os
+
+                    event_name = os.environ.get("GITHUB_EVENT_NAME", "")
+                    full_benchmark = os.environ.get("FULL_BENCHMARK", "").lower() == "true"
+
+                    if event_name == "pull_request":
+                        matrix = {
+                            "model": [
+                                "cycle_dual",
+                                "mean_teacher",
+                            ],
+                            "dataset": ["synthetic"],
+                        }
+                    elif full_benchmark:
+                        matrix = {
+                            "model": [
+                                "cycle_dual",
+                                "mean_teacher",
+                                "prob_circuit",
+                                "ganite",
+                                "flow_ssc",
+                                "vat",
+                                "fixmatch",
+                                "dragon_net",
+                                "diffusion_cevae",
+                                "bridge_diff",
+                                "cacore",
+                                "ss_cevae",
+                                "tab_jepa",
+                                "masked_tabular_transformer",
+                                "gnn_scm",
+                                "joint_ebm",
+                                "factor_vae_plus",
+                                "semiite",
+                                "vacim",
+                                "multitask",
+                            ],
+                            "dataset": ["synthetic", "synthetic_mixed"],
+                        }
+                    else:
+                        matrix = {
+                            "model": [
+                                "cycle_dual",
+                                "mean_teacher",
+                                "prob_circuit",
+                                "ganite",
+                                "flow_ssc",
+                                "vat",
+                                "fixmatch",
+                                "dragon_net",
+                                "diffusion_cevae",
+                                "bridge_diff",
+                                "cacore",
+                                "ss_cevae",
+                            ],
+                            "dataset": ["synthetic", "synthetic_mixed"],
+                        }
+
+                    payload = json.dumps(matrix, separators=(",", ":"))
+                    output = os.environ.get("GITHUB_OUTPUT")
+                    if not output:
+                        raise SystemExit("GITHUB_OUTPUT not set")
+                    with open(output, "a", encoding="utf-8") as fh:
+                        fh.write(f"matrix={payload}\n")
+                    print(f"Generated matrix: {payload}")
+          PY
 
   prepare-runtime:
     needs: setup-matrix
@@ -105,7 +166,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .venv
-          key: ${{ runner.os }}-benchmark-venv-${{ hashFiles('requirements.txt', 'pyproject.toml', 'uv.lock', '.github/workflows/benchmark.yml') }}
+          key: >-
+            ${{ runner.os }}-benchmark-venv-${{ hashFiles(
+              'requirements.txt',
+              'pyproject.toml',
+              'uv.lock',
+              '.github/workflows/benchmark.yml'
+            ) }}
 
       - name: Build virtualenv
         if: steps.venv-cache.outputs.cache-hit != 'true'
@@ -139,7 +206,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix) }}
       max-parallel: 6  # Increased for more models
-    
+
     steps:
       - uses: actions/checkout@v4
 
@@ -183,9 +250,26 @@ jobs:
             --dataset ${{ matrix.dataset }} \
             --output results-${{ matrix.model }}-${{ matrix.dataset }}.json; then
             echo "Benchmark failed or timed out for ${{ matrix.model }} on ${{ matrix.dataset }}"
-            cat <<'EOF' > results-${{ matrix.model }}-${{ matrix.dataset }}.json
-{"results":[],"metadata":{"error":"timeout","model":"${{ matrix.model }}","dataset":"${{ matrix.dataset }}"}}
-EOF
+            sed 's/^            //' <<'PY' | python
+                      import json
+                      from pathlib import Path
+
+                      fallback_path = Path(
+                          "results-${{ matrix.model }}-${{ matrix.dataset }}.json"
+                      )
+                      fallback_payload = {
+                          "results": [],
+                          "metadata": {
+                              "error": "timeout",
+                              "model": "${{ matrix.model }}",
+                              "dataset": "${{ matrix.dataset }}",
+                          },
+                      }
+                      fallback_path.write_text(
+                          json.dumps(fallback_payload, separators=(",", ":")),
+                          encoding="utf-8",
+                      )
+            PY
           fi
 
           echo "seconds=$SECONDS" >> $GITHUB_OUTPUT
@@ -197,46 +281,57 @@ EOF
           ENV_SETUP_SECONDS: ${{ steps.extract-env.outputs.seconds }}
           BENCHMARK_SECONDS: ${{ steps.run-benchmarks.outputs.seconds }}
         run: |
-          ./.venv/bin/python - <<'PY'
-import json
-import os
-from pathlib import Path
+          sed 's/^          //' <<'PY' | ./.venv/bin/python
+                    import json
+                    import os
+                    from pathlib import Path
 
-model = os.environ["MODEL"]
-dataset = os.environ["DATASET"]
-env_seconds = float(os.environ.get("ENV_SETUP_SECONDS", "0") or 0.0)
-benchmark_seconds = float(os.environ.get("BENCHMARK_SECONDS", "0") or 0.0)
+                    model = os.environ["MODEL"]
+                    dataset = os.environ["DATASET"]
+                    env_seconds = float(
+                        os.environ.get("ENV_SETUP_SECONDS", "0") or 0.0
+                    )
+                    benchmark_seconds = float(
+                        os.environ.get("BENCHMARK_SECONDS", "0") or 0.0
+                    )
 
-result_path = Path(f"results-{model}-{dataset}.json")
-timings = []
-if result_path.exists():
-    with result_path.open() as fh:
-        try:
-            payload = json.load(fh)
-        except json.JSONDecodeError:
-            payload = {}
-        if isinstance(payload, dict):
-            metadata = payload.get("metadata", {})
-            if isinstance(metadata, dict):
-                timings = metadata.get("timings", [])
+                    result_path = Path(f"results-{model}-{dataset}.json")
+                    timings = []
+                    if result_path.exists():
+                        with result_path.open(encoding="utf-8") as fh:
+                            try:
+                                payload = json.load(fh)
+                            except json.JSONDecodeError:
+                                payload = {}
+                            if isinstance(payload, dict):
+                                metadata = payload.get("metadata", {})
+                                if isinstance(metadata, dict):
+                                    timings = metadata.get("timings", [])
 
-timing_record = {}
-if isinstance(timings, list):
-    for candidate in timings:
-        if isinstance(candidate, dict) and candidate.get("model") == model and candidate.get("dataset") == dataset:
-            timing_record.update(candidate)
-            break
-    else:
-        if timings and isinstance(timings[0], dict):
-            timing_record.update(timings[0])
-timing_record.setdefault("model", model)
-timing_record.setdefault("dataset", dataset)
-timing_record["environment_setup_seconds"] = env_seconds
-timing_record["execution_step_seconds"] = benchmark_seconds
+                    timing_record = {}
+                    if isinstance(timings, list):
+                        for candidate in timings:
+                            if (
+                                isinstance(candidate, dict)
+                                and candidate.get("model") == model
+                                and candidate.get("dataset") == dataset
+                            ):
+                                timing_record.update(candidate)
+                                break
+                        else:
+                            if timings and isinstance(timings[0], dict):
+                                timing_record.update(timings[0])
 
-with Path(f"timing-{model}-{dataset}.json").open("w") as fh:
-    json.dump(timing_record, fh, indent=2)
-PY
+                    timing_record.setdefault("model", model)
+                    timing_record.setdefault("dataset", dataset)
+                    timing_record["environment_setup_seconds"] = env_seconds
+                    timing_record["execution_step_seconds"] = benchmark_seconds
+
+                    with Path(f"timing-{model}-{dataset}.json").open(
+                        "w", encoding="utf-8"
+                    ) as fh:
+                        json.dump(timing_record, fh, indent=2)
+          PY
 
       # Upload individual results
       - name: Upload benchmark results
@@ -258,12 +353,12 @@ PY
       pull-requests: write
       pages: write
       id-token: write
-    
+
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Download prepared environment
         uses: actions/download-artifact@v4
         with:
@@ -319,7 +414,7 @@ PY
           else
             echo "_No timing data captured._" >> "$GITHUB_STEP_SUMMARY"
           fi
-      
+
       # Deploy to GitHub Pages (main branch only)
       - name: Deploy dashboard
         if: github.ref == 'refs/heads/main' && success()
@@ -327,7 +422,7 @@ PY
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./charts
-          
+
       - name: Upload benchmark history
         if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
