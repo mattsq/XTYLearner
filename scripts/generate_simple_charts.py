@@ -55,7 +55,6 @@ METRICS: Sequence[MetricInfo] = (
 )
 
 MAX_TREND_POINTS = 12
-MAX_SERIES_PER_METRIC = 6
 
 
 def _format_value(value: Optional[float], fmt: str) -> str:
@@ -219,13 +218,24 @@ def _select_top_series(
         candidates.append(((model, dataset), latest_value, deduped))
 
     reverse = metric.sort_reverse
-    candidates.sort(key=lambda item: item[1], reverse=reverse)
+    if reverse:
+        candidates.sort(
+            key=lambda item: (
+                -item[1],
+                str(item[0][0]).lower(),
+                str(item[0][1]).lower(),
+            )
+        )
+    else:
+        candidates.sort(
+            key=lambda item: (
+                item[1],
+                str(item[0][0]).lower(),
+                str(item[0][1]).lower(),
+            )
+        )
 
-    selected = []
-    for (model, dataset), _, points in candidates[:MAX_SERIES_PER_METRIC]:
-        selected.append(((model, dataset), points))
-
-    return selected
+    return [((model, dataset), points) for (model, dataset), _, points in candidates]
 
 
 def _plot_trend_chart(
@@ -404,15 +414,26 @@ def _aggregate_metric(results: Sequence[Dict[str, Any]], metric_key: str) -> Dic
     return aggregated
 
 
-def _plot_metric(axis: plt.Axes, series: Mapping[str, float], title: str, ylabel: str) -> None:
+def _plot_metric(
+    axis: plt.Axes,
+    series: Mapping[str, float],
+    title: str,
+    ylabel: str,
+    *,
+    reverse: bool = False,
+) -> None:
     axis.set_title(title)
     if not series:
         axis.axis("off")
         axis.text(0.5, 0.5, "No data", ha="center", va="center", fontsize=12)
         return
 
-    models = list(series.keys())
-    values = list(series.values())
+    if reverse:
+        sorted_items = sorted(series.items(), key=lambda item: (-item[1], item[0]))
+    else:
+        sorted_items = sorted(series.items(), key=lambda item: (item[1], item[0]))
+    models = [name for name, _ in sorted_items]
+    values = [value for _, value in sorted_items]
     axis.bar(models, values)
     axis.set_ylabel(ylabel)
     axis.tick_params(axis="x", labelrotation=45)
@@ -559,7 +580,13 @@ def generate_charts(history_file: str, output_dir: str, markdown_output: Optiona
 
     fig, axes = plt.subplots(1, 2, figsize=(15, 6))
     _plot_metric(axes[0], rmse_series, "Model Outcome RMSE (↓)", "RMSE")
-    _plot_metric(axes[1], accuracy_series, "Model Treatment Accuracy (↑)", "Accuracy")
+    _plot_metric(
+        axes[1],
+        accuracy_series,
+        "Model Treatment Accuracy (↑)",
+        "Accuracy",
+        reverse=True,
+    )
     fig.tight_layout()
     plt.savefig(output_path / "benchmark_summary.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
