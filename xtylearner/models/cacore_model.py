@@ -27,6 +27,7 @@ class CaCoRE(nn.Module):
         hidden_dims: int | Sequence[int] = 128,
         rep_dim: int = 64,
         cpc_weight: float = 1.0,
+        cpc_temperature: float = 0.1,
         activation: type[nn.Module] = nn.ReLU,
         dropout: float | Sequence[float] | None = None,
         norm_layer: Callable[[int], nn.Module] | None = None,
@@ -63,6 +64,7 @@ class CaCoRE(nn.Module):
         self.k = k
         self.d_y = d_y
         self.cpc_weight = cpc_weight
+        self.cpc_temperature = cpc_temperature
 
         # Encoder mapping x -> h
         if isinstance(hidden_dims, int):
@@ -148,12 +150,16 @@ class CaCoRE(nn.Module):
 
         # Outcome loss only on rows with observed treatment
         labelled = t_obs >= 0
-        t_onehot = F.one_hot(t_obs.clamp_min(0), num_classes=self.k).float()
-        h_t = torch.cat([h, t_onehot], dim=-1)
-        y_hat = self.outcome_head(h_t)
+        if labelled.any():
+            t_lab = t_obs[labelled]
+            t_onehot_lab = F.one_hot(t_lab, num_classes=self.k).float()
+            h_t_lab = torch.cat([h[labelled], t_onehot_lab], dim=-1)
+            y_hat = self.outcome_head(h_t_lab)
+        else:
+            y_hat = None
         loss_y = torch.tensor(0.0, device=x.device)
         if labelled.any():
-            loss_y = F.mse_loss(y_hat[labelled], y[labelled])
+            loss_y = F.mse_loss(y_hat, y[labelled])
 
         # Treatment prediction loss
         h_y = torch.cat([h, y], dim=-1)
@@ -162,13 +168,16 @@ class CaCoRE(nn.Module):
         if labelled.any():
             loss_t = F.cross_entropy(logits_t[labelled], t_obs[labelled])
 
-        # Contrastive InfoNCE over (y,t)
-        z = self.joint_embed(torch.cat([y, t_onehot], dim=-1))
-        z = F.normalize(z, dim=-1)
-        h_norm = F.normalize(h, dim=-1)
-        sim = h_norm @ z.T
-        labels = torch.arange(x.size(0), device=x.device)
-        loss_cpc = F.cross_entropy(sim, labels)
+        # Contrastive InfoNCE over observed (y,t)
+        loss_cpc = torch.tensor(0.0, device=x.device)
+        if labelled.any():
+            z_input = torch.cat([y[labelled], t_onehot_lab], dim=-1)
+            z = self.joint_embed(z_input)
+            z = F.normalize(z, dim=-1)
+            h_lab = F.normalize(h[labelled], dim=-1)
+            sim = (h_lab @ z.T) / self.cpc_temperature
+            labels_idx = torch.arange(h_lab.size(0), device=x.device)
+            loss_cpc = F.cross_entropy(sim, labels_idx)
 
         return loss_y + loss_t + self.cpc_weight * loss_cpc
 
