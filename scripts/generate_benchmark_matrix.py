@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Sequence, List
@@ -13,11 +14,6 @@ from typing import Sequence, List
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
-
-# Import models so registry is populated.
-import xtylearner.models  # noqa: F401
-from xtylearner.models.registry import _MODEL_REGISTRY
-
 
 PR_MATRIX = {
     "model": ["cycle_dual", "mean_teacher"],
@@ -78,6 +74,37 @@ def as_bool(value: str | None) -> bool:
 KNOWN_MODELS = set(FULL_MATRIX["model"]) | set(DEFAULT_MATRIX["model"]) | set(PR_MATRIX["model"])
 
 
+def discover_module_model_map() -> dict[str, list[str]]:
+    """Parse model files to determine which registry names they provide."""
+
+    models_dir = REPO_ROOT / "xtylearner" / "models"
+    pattern = re.compile(r"@register_model\(\s*['\"]([^'\"]+)['\"]\s*\)")
+    module_map: dict[str, list[str]] = {}
+
+    for path in models_dir.glob("**/*.py"):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+
+        names = pattern.findall(text)
+        if not names:
+            continue
+
+        module = (
+            path.relative_to(REPO_ROOT)
+            .with_suffix("")
+            .as_posix()
+            .replace("/", ".")
+        )
+        module_map[module] = names
+
+    return module_map
+
+
+MODULE_MODEL_MAP = discover_module_model_map()
+
+
 def parse_csv(value: str | None) -> list[str]:
     if not value:
         return []
@@ -88,10 +115,6 @@ def files_to_models(files: Sequence[str]) -> List[str]:
     if not files:
         return []
 
-    module_map: dict[str, list[str]] = {}
-    for name, cls in _MODEL_REGISTRY.items():
-        module_map.setdefault(cls.__module__, []).append(name)
-
     resolved: list[str] = []
     for file_path in files:
         if not file_path or not file_path.endswith(".py"):
@@ -99,7 +122,7 @@ def files_to_models(files: Sequence[str]) -> List[str]:
         module = file_path.replace("/", ".").rsplit(".py", 1)[0]
         if module.endswith(".__init__"):
             module = module.rsplit(".", 1)[0]
-        matches = module_map.get(module)
+        matches = MODULE_MODEL_MAP.get(module)
         if matches:
             resolved.extend(matches)
 
