@@ -69,6 +69,8 @@ jobs:
     needs: setup-matrix
     if: needs.setup-matrix.outputs.should_run == 'true'
     runs-on: ubuntu-latest
+    env:
+      PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
     steps:
       - uses: actions/checkout@v4
         with:
@@ -117,7 +119,6 @@ jobs:
           python -m venv .venv
           source .venv/bin/activate
           python -m pip install --upgrade pip
-          pip install --no-cache-dir torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu
           pip install --no-cache-dir -r requirements.txt
           pip install --no-cache-dir matplotlib pandas numpy scipy
           pip install --no-cache-dir -e .
