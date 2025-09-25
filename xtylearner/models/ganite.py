@@ -142,5 +142,19 @@ class GANITE(nn.Module):
         logits = self.C_t(z)
         return logits.softmax(-1)
 
+    # --------------------------------------------------------------
+    def generator_parameters(self):
+        """Yield parameters optimised by the generator step."""
+
+        yield from self.G_cf.parameters()
+        yield from self.G_ite.parameters()
+        yield from self.C_t.parameters()
+
+    # --------------------------------------------------------------
+    def discriminator_parameters(self):
+        """Yield parameters optimised by the discriminator step."""
+
+        yield from self.D_y.parameters()
+
 
 __all__ = ["GANITE"]

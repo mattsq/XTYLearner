@@ -244,7 +244,50 @@ class ModelBenchmarker:
         model = get_model(model_name, **model_kwargs)
 
         if hasattr(model, "loss_G") and hasattr(model, "loss_D"):
-            optimizer: Any = torch.optim.Adam(model.parameters(), lr=0.001)
+            gen_params: List[torch.nn.Parameter] = []
+            disc_params: List[torch.nn.Parameter] = []
+
+            if hasattr(model, "generator_parameters"):
+                gen_params = [
+                    p for p in model.generator_parameters() if p.requires_grad
+                ]
+            if hasattr(model, "discriminator_parameters"):
+                disc_params = [
+                    p for p in model.discriminator_parameters() if p.requires_grad
+                ]
+
+            if not gen_params or not disc_params:
+                named_params = list(model.named_parameters())
+                if not gen_params:
+                    gen_params = [
+                        p
+                        for name, p in named_params
+                        if p.requires_grad and not name.startswith("D_")
+                    ]
+                if not disc_params:
+                    disc_params = [
+                        p
+                        for name, p in named_params
+                        if p.requires_grad and name.startswith("D_")
+                    ]
+
+            if not gen_params:
+                gen_params = [
+                    p
+                    for p in getattr(model, "parameters", lambda: [])()
+                    if p.requires_grad
+                ]
+            if not disc_params:
+                disc_params = [
+                    p
+                    for p in getattr(model, "parameters", lambda: [])()
+                    if p.requires_grad
+                ]
+
+            optimizer = (
+                torch.optim.Adam(gen_params, lr=0.001),
+                torch.optim.Adam(disc_params, lr=0.001),
+            )
         else:
             params = [
                 p
