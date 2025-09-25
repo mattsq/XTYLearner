@@ -26,7 +26,7 @@
     <body>
         <div class="header">
             <h1>🚀 XTYLearner Model Benchmarks</h1>
-            <p>Last updated: 2025-09-24T05:37:59.653325 | Commit: e53d0117</p>
+            <p>Last updated: 2025-09-25T22:18:23.761561 | Commit: 450efbe2</p>
         </div>
 
         <div class="summary">
@@ -34,51 +34,38 @@
             <div class="summary-grid">
                 <div class="summary-card">
                     <h3>Total Benchmarks</h3>
-                    <div class="value">120</div>
+                    <div class="value">72</div>
                 </div>
                 <div class="summary-card">
                     <h3>Models Tested</h3>
-                    <div class="value">20</div>
+                    <div class="value">12</div>
                     <ul>
                 <li>bridge</li>
                 <li>cacore</li>
                 <li>cycle</li>
                 <li>diffusion</li>
                 <li>dragon</li>
-                <li>factor</li>
                 <li>fixmatch</li>
                 <li>flow</li>
                 <li>ganite</li>
-                <li>gnn</li>
-                <li>joint</li>
-                <li>masked</li>
                 <li>mean</li>
-                <li>multitask</li>
                 <li>prob</li>
-                <li>semiite</li>
                 <li>ss</li>
-                <li>tab</li>
-                <li>vacim</li>
                 <li>vat</li>
                     </ul>
                 </div>
                 <div class="summary-card">
                     <h3>Datasets Used</h3>
-                    <div class="value">13</div>
+                    <div class="value">8</div>
                     <ul>
                 <li>cevae</li>
                 <li>circuit</li>
                 <li>diff</li>
                 <li>dual</li>
-                <li>ebm</li>
-                <li>jepa</li>
                 <li>net</li>
-                <li>scm</li>
                 <li>ssc</li>
                 <li>synthetic</li>
-                <li>tabular</li>
                 <li>teacher</li>
-                <li>vae</li>
                     </ul>
                 </div>
             </div>
@@ -138,6 +125,14 @@
             </tr>
             <tr>
                 <td>synthetic</td>
+                <td>ganite</td>
+                <td>0.1285</td>
+                <td>0.1189 – 0.1426</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
                 <td>fixmatch</td>
                 <td>0.1546</td>
                 <td>0.1389 – 0.1702</td>
@@ -178,22 +173,6 @@
             </tr>
             <tr>
                 <td>synthetic</td>
-                <td>gnn_scm</td>
-                <td>0.2850</td>
-                <td>0.2281 – 0.3631</td>
-                <td>rmse</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>multitask</td>
-                <td>0.7044</td>
-                <td>0.6733 – 0.7453</td>
-                <td>rmse</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
                 <td>cacore</td>
                 <td>0.7709</td>
                 <td>0.7625 – 0.7779</td>
@@ -202,25 +181,9 @@
             </tr>
             <tr>
                 <td>synthetic</td>
-                <td>semiite</td>
-                <td>0.7800</td>
-                <td>0.7411 – 0.8139</td>
-                <td>rmse</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
                 <td>dragon_net</td>
                 <td>0.8892</td>
                 <td>0.6545 – 1.1356</td>
-                <td>rmse</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>factor_vae_plus</td>
-                <td>0.8896</td>
-                <td>0.8449 – 0.9335</td>
                 <td>rmse</td>
                 <td>5</td>
             </tr>
@@ -242,49 +205,9 @@
             </tr>
             <tr>
                 <td>synthetic</td>
-                <td>vacim</td>
-                <td>0.9541</td>
-                <td>0.8891 – 1.0226</td>
-                <td>rmse</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>masked_tabular_transformer</td>
-                <td>1.0907</td>
-                <td>1.0072 – 1.1717</td>
-                <td>rmse</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>tab_jepa</td>
-                <td>1.3950</td>
-                <td>1.3328 – 1.4690</td>
-                <td>rmse</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
                 <td>bridge_diff</td>
                 <td>1.8056</td>
                 <td>1.4239 – 2.2214</td>
-                <td>rmse</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>joint_ebm</td>
-                <td>2.3063</td>
-                <td>1.9961 – 2.6352</td>
-                <td>rmse</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>ganite</td>
-                <td>n/a</td>
-                <td>0.0000 – 0.0000</td>
                 <td>rmse</td>
                 <td>5</td>
             </tr>
@@ -301,6 +224,14 @@
                 <td>cycle_dual</td>
                 <td>0.1860</td>
                 <td>0.1540 – 0.2257</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>ganite</td>
+                <td>0.2205</td>
+                <td>0.2082 – 0.2330</td>
                 <td>rmse</td>
                 <td>5</td>
             </tr>
@@ -338,22 +269,6 @@
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
-                <td>gnn_scm</td>
-                <td>0.8953</td>
-                <td>0.8676 – 0.9327</td>
-                <td>rmse</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
-                <td>multitask</td>
-                <td>0.9205</td>
-                <td>0.9015 – 0.9417</td>
-                <td>rmse</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
                 <td>cacore</td>
                 <td>0.9302</td>
                 <td>0.9048 – 0.9591</td>
@@ -386,65 +301,9 @@
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
-                <td>semiite</td>
-                <td>1.0711</td>
-                <td>1.0535 – 1.0927</td>
-                <td>rmse</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
-                <td>factor_vae_plus</td>
-                <td>1.1018</td>
-                <td>1.0615 – 1.1372</td>
-                <td>rmse</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
-                <td>vacim</td>
-                <td>1.1455</td>
-                <td>1.1322 – 1.1588</td>
-                <td>rmse</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
-                <td>masked_tabular_transformer</td>
-                <td>1.1537</td>
-                <td>1.1257 – 1.1955</td>
-                <td>rmse</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
-                <td>tab_jepa</td>
-                <td>1.3653</td>
-                <td>1.2652 – 1.4656</td>
-                <td>rmse</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
-                <td>joint_ebm</td>
-                <td>1.6635</td>
-                <td>1.5868 – 1.7848</td>
-                <td>rmse</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
                 <td>bridge_diff</td>
                 <td>1.8789</td>
                 <td>1.5246 – 2.1747</td>
-                <td>rmse</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
-                <td>ganite</td>
-                <td>n/a</td>
-                <td>0.0000 – 0.0000</td>
                 <td>rmse</td>
                 <td>5</td>
             </tr>
@@ -467,31 +326,7 @@
                 <tbody>
             <tr>
                 <td>synthetic</td>
-                <td>ganite</td>
-                <td>n/a</td>
-                <td>0.000 – 0.000</td>
-                <td>accuracy</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
                 <td>ss_cevae</td>
-                <td>1.000</td>
-                <td>1.000 – 1.000</td>
-                <td>accuracy</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>multitask</td>
-                <td>1.000</td>
-                <td>1.000 – 1.000</td>
-                <td>accuracy</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>joint_ebm</td>
                 <td>1.000</td>
                 <td>1.000 – 1.000</td>
                 <td>accuracy</td>
@@ -507,7 +342,7 @@
             </tr>
             <tr>
                 <td>synthetic</td>
-                <td>cycle_dual</td>
+                <td>prob_circuit</td>
                 <td>1.000</td>
                 <td>1.000 – 1.000</td>
                 <td>accuracy</td>
@@ -515,7 +350,15 @@
             </tr>
             <tr>
                 <td>synthetic</td>
-                <td>prob_circuit</td>
+                <td>ganite</td>
+                <td>1.000</td>
+                <td>1.000 – 1.000</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>cycle_dual</td>
                 <td>1.000</td>
                 <td>1.000 – 1.000</td>
                 <td>accuracy</td>
@@ -563,14 +406,6 @@
             </tr>
             <tr>
                 <td>synthetic</td>
-                <td>masked_tabular_transformer</td>
-                <td>0.852</td>
-                <td>0.808 – 0.896</td>
-                <td>accuracy</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
                 <td>cacore</td>
                 <td>0.824</td>
                 <td>0.792 – 0.848</td>
@@ -586,56 +421,16 @@
                 <td>5</td>
             </tr>
             <tr>
-                <td>synthetic</td>
-                <td>semiite</td>
-                <td>0.628</td>
-                <td>0.612 – 0.640</td>
-                <td>accuracy</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>factor_vae_plus</td>
-                <td>0.616</td>
-                <td>0.600 – 0.636</td>
-                <td>accuracy</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>gnn_scm</td>
-                <td>0.584</td>
-                <td>0.572 – 0.596</td>
-                <td>accuracy</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>tab_jepa</td>
-                <td>0.520</td>
-                <td>0.520 – 0.520</td>
-                <td>accuracy</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>vacim</td>
-                <td>0.516</td>
-                <td>0.452 – 0.576</td>
-                <td>accuracy</td>
-                <td>5</td>
-            </tr>
-            <tr>
                 <td>synthetic_mixed</td>
                 <td>ganite</td>
-                <td>n/a</td>
-                <td>0.000 – 0.000</td>
+                <td>1.000</td>
+                <td>1.000 – 1.000</td>
                 <td>accuracy</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
-                <td>multitask</td>
+                <td>cycle_dual</td>
                 <td>1.000</td>
                 <td>1.000 – 1.000</td>
                 <td>accuracy</td>
@@ -652,22 +447,6 @@
             <tr>
                 <td>synthetic_mixed</td>
                 <td>ss_cevae</td>
-                <td>1.000</td>
-                <td>1.000 – 1.000</td>
-                <td>accuracy</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
-                <td>joint_ebm</td>
-                <td>1.000</td>
-                <td>1.000 – 1.000</td>
-                <td>accuracy</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
-                <td>cycle_dual</td>
                 <td>1.000</td>
                 <td>1.000 – 1.000</td>
                 <td>accuracy</td>
@@ -723,14 +502,6 @@
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
-                <td>masked_tabular_transformer</td>
-                <td>0.794</td>
-                <td>0.710 – 0.871</td>
-                <td>accuracy</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
                 <td>cacore</td>
                 <td>0.684</td>
                 <td>0.636 – 0.732</td>
@@ -739,49 +510,9 @@
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
-                <td>vacim</td>
-                <td>0.565</td>
-                <td>0.565 – 0.565</td>
-                <td>accuracy</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
-                <td>tab_jepa</td>
-                <td>0.565</td>
-                <td>0.565 – 0.565</td>
-                <td>accuracy</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
-                <td>factor_vae_plus</td>
-                <td>0.511</td>
-                <td>0.470 – 0.551</td>
-                <td>accuracy</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
                 <td>dragon_net</td>
                 <td>0.487</td>
                 <td>0.428 – 0.570</td>
-                <td>accuracy</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
-                <td>semiite</td>
-                <td>0.412</td>
-                <td>0.395 – 0.435</td>
-                <td>accuracy</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
-                <td>gnn_scm</td>
-                <td>0.406</td>
-                <td>0.395 – 0.418</td>
                 <td>accuracy</td>
                 <td>5</td>
             </tr>
@@ -821,8 +552,8 @@
             <tr>
                 <td>synthetic</td>
                 <td>mean_teacher</td>
-                <td>0.15</td>
-                <td>0.15 – 0.15</td>
+                <td>0.14</td>
+                <td>0.14 – 0.14</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
@@ -846,55 +577,15 @@
                 <td>synthetic</td>
                 <td>cacore</td>
                 <td>0.16</td>
-                <td>0.16 – 0.17</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>gnn_scm</td>
-                <td>0.16</td>
-                <td>0.16 – 0.17</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>multitask</td>
-                <td>0.18</td>
-                <td>0.17 – 0.18</td>
+                <td>0.16 – 0.16</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>synthetic</td>
                 <td>cycle_dual</td>
-                <td>0.18</td>
-                <td>0.18 – 0.19</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>semiite</td>
-                <td>0.19</td>
-                <td>0.19 – 0.19</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>vacim</td>
-                <td>0.20</td>
-                <td>0.20 – 0.20</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>factor_vae_plus</td>
-                <td>0.22</td>
-                <td>0.22 – 0.22</td>
+                <td>0.17</td>
+                <td>0.17 – 0.17</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
@@ -902,63 +593,39 @@
                 <td>synthetic</td>
                 <td>diffusion_cevae</td>
                 <td>0.26</td>
-                <td>0.26 – 0.27</td>
+                <td>0.26 – 0.26</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>synthetic</td>
                 <td>ss_cevae</td>
-                <td>0.27</td>
-                <td>0.27 – 0.27</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>joint_ebm</td>
-                <td>0.68</td>
-                <td>0.68 – 0.69</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>tab_jepa</td>
-                <td>1.05</td>
-                <td>1.04 – 1.05</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>masked_tabular_transformer</td>
-                <td>1.41</td>
-                <td>1.39 – 1.44</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>flow_ssc</td>
-                <td>1.78</td>
-                <td>1.76 – 1.79</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>bridge_diff</td>
-                <td>4.73</td>
-                <td>4.73 – 4.74</td>
+                <td>0.28</td>
+                <td>0.28 – 0.28</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>synthetic</td>
                 <td>ganite</td>
-                <td>n/a</td>
-                <td>0.00 – 0.00</td>
+                <td>0.28</td>
+                <td>0.28 – 0.29</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>flow_ssc</td>
+                <td>1.77</td>
+                <td>1.76 – 1.78</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>bridge_diff</td>
+                <td>4.74</td>
+                <td>4.72 – 4.77</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
@@ -980,6 +647,14 @@
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
+                <td>mean_teacher</td>
+                <td>0.17</td>
+                <td>0.16 – 0.19</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
                 <td>vat</td>
                 <td>0.17</td>
                 <td>0.17 – 0.17</td>
@@ -988,24 +663,16 @@
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
-                <td>mean_teacher</td>
-                <td>0.17</td>
+                <td>cacore</td>
+                <td>0.18</td>
                 <td>0.17 – 0.18</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
-                <td>cacore</td>
-                <td>0.18</td>
-                <td>0.18 – 0.18</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
                 <td>dragon_net</td>
-                <td>0.19</td>
+                <td>0.20</td>
                 <td>0.19 – 0.20</td>
                 <td>seconds</td>
                 <td>5</td>
@@ -1014,111 +681,47 @@
                 <td>synthetic_mixed</td>
                 <td>cycle_dual</td>
                 <td>0.20</td>
-                <td>0.20 – 0.20</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
-                <td>multitask</td>
-                <td>0.20</td>
                 <td>0.20 – 0.21</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
-                <td>gnn_scm</td>
-                <td>0.23</td>
-                <td>0.23 – 0.23</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
-                <td>factor_vae_plus</td>
-                <td>0.24</td>
-                <td>0.24 – 0.24</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
                 <td>diffusion_cevae</td>
-                <td>0.28</td>
+                <td>0.29</td>
                 <td>0.28 – 0.29</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
-                <td>semiite</td>
-                <td>0.32</td>
-                <td>0.31 – 0.32</td>
+                <td>ganite</td>
+                <td>0.30</td>
+                <td>0.30 – 0.30</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
                 <td>ss_cevae</td>
-                <td>0.43</td>
-                <td>0.43 – 0.43</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
-                <td>vacim</td>
-                <td>0.76</td>
-                <td>0.76 – 0.76</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
-                <td>tab_jepa</td>
-                <td>1.04</td>
-                <td>1.03 – 1.05</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
-                <td>joint_ebm</td>
-                <td>1.18</td>
-                <td>1.18 – 1.19</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
-                <td>masked_tabular_transformer</td>
-                <td>1.52</td>
-                <td>1.52 – 1.53</td>
+                <td>0.44</td>
+                <td>0.43 – 0.45</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
                 <td>flow_ssc</td>
-                <td>2.36</td>
-                <td>2.36 – 2.37</td>
+                <td>2.56</td>
+                <td>2.55 – 2.57</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
                 <td>bridge_diff</td>
-                <td>5.48</td>
-                <td>5.46 – 5.51</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
-                <td>ganite</td>
-                <td>n/a</td>
-                <td>0.00 – 0.00</td>
+                <td>5.63</td>
+                <td>5.61 – 5.65</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
