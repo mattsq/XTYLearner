@@ -32,3 +32,21 @@ def test_factor_vae_plus_trainer():
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
     trainer = Trainer(model, opt, loader)
     trainer.fit(1)
+
+
+def test_factor_vae_plus_multiple_treatments():
+    X = torch.randn(8, 2)
+    Y = torch.randn(8, 1)
+    T = torch.stack([
+        torch.randint(0, 2, (8,), dtype=torch.long),
+        torch.randint(0, 3, (8,), dtype=torch.long),
+    ], dim=1)
+    model = FactorVAEPlus(d_x=2, d_y=1, k=2, cat_sizes=[2, 3])
+    loss = model.elbo(X, Y, T)
+    assert loss.dim() == 0
+    out = model.predict_outcome(X, T)
+    assert out.shape == (8, 1)
+    probs = model.predict_treatment_proba(X, Y)
+    assert len(probs) == 2
+    assert probs[0].shape == (8, 2)
+    assert probs[1].shape == (8, 3)
