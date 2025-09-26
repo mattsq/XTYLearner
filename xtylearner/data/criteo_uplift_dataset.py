@@ -94,17 +94,31 @@ def _load_real_criteo_direct(data_dir: str, sample_frac: float, seed: int, outco
                 with open(csv_path, 'wb') as f_out:
                     shutil.copyfileobj(f_in, f_out)
 
-        # Load with sampling
+        # Load with memory-efficient chunked sampling
         if sample_frac < 1.0:
-            # Use pandas skiprows for efficient sampling
-            total_lines = sum(1 for line in open(csv_path)) - 1
-            n_keep = int(total_lines * sample_frac)
-            skip_rows = sorted(np.random.RandomState(seed).choice(
-                range(1, total_lines + 1),
-                size=total_lines - n_keep,
-                replace=False
-            ))
-            df = pd.read_csv(csv_path, skiprows=skip_rows)
+            # Use chunked reading with probabilistic sampling to avoid memory issues
+            print(f"Using memory-efficient chunked sampling with {sample_frac*100:.2f}% sample rate...")
+
+            chunk_size = 50000  # Process 50k rows at a time
+            sampled_chunks = []
+            rng = np.random.RandomState(seed)
+
+            # Read and sample in chunks to avoid loading entire file into memory
+            for chunk in pd.read_csv(csv_path, chunksize=chunk_size):
+                # Sample rows from this chunk probabilistically
+                if len(chunk) > 0:
+                    # Use binomial sampling for each chunk
+                    n_sample = rng.binomial(len(chunk), sample_frac)
+                    if n_sample > 0:
+                        sampled_chunk = chunk.sample(n=n_sample, random_state=rng.randint(0, 2**31))
+                        sampled_chunks.append(sampled_chunk)
+
+            # Concatenate all sampled chunks
+            if sampled_chunks:
+                df = pd.concat(sampled_chunks, ignore_index=True)
+            else:
+                # If no samples, create empty dataframe with correct columns
+                df = pd.read_csv(csv_path, nrows=0)
         else:
             df = pd.read_csv(csv_path)
 

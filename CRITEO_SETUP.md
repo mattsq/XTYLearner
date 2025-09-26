@@ -106,7 +106,8 @@ for model in models:
 ## Implementation Details
 
 - **Graceful fallback**: Automatically tries real → synthetic data sources
-- **Efficient sampling**: Uses pandas skiprows for large file sampling
-- **Memory management**: Supports fractional sampling for memory constraints
+- **Memory-efficient sampling**: Uses chunked reading with probabilistic sampling to avoid loading 25M rows into memory
+- **Streaming approach**: Processes data in 50k row chunks, samples from each chunk independently
+- **Memory management**: Supports fractional sampling without materializing large index arrays
 - **Caching**: Downloads are cached locally for reuse
 - **API consistency**: Same TensorDataset(X, Y, T) format as other datasets
