@@ -71,9 +71,6 @@ def as_bool(value: str | None) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "y"}
 
 
-KNOWN_MODELS = set(FULL_MATRIX["model"]) | set(DEFAULT_MATRIX["model"]) | set(PR_MATRIX["model"])
-
-
 def discover_module_model_map() -> dict[str, list[str]]:
     """Parse model files to determine which registry names they provide."""
 
@@ -103,6 +100,19 @@ def discover_module_model_map() -> dict[str, list[str]]:
 
 
 MODULE_MODEL_MAP = discover_module_model_map()
+
+REGISTERED_MODELS = {
+    name
+    for names in MODULE_MODEL_MAP.values()
+    for name in names
+}
+
+KNOWN_MODELS = (
+    set(FULL_MATRIX["model"])
+    | set(DEFAULT_MATRIX["model"])
+    | set(PR_MATRIX["model"])
+    | REGISTERED_MODELS
+)
 
 
 def parse_csv(value: str | None) -> list[str]:
