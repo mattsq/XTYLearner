@@ -1,9 +1,10 @@
 """Utility functions for the Criteo Uplift dataset.
 
 The loader attempts to fetch the real Criteo Uplift dataset using multiple methods:
-1. Direct download from Criteo AI Lab
-2. scikit-uplift library (if available)
-3. Fallback to synthetic data
+1. scikit-uplift library (if available)
+2. Direct download from Criteo AI Lab
+3. Bundled sample dataset (for CI/testing)
+4. Fallback to synthetic data
 
 The real dataset consists of 25M rows with 11 features, treatment indicator,
 and 2 labels (visits and conversions) from incrementality tests in advertising.
@@ -136,6 +137,49 @@ def _load_real_criteo_direct(data_dir: str, sample_frac: float, seed: int, outco
         return None
 
 
+def _load_bundled_criteo_sample(data_dir: str, n_samples: int, seed: int, outcome: str):
+    """Try to load bundled Criteo sample from the repo."""
+    try:
+        # Look for bundled sample in the package
+        from pathlib import Path
+        import xtylearner.data
+
+        # Get the package directory and look for sample
+        package_dir = Path(xtylearner.data.__file__).parent
+        sample_path = package_dir / "samples" / "criteo_uplift_sample.csv"
+
+        if not sample_path.exists():
+            return None
+
+        print("Loading bundled Criteo sample dataset...")
+        df = pd.read_csv(sample_path)
+
+        # Sample or repeat to match requested size
+        if len(df) < n_samples:
+            # Repeat the sample if we need more data
+            rng = np.random.RandomState(seed)
+            n_repeats = (n_samples // len(df)) + 1
+            dfs = [df] * n_repeats
+            df = pd.concat(dfs, ignore_index=True)
+            df = df.sample(n=n_samples, random_state=seed).reset_index(drop=True)
+        elif len(df) > n_samples:
+            # Sample down if we have too much data
+            df = df.sample(n=n_samples, random_state=seed).reset_index(drop=True)
+
+        # Extract features
+        feature_cols = [f"f{i}" for i in range(12)]  # f0-f11
+        X = df[feature_cols].values.astype(np.float32)
+        T = df["treatment"].values.astype(np.int64)
+        Y = df[outcome].values.astype(np.float32).reshape(-1, 1)
+
+        print(f"Successfully loaded bundled Criteo sample: {len(X)} samples")
+        return X, Y, T
+
+    except Exception as e:
+        print(f"Bundled sample loading failed: {e}")
+        return None
+
+
 def _generate_synthetic_criteo(n_samples: int, seed: int, outcome: str):
     """Generate synthetic Criteo-like dataset."""
     print(f"Generating synthetic Criteo-like dataset...")
@@ -222,7 +266,13 @@ def load_criteo_uplift(
             if result is not None:
                 X, Y, T = result
 
-    # Fallback to synthetic
+    # Try bundled sample before synthetic fallback
+    if X is None:
+        result = _load_bundled_criteo_sample(data_dir, n_samples, seed, outcome)
+        if result is not None:
+            X, Y, T = result
+
+    # Final fallback to synthetic
     if X is None:
         X, Y, T = _generate_synthetic_criteo(n_samples, seed, outcome)
 

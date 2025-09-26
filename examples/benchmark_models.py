@@ -70,7 +70,7 @@ def run_benchmark(output_path: str = "benchmark_results.md") -> None:
     Results are written as separate tables for each dataset in the
     provided Markdown file.
     """
-    dataset_names = ["synthetic", "synthetic_mixed"]
+    dataset_names = ["synthetic", "synthetic_mixed", "criteo_uplift"]
     tasks = [
         (ds_name, model_name)
         for ds_name in dataset_names
