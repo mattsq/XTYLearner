@@ -4,7 +4,7 @@
   "confidence_level": 0.95,
   "metrics": ["val_outcome_rmse", "val_treatment_accuracy", "train_time_seconds"],
   "models": ["cycle_dual", "mean_teacher", "prob_circuit", "ganite", "flow_ssc"],
-  "datasets": ["synthetic", "synthetic_mixed"],
+  "datasets": ["synthetic", "synthetic_mixed", "criteo_uplift"],
   "statistical_method": "bootstrap",
   "training_epochs": 10,
   "sample_size": 100,

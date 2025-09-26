@@ -85,20 +85,27 @@ class ModelBenchmarker:
         if cache_key in self._data_cache:
             return self._data_cache[cache_key]
 
-        dataset_kwargs: Dict[str, Any] = {
-            "n_samples": self.config["sample_size"],
-            "d_x": 2,
-        }
+        dataset_kwargs: Dict[str, Any] = {"n_samples": self.config["sample_size"]}
+
+        # Add dataset-specific parameters
+        if dataset_name in ["synthetic", "synthetic_mixed"]:
+            dataset_kwargs["d_x"] = 2
         if dataset_name == "synthetic_mixed":
             dataset_kwargs.update({"label_ratio": 0.5})
+        elif dataset_name == "criteo_uplift":
+            dataset_kwargs.update({"prefer_real": False, "seed": 42})
 
         cache_params = {
             "dataset": dataset_name,
             "n_samples": dataset_kwargs["n_samples"],
-            "d_x": dataset_kwargs["d_x"],
         }
+        if "d_x" in dataset_kwargs:
+            cache_params["d_x"] = dataset_kwargs["d_x"]
         if dataset_name == "synthetic_mixed":
             cache_params["label_ratio"] = dataset_kwargs["label_ratio"]
+        elif dataset_name == "criteo_uplift":
+            cache_params["prefer_real"] = dataset_kwargs["prefer_real"]
+            cache_params["seed"] = dataset_kwargs["seed"]
 
         cache_hash = hashlib.sha1(json.dumps(cache_params, sort_keys=True).encode()).hexdigest()[:12]
         dataset_cache_dir = self._cache_dir / "datasets"
