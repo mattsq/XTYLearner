@@ -199,9 +199,10 @@ class FactorVAEPlus(nn.Module):
         activation: type[nn.Module] = nn.ReLU,
         dropout: Sequence[float] | float | None = None,
         norm_layer: type[nn.Module] | None = None,
-        gamma: float = 1.0,
-        disc_weight: float = 0.1,
-        posterior_weight: float = 0.1,
+        gamma: float = 3.5,
+        disc_weight: float = 0.35,
+        posterior_weight: float = 0.05,
+        treatment_weight: float = 2.2,
         prediction_samples: int = 100,
     ) -> None:
         super().__init__()
@@ -216,6 +217,7 @@ class FactorVAEPlus(nn.Module):
         self.gamma = gamma
         self.disc_weight = disc_weight
         self.posterior_weight = posterior_weight
+        self.treatment_weight = treatment_weight
         self.prediction_samples = prediction_samples
 
         self.encoder = Encoder(
@@ -356,7 +358,7 @@ class FactorVAEPlus(nn.Module):
                 )
         recon_y = Normal(self.dec_y(x, z, t_oh), 1.0).log_prob(y).sum(-1)
         kl = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum(-1)
-        elbo = recon_x + log_pt + recon_y - kl
+        elbo = recon_x + self.treatment_weight * log_pt + recon_y - kl
 
         joint_logits = self.discriminator(z)
         tc_term = self.gamma * joint_logits.squeeze(-1)
