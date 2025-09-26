@@ -33,6 +33,8 @@ def _run_single(task):
     torch.set_num_threads(1)
     if ds_name == "synthetic_mixed":
         full_ds = get_dataset(ds_name, n_samples=100, d_x=2, label_ratio=0.5, seed=0)
+    elif ds_name == "criteo_uplift":
+        full_ds = get_dataset(ds_name, prefer_real=False, n_samples=1000, seed=0)
     else:
         full_ds = get_dataset(ds_name, n_samples=100, d_x=2, seed=0)
     half = len(full_ds) // 2
@@ -68,7 +70,7 @@ def run_benchmark(output_path: str = "benchmark_results.md") -> None:
     Results are written as separate tables for each dataset in the
     provided Markdown file.
     """
-    dataset_names = ["synthetic", "synthetic_mixed"]
+    dataset_names = ["synthetic", "synthetic_mixed", "criteo_uplift"]
     tasks = [
         (ds_name, model_name)
         for ds_name in dataset_names
