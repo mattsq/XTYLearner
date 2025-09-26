@@ -36,6 +36,7 @@ from .cnflow_model import CNFlowModel
 from .semiite import SemiITE
 from .ctm_t import CTMT
 from .scgm import SCGM
+from .crf import CRFModel, CRFDiscreteModel
 from .registry import get_model, get_model_names, get_model_args
 
 __all__ = [
@@ -76,6 +77,8 @@ __all__ = [
     "SemiITE",
     "CTMT",
     "SCGM",
+    "CRFModel",
+    "CRFDiscreteModel",
     "TabJEPA",
     "get_model",
     "get_model_names",
