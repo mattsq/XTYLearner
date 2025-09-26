@@ -11,6 +11,7 @@ from .ihdp_dataset import load_ihdp
 from .twins_dataset import load_twins
 from .tabular_dataset import load_tabular_dataset
 from .criteo_uplift_dataset import load_criteo_uplift
+from .nhefs_dataset import load_nhefs_dataset
 
 
 _DATASETS: Dict[str, Callable[..., object]] = {
@@ -20,6 +21,7 @@ _DATASETS: Dict[str, Callable[..., object]] = {
     "ihdp": load_ihdp,
     "twins": load_twins,
     "criteo_uplift": load_criteo_uplift,
+    "nhefs": load_nhefs_dataset,
 }
 
 
@@ -30,7 +32,7 @@ def get_dataset(name: str, **kwargs):
     ----------
     name:
         Name of the dataset.  One of ``"toy"``, ``"synthetic"``,
-        ``"ihdp"``, ``"twins"``, or ``"criteo_uplift"``.
+        ``"ihdp"``, ``"twins"``, ``"criteo_uplift"``, or ``"nhefs"``.
     **kwargs:
         Additional keyword arguments forwarded to the dataset loader.
 
@@ -55,4 +57,5 @@ __all__ = [
     "load_twins",
     "load_tabular_dataset",
     "load_criteo_uplift",
+    "load_nhefs_dataset",
 ]
