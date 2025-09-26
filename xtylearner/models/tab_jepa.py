@@ -1,6 +1,8 @@
 # Bacharach et al. "I-JEPA: Moving Self-Supervised Learning Beyond Pixels" • ICCV 2023
 
 import copy
+from typing import Optional
+
 import torch
 import torch.nn as nn
 from torch.nn.functional import one_hot
@@ -37,12 +39,16 @@ class TabJEPA(nn.Module):
         momentum: float = 0.996,
         lowrank_head: bool = False,
         rank: int = 4,
+        λ_jepa: float = 1.0,
+        λ_sup: float = 1.0,
     ) -> None:
         super().__init__()
         self.k = k
         self.mask_ratio = mask_ratio
         self.momentum = momentum
         self.lowrank_head = lowrank_head
+        self.λ_jepa = λ_jepa
+        self.λ_sup = λ_sup
 
         # column tokeniser
         self.embed = ColumnEmbedder(d_x, d_y, k, d_embed)
@@ -103,10 +109,15 @@ class TabJEPA(nn.Module):
         Y: torch.Tensor,
         T_obs: torch.Tensor,
         *,
-        λ_jepa: float = 1.0,
-        λ_sup: float = 1.0,
+        λ_jepa: Optional[float] = None,
+        λ_sup: Optional[float] = None,
     ) -> torch.Tensor:
         """Blend JEPA pre-text loss with supervised outcome loss."""
+
+        if λ_jepa is None:
+            λ_jepa = self.λ_jepa
+        if λ_sup is None:
+            λ_sup = self.λ_sup
 
         if self.k is None:
             T_tok = T_obs.unsqueeze(-1).float()
