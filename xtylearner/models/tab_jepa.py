@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch.nn.functional import one_hot
 
-from .layers import ColumnEmbedder, apply_column_mask
+from .layers import ColumnEmbedder, apply_column_mask, make_mlp
 from .heads import LowRankDiagHead
 from ..losses import nll_lowrank_diag
 from ..training.metrics import mse_loss
@@ -31,6 +31,8 @@ class TabJEPA(nn.Module):
         *,
         d_embed: int = 64,
         depth: int = 4,
+        nhead: int = 8,
+        dim_feedforward: int | None = None,
         mask_ratio: float = 0.4,
         momentum: float = 0.996,
         lowrank_head: bool = False,
@@ -46,8 +48,10 @@ class TabJEPA(nn.Module):
         self.embed = ColumnEmbedder(d_x, d_y, k, d_embed)
 
         # encoders
+        if dim_feedforward is None:
+            dim_feedforward = 4 * d_embed
         self.encoder = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(d_embed, nhead=8, dim_feedforward=4 * d_embed),
+            nn.TransformerEncoderLayer(d_embed, nhead=nhead, dim_feedforward=dim_feedforward),
             num_layers=depth,
         )
         self.target_encoder = copy.deepcopy(self.encoder)
@@ -55,9 +59,7 @@ class TabJEPA(nn.Module):
             p.requires_grad_(False)
 
         # predictor head
-        self.predictor = nn.Sequential(
-            nn.Linear(d_embed, d_embed), nn.ReLU(), nn.Linear(d_embed, d_embed)
-        )
+        self.predictor = make_mlp([d_embed, d_embed, d_embed])
 
         # downstream Y head
         if lowrank_head:
