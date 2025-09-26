@@ -123,6 +123,8 @@ The model registry exposes a variety of architectures grouped below by type.
 - ``FactorVAEPlus`` – a latent variable model with multiple categorical
   treatments.
 - ``SCGM`` – a semi-supervised causal generative model.
+- ``CRFModel`` / ``CRFDiscreteModel`` – conditional random field models with
+  exact marginalisation for continuous or discrete outcomes.
 
 #### Causal Factor Models
 
