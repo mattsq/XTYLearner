@@ -20,6 +20,7 @@ _DATASETS: Dict[str, Callable[..., object]] = {
     "synthetic_mixed": load_mixed_synthetic_dataset,
     "ihdp": load_ihdp,
     "twins": load_twins,
+    "criteo_uplift": load_criteo_uplift,
     "nhefs": load_nhefs_dataset,
 }
 
@@ -31,7 +32,7 @@ def get_dataset(name: str, **kwargs):
     ----------
     name:
         Name of the dataset.  One of ``"toy"``, ``"synthetic"``,
-        ``"ihdp"``, ``"twins"``, or ``"nhefs"``.
+        ``"ihdp"``, ``"twins"``, ``"criteo_uplift"``, or ``"nhefs"``.
     **kwargs:
         Additional keyword arguments forwarded to the dataset loader.
 
@@ -55,5 +56,6 @@ __all__ = [
     "load_ihdp",
     "load_twins",
     "load_tabular_dataset",
+    "load_criteo_uplift",
     "load_nhefs_dataset",
 ]
