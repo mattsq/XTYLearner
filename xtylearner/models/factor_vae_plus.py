@@ -199,9 +199,9 @@ class FactorVAEPlus(nn.Module):
         activation: type[nn.Module] = nn.ReLU,
         dropout: Sequence[float] | float | None = None,
         norm_layer: type[nn.Module] | None = None,
-        gamma: float = 40.0,
-        disc_weight: float = 1.0,
-        posterior_weight: float = 1.0,
+        gamma: float = 1.0,
+        disc_weight: float = 0.1,
+        posterior_weight: float = 0.1,
         prediction_samples: int = 100,
     ) -> None:
         super().__init__()
