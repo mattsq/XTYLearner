@@ -26,7 +26,7 @@
     <body>
         <div class="header">
             <h1>🚀 XTYLearner Model Benchmarks</h1>
-            <p>Last updated: 2025-09-26T05:03:30.099352 | Commit: 0728056f</p>
+            <p>Last updated: 2025-09-26T05:31:07.226976 | Commit: 50e52193</p>
         </div>
 
         <div class="summary">
@@ -34,7 +34,7 @@
             <div class="summary-grid">
                 <div class="summary-card">
                     <h3>Total Benchmarks</h3>
-                    <div class="value">108</div>
+                    <div class="value">144</div>
                 </div>
                 <div class="summary-card">
                     <h3>Models Tested</h3>
@@ -56,7 +56,7 @@
                 </div>
                 <div class="summary-card">
                     <h3>Datasets Used</h3>
-                    <div class="value">9</div>
+                    <div class="value">10</div>
                     <ul>
                 <li>cevae</li>
                 <li>circuit</li>
@@ -64,6 +64,7 @@
                 <li>diff</li>
                 <li>dual</li>
                 <li>net</li>
+                <li>nhefs</li>
                 <li>ssc</li>
                 <li>synthetic</li>
                 <li>teacher</li>
@@ -82,6 +83,10 @@
             <img src="benchmark_trend_val_outcome_rmse_criteo-uplift.png" alt="Trend – Validation Outcome RMSE (lower is better) on criteo_uplift">
         </div>
         <div class="chart">
+            <h2>Trend – Validation Outcome RMSE (lower is better) on nhefs</h2>
+            <img src="benchmark_trend_val_outcome_rmse_nhefs.png" alt="Trend – Validation Outcome RMSE (lower is better) on nhefs">
+        </div>
+        <div class="chart">
             <h2>Trend – Validation Outcome RMSE (lower is better) on synthetic</h2>
             <img src="benchmark_trend_val_outcome_rmse_synthetic.png" alt="Trend – Validation Outcome RMSE (lower is better) on synthetic">
         </div>
@@ -94,6 +99,10 @@
             <img src="benchmark_trend_val_treatment_accuracy_criteo-uplift.png" alt="Trend – Validation Treatment Accuracy (higher is better) on criteo_uplift">
         </div>
         <div class="chart">
+            <h2>Trend – Validation Treatment Accuracy (higher is better) on nhefs</h2>
+            <img src="benchmark_trend_val_treatment_accuracy_nhefs.png" alt="Trend – Validation Treatment Accuracy (higher is better) on nhefs">
+        </div>
+        <div class="chart">
             <h2>Trend – Validation Treatment Accuracy (higher is better) on synthetic</h2>
             <img src="benchmark_trend_val_treatment_accuracy_synthetic.png" alt="Trend – Validation Treatment Accuracy (higher is better) on synthetic">
         </div>
@@ -104,6 +113,10 @@
         <div class="chart">
             <h2>Trend – Training Time (seconds, lower is better) on criteo_uplift</h2>
             <img src="benchmark_trend_train_time_seconds_criteo-uplift.png" alt="Trend – Training Time (seconds, lower is better) on criteo_uplift">
+        </div>
+        <div class="chart">
+            <h2>Trend – Training Time (seconds, lower is better) on nhefs</h2>
+            <img src="benchmark_trend_train_time_seconds_nhefs.png" alt="Trend – Training Time (seconds, lower is better) on nhefs">
         </div>
         <div class="chart">
             <h2>Trend – Training Time (seconds, lower is better) on synthetic</h2>
@@ -221,6 +234,102 @@
                 <td>bridge_diff</td>
                 <td>1.0085</td>
                 <td>0.6024 – 1.4145</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>prob_circuit</td>
+                <td>4.9125</td>
+                <td>4.9125 – 4.9125</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>mean_teacher</td>
+                <td>8.3341</td>
+                <td>6.8344 – 9.8337</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>cacore</td>
+                <td>9.0478</td>
+                <td>7.5759 – 10.4018</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>vat</td>
+                <td>9.8341</td>
+                <td>8.8890 – 10.8649</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>dragon_net</td>
+                <td>10.1179</td>
+                <td>7.4167 – 12.8512</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>cycle_dual</td>
+                <td>10.9122</td>
+                <td>8.2767 – 13.6439</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>fixmatch</td>
+                <td>14.3754</td>
+                <td>11.5510 – 17.1998</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>bridge_diff</td>
+                <td>15.4221</td>
+                <td>7.3046 – 23.6727</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>ganite</td>
+                <td>15.7517</td>
+                <td>11.6697 – 20.2898</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>ss_cevae</td>
+                <td>18.3167</td>
+                <td>9.6586 – 31.2479</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>diffusion_cevae</td>
+                <td>140.6946</td>
+                <td>92.2280 – 184.1048</td>
+                <td>rmse</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>flow_ssc</td>
+                <td>3200824905.0602</td>
+                <td>33286.2809 – 9590481185.2791</td>
                 <td>rmse</td>
                 <td>5</td>
             </tr>
@@ -355,8 +464,8 @@
             <tr>
                 <td>synthetic_mixed</td>
                 <td>vat</td>
-                <td>0.3022</td>
-                <td>0.2653 – 0.3391</td>
+                <td>0.2954</td>
+                <td>0.2646 – 0.3316</td>
                 <td>rmse</td>
                 <td>5</td>
             </tr>
@@ -526,6 +635,102 @@
                 <td>bridge_diff</td>
                 <td>0.590</td>
                 <td>0.565 – 0.615</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>prob_circuit</td>
+                <td>0.844</td>
+                <td>0.840 – 0.852</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>dragon_net</td>
+                <td>0.676</td>
+                <td>0.644 – 0.700</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>bridge_diff</td>
+                <td>0.672</td>
+                <td>0.624 – 0.700</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>vat</td>
+                <td>0.664</td>
+                <td>0.592 – 0.700</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>fixmatch</td>
+                <td>0.632</td>
+                <td>0.496 – 0.700</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>cycle_dual</td>
+                <td>0.628</td>
+                <td>0.484 – 0.700</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>cacore</td>
+                <td>0.628</td>
+                <td>0.484 – 0.700</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>ss_cevae</td>
+                <td>0.624</td>
+                <td>0.472 – 0.700</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>ganite</td>
+                <td>0.620</td>
+                <td>0.476 – 0.700</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>diffusion_cevae</td>
+                <td>0.588</td>
+                <td>0.428 – 0.700</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>flow_ssc</td>
+                <td>0.588</td>
+                <td>0.444 – 0.700</td>
+                <td>accuracy</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>mean_teacher</td>
+                <td>0.560</td>
+                <td>0.416 – 0.700</td>
                 <td>accuracy</td>
                 <td>5</td>
             </tr>
@@ -772,6 +977,14 @@
             </tr>
             <tr>
                 <td>criteo_uplift</td>
+                <td>dragon_net</td>
+                <td>0.13</td>
+                <td>0.13 – 0.13</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>criteo_uplift</td>
                 <td>cacore</td>
                 <td>0.13</td>
                 <td>0.13 – 0.13</td>
@@ -780,25 +993,25 @@
             </tr>
             <tr>
                 <td>criteo_uplift</td>
-                <td>dragon_net</td>
-                <td>0.13</td>
-                <td>0.13 – 0.14</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>criteo_uplift</td>
                 <td>cycle_dual</td>
-                <td>0.17</td>
-                <td>0.16 – 0.18</td>
+                <td>0.15</td>
+                <td>0.14 – 0.15</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>criteo_uplift</td>
                 <td>diffusion_cevae</td>
+                <td>0.21</td>
+                <td>0.21 – 0.21</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>criteo_uplift</td>
+                <td>ss_cevae</td>
                 <td>0.22</td>
-                <td>0.22 – 0.23</td>
+                <td>0.22 – 0.22</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
@@ -806,31 +1019,119 @@
                 <td>criteo_uplift</td>
                 <td>ganite</td>
                 <td>0.23</td>
-                <td>0.23 – 0.24</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>criteo_uplift</td>
-                <td>ss_cevae</td>
-                <td>0.25</td>
-                <td>0.23 – 0.27</td>
+                <td>0.23 – 0.23</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>criteo_uplift</td>
                 <td>flow_ssc</td>
-                <td>1.46</td>
-                <td>1.45 – 1.48</td>
+                <td>1.39</td>
+                <td>1.39 – 1.40</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>criteo_uplift</td>
                 <td>bridge_diff</td>
-                <td>3.78</td>
-                <td>3.77 – 3.78</td>
+                <td>3.81</td>
+                <td>3.80 – 3.81</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>prob_circuit</td>
+                <td>0.02</td>
+                <td>0.02 – 0.02</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>fixmatch</td>
+                <td>0.12</td>
+                <td>0.12 – 0.12</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>mean_teacher</td>
+                <td>0.16</td>
+                <td>0.16 – 0.16</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>vat</td>
+                <td>0.16</td>
+                <td>0.16 – 0.16</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>cacore</td>
+                <td>0.16</td>
+                <td>0.16 – 0.16</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>dragon_net</td>
+                <td>0.17</td>
+                <td>0.17 – 0.17</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>cycle_dual</td>
+                <td>0.19</td>
+                <td>0.19 – 0.19</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>diffusion_cevae</td>
+                <td>0.28</td>
+                <td>0.28 – 0.28</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>ss_cevae</td>
+                <td>0.30</td>
+                <td>0.29 – 0.30</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>ganite</td>
+                <td>0.30</td>
+                <td>0.30 – 0.30</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>flow_ssc</td>
+                <td>2.18</td>
+                <td>2.15 – 2.23</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>nhefs</td>
+                <td>bridge_diff</td>
+                <td>5.36</td>
+                <td>5.34 – 5.39</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
@@ -845,16 +1146,8 @@
             <tr>
                 <td>synthetic</td>
                 <td>fixmatch</td>
-                <td>0.12</td>
-                <td>0.12 – 0.12</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic</td>
-                <td>mean_teacher</td>
-                <td>0.14</td>
-                <td>0.14 – 0.14</td>
+                <td>0.11</td>
+                <td>0.11 – 0.11</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
@@ -868,25 +1161,33 @@
             </tr>
             <tr>
                 <td>synthetic</td>
-                <td>cacore</td>
-                <td>0.17</td>
-                <td>0.16 – 0.18</td>
+                <td>mean_teacher</td>
+                <td>0.15</td>
+                <td>0.15 – 0.15</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>synthetic</td>
                 <td>dragon_net</td>
-                <td>0.17</td>
-                <td>0.16 – 0.18</td>
+                <td>0.15</td>
+                <td>0.15 – 0.16</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic</td>
+                <td>cacore</td>
+                <td>0.16</td>
+                <td>0.16 – 0.17</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>synthetic</td>
                 <td>cycle_dual</td>
-                <td>0.18</td>
-                <td>0.18 – 0.18</td>
+                <td>0.17</td>
+                <td>0.17 – 0.17</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
@@ -901,32 +1202,32 @@
             <tr>
                 <td>synthetic</td>
                 <td>ss_cevae</td>
-                <td>0.28</td>
-                <td>0.28 – 0.28</td>
+                <td>0.27</td>
+                <td>0.27 – 0.27</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>synthetic</td>
                 <td>ganite</td>
-                <td>0.28</td>
-                <td>0.28 – 0.28</td>
+                <td>0.27</td>
+                <td>0.27 – 0.27</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>synthetic</td>
                 <td>flow_ssc</td>
-                <td>1.79</td>
-                <td>1.75 – 1.84</td>
+                <td>1.91</td>
+                <td>1.87 – 1.97</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>synthetic</td>
                 <td>bridge_diff</td>
-                <td>4.72</td>
-                <td>4.71 – 4.73</td>
+                <td>3.39</td>
+                <td>3.37 – 3.41</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
@@ -940,7 +1241,7 @@
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
-                <td>vat</td>
+                <td>fixmatch</td>
                 <td>0.16</td>
                 <td>0.16 – 0.16</td>
                 <td>seconds</td>
@@ -950,23 +1251,23 @@
                 <td>synthetic_mixed</td>
                 <td>mean_teacher</td>
                 <td>0.17</td>
-                <td>0.17 – 0.17</td>
+                <td>0.16 – 0.18</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
                 <td>cacore</td>
-                <td>0.19</td>
-                <td>0.19 – 0.19</td>
+                <td>0.18</td>
+                <td>0.18 – 0.19</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
                 <td>dragon_net</td>
-                <td>0.19</td>
-                <td>0.18 – 0.19</td>
+                <td>0.18</td>
+                <td>0.18 – 0.18</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
@@ -980,15 +1281,23 @@
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
-                <td>fixmatch</td>
+                <td>vat</td>
                 <td>0.20</td>
-                <td>0.20 – 0.21</td>
+                <td>0.19 – 0.21</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
                 <td>diffusion_cevae</td>
+                <td>0.28</td>
+                <td>0.28 – 0.29</td>
+                <td>seconds</td>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>synthetic_mixed</td>
+                <td>ganite</td>
                 <td>0.29</td>
                 <td>0.29 – 0.29</td>
                 <td>seconds</td>
@@ -996,33 +1305,25 @@
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
-                <td>ganite</td>
-                <td>0.31</td>
-                <td>0.30 – 0.31</td>
-                <td>seconds</td>
-                <td>5</td>
-            </tr>
-            <tr>
-                <td>synthetic_mixed</td>
                 <td>ss_cevae</td>
                 <td>0.43</td>
-                <td>0.43 – 0.43</td>
+                <td>0.42 – 0.43</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
                 <td>flow_ssc</td>
-                <td>2.63</td>
-                <td>2.61 – 2.65</td>
+                <td>2.38</td>
+                <td>2.37 – 2.38</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
             <tr>
                 <td>synthetic_mixed</td>
                 <td>bridge_diff</td>
-                <td>5.58</td>
-                <td>5.57 – 5.59</td>
+                <td>5.52</td>
+                <td>5.51 – 5.53</td>
                 <td>seconds</td>
                 <td>5</td>
             </tr>
