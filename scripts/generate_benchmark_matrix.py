@@ -17,7 +17,7 @@ if str(REPO_ROOT) not in sys.path:
 
 PR_MATRIX = {
     "model": ["cycle_dual", "mean_teacher"],
-    "dataset": ["synthetic", "criteo_uplift"],
+    "dataset": ["synthetic", "criteo_uplift", "nhefs"],
 }
 
 FULL_MATRIX = {
@@ -43,7 +43,7 @@ FULL_MATRIX = {
         "vacim",
         "multitask",
     ],
-    "dataset": ["synthetic", "synthetic_mixed", "criteo_uplift"],
+    "dataset": ["synthetic", "synthetic_mixed", "criteo_uplift", "nhefs"],
 }
 
 DEFAULT_MATRIX = {
@@ -61,7 +61,7 @@ DEFAULT_MATRIX = {
         "cacore",
         "ss_cevae",
     ],
-    "dataset": ["synthetic", "synthetic_mixed", "criteo_uplift"],
+    "dataset": ["synthetic", "synthetic_mixed", "criteo_uplift", "nhefs"],
 }
 
 
@@ -139,7 +139,7 @@ def choose_matrix(
     models.update(files_to_models(changed_model_files))
 
     if models:
-        return {"model": sorted(models), "dataset": ["synthetic", "synthetic_mixed", "criteo_uplift"]}
+        return {"model": sorted(models), "dataset": ["synthetic", "synthetic_mixed", "criteo_uplift", "nhefs"]}
     if event_name == "pull_request":
         return PR_MATRIX
     if full_benchmark:

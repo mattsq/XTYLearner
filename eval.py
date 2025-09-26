@@ -94,6 +94,8 @@ class ModelBenchmarker:
             dataset_kwargs.update({"label_ratio": 0.5})
         elif dataset_name == "criteo_uplift":
             dataset_kwargs.update({"prefer_real": False, "seed": 42})
+        elif dataset_name == "nhefs":
+            dataset_kwargs.update({"seed": 42})
 
         cache_params = {
             "dataset": dataset_name,
@@ -105,6 +107,8 @@ class ModelBenchmarker:
             cache_params["label_ratio"] = dataset_kwargs["label_ratio"]
         elif dataset_name == "criteo_uplift":
             cache_params["prefer_real"] = dataset_kwargs["prefer_real"]
+            cache_params["seed"] = dataset_kwargs["seed"]
+        elif dataset_name == "nhefs":
             cache_params["seed"] = dataset_kwargs["seed"]
 
         cache_hash = hashlib.sha1(json.dumps(cache_params, sort_keys=True).encode()).hexdigest()[:12]
