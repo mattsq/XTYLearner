@@ -53,6 +53,7 @@ class ModelBenchmarker:
         torch.set_num_threads(self.config.get("torch_num_threads", 1))
         self._data_cache: Dict[Tuple[str, int], BenchmarkDataBundle] = {}
         self._timing_info: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        self._loss_breakdowns: Dict[Tuple[str, str], List[Dict[str, float]]] = {}
         cache_root = os.environ.get("XTYLEARNER_CACHE_DIR", ".cache/xtylearner")
         self._cache_dir = Path(cache_root)
         self._cache_dir.mkdir(parents=True, exist_ok=True)
@@ -167,6 +168,8 @@ class ModelBenchmarker:
             "model": model_name,
             "dataset": dataset_name,
         }
+        loss_key = (model_name, dataset_name)
+        self._loss_breakdowns[loss_key] = []
 
         prep_start = time.perf_counter()
         data_bundle = self._prepare_data(dataset_name)
@@ -193,7 +196,9 @@ class ModelBenchmarker:
         cumulative_train_time = 0.0
         for i in range(self.config["iterations"]):
             print(f"  Iteration {i+1}/{self.config['iterations']}")
-            iteration_results = self._run_single_benchmark(model_name, data_bundle)
+            iteration_results = self._run_single_benchmark(
+                model_name, dataset_name, data_bundle
+            )
             
             for metric in self.config["metrics"]:
                 if metric in iteration_results:
@@ -237,6 +242,45 @@ class ModelBenchmarker:
             results.append(result)
             print(f"    {metric_name}: {mean_val:.4f} ± {(confidence_interval[1] - confidence_interval[0])/2:.4f}")
         
+        breakdown_records = self._loss_breakdowns.pop(loss_key, [])
+        if breakdown_records:
+            breakdown_summary = self._summarize_loss_records(breakdown_records)
+            timing_record["loss_breakdown_iterations"] = breakdown_records
+            timing_record["loss_breakdown_summary"] = breakdown_summary
+            print("    Loss breakdown summary across iterations:")
+            stats = breakdown_summary.get("stats", {})
+            for key in (
+                "recon_x",
+                "recon_y",
+                "recon_y_raw",
+                "recon_t",
+                "score_loss",
+                "score_loss_weighted",
+                "sigma_min_batch",
+                "sigma_max_batch",
+                "y_scale_mean",
+            ):
+                if key in stats:
+                    info = stats[key]
+                    print(
+                        "      "
+                        f"{key}: mean={info['mean']:.4f} ± {info['std']:.4f} "
+                        f"(min={info['min']:.4f}, max={info['max']:.4f})"
+                    )
+            total_stats = breakdown_summary.get("total")
+            if total_stats:
+                print(
+                    "      total_loss_estimate: "
+                    f"mean={total_stats['mean']:.4f} ± {total_stats['std']:.4f}"
+                )
+            shares = breakdown_summary.get("shares", {})
+            if shares:
+                print("      Loss contribution shares:")
+                for name, share in sorted(
+                    shares.items(), key=lambda item: item[1], reverse=True
+                ):
+                    print(f"        {name}: {share * 100:.1f}%")
+
         self._timing_info[(model_name, dataset_name)] = timing_record
         return results
     
@@ -332,7 +376,10 @@ class ModelBenchmarker:
             print(f"    Warmup skipped due to error: {exc}")
 
     def _run_single_benchmark(
-        self, model_name: str, data_bundle: BenchmarkDataBundle
+        self,
+        model_name: str,
+        dataset_name: str,
+        data_bundle: BenchmarkDataBundle,
     ) -> Dict[str, float]:
         """Run a single benchmark iteration and return metrics."""
         try:
@@ -357,6 +404,49 @@ class ModelBenchmarker:
                     for name, value in breakdown.items()
                 )
                 print(f"    Loss breakdown (last batch): {formatted}")
+                breakdown_dict: Dict[str, float] = {}
+                for name, value in breakdown.items():
+                    if hasattr(value, "item"):
+                        breakdown_dict[name] = float(value.item())
+                    else:
+                        breakdown_dict[name] = float(value)
+                if (
+                    "score_loss" in breakdown_dict
+                    and "lambda_score" in breakdown_dict
+                ):
+                    breakdown_dict["score_loss_weighted"] = (
+                        breakdown_dict["score_loss"]
+                        * breakdown_dict["lambda_score"]
+                    )
+                if {
+                    "recon_x",
+                    "recon_y",
+                    "recon_t",
+                    "score_loss_weighted",
+                }.issubset(breakdown_dict):
+                    breakdown_dict["total_loss_estimate"] = (
+                        breakdown_dict["recon_x"]
+                        + breakdown_dict["recon_y"]
+                        + breakdown_dict["recon_t"]
+                        + breakdown_dict["score_loss_weighted"]
+                    )
+                elif {
+                    "recon_x",
+                    "recon_y",
+                    "recon_t",
+                    "score_loss",
+                    "lambda_score",
+                }.issubset(breakdown_dict):
+                    breakdown_dict["total_loss_estimate"] = (
+                        breakdown_dict["recon_x"]
+                        + breakdown_dict["recon_y"]
+                        + breakdown_dict["recon_t"]
+                        + breakdown_dict["score_loss"]
+                        * breakdown_dict["lambda_score"]
+                    )
+                self._loss_breakdowns.setdefault(
+                    (model_name, dataset_name), []
+                ).append(breakdown_dict)
 
             # Get metrics
             val_metrics = trainer.evaluate(data_bundle.val_loader)
@@ -375,7 +465,88 @@ class ModelBenchmarker:
                 "val_treatment_accuracy": float("nan"),
                 "train_time_seconds": float("nan")
             }
-    
+
+    def _summarize_loss_records(
+        self, records: List[Dict[str, float]]
+    ) -> Dict[str, Any]:
+        """Aggregate loss breakdown statistics across benchmark iterations."""
+
+        if not records:
+            return {}
+
+        stats: Dict[str, Dict[str, float]] = {}
+        keys = sorted({key for record in records for key in record})
+        for key in keys:
+            values = [float(record[key]) for record in records if key in record]
+            if not values:
+                continue
+            arr = np.asarray(values, dtype=float)
+            stats[key] = {
+                "mean": float(arr.mean()),
+                "std": float(arr.std()),
+                "min": float(arr.min()),
+                "max": float(arr.max()),
+            }
+
+        contributions: Dict[str, List[float]] = {}
+        totals: List[float] = []
+        for record in records:
+            if "total_loss_estimate" in record:
+                totals.append(float(record["total_loss_estimate"]))
+            else:
+                required = {
+                    "recon_x",
+                    "recon_y",
+                    "recon_t",
+                    "score_loss",
+                    "lambda_score",
+                }
+                if required.issubset(record):
+                    totals.append(
+                        float(record["recon_x"])
+                        + float(record["recon_y"])
+                        + float(record["recon_t"])
+                        + float(record["score_loss"]) * float(record["lambda_score"])
+                    )
+
+            if "recon_x" in record:
+                contributions.setdefault("recon_x", []).append(float(record["recon_x"]))
+            if "recon_y" in record:
+                contributions.setdefault("recon_y", []).append(float(record["recon_y"]))
+            if "recon_t" in record:
+                contributions.setdefault("recon_t", []).append(float(record["recon_t"]))
+            if "score_loss_weighted" in record:
+                contributions.setdefault("score_loss_weighted", []).append(
+                    float(record["score_loss_weighted"])
+                )
+            elif "score_loss" in record and "lambda_score" in record:
+                contributions.setdefault("score_loss_weighted", []).append(
+                    float(record["score_loss"]) * float(record["lambda_score"])
+                )
+
+        summary: Dict[str, Any] = {"stats": stats}
+        if totals:
+            totals_arr = np.asarray(totals, dtype=float)
+            summary["total"] = {
+                "mean": float(totals_arr.mean()),
+                "std": float(totals_arr.std()),
+                "min": float(totals_arr.min()),
+                "max": float(totals_arr.max()),
+            }
+            mean_total = totals_arr.mean()
+            if mean_total != 0.0:
+                summary["shares"] = {
+                    name: float(np.mean(values) / mean_total)
+                    for name, values in contributions.items()
+                    if values
+                }
+            else:
+                summary["shares"] = {name: 0.0 for name, values in contributions.items() if values}
+        else:
+            summary["shares"] = {name: 0.0 for name, values in contributions.items() if values}
+
+        return summary
+
     def _calculate_confidence_interval(self, samples: List[float]) -> Tuple[float, float]:
         """Bootstrap confidence interval calculation."""
         if len(samples) < 2:

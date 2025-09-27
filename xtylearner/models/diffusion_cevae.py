@@ -232,6 +232,15 @@ class DiffusionCEVAE(nn.Module):
             norm_layer=norm_layer,
         )
         self.score_u = ScoreU(d_u, hidden=hidden_dims[0])
+        # Running outcome statistics are used to stabilise the reconstruction
+        # objective across datasets with different scales.
+        self.register_buffer("y_running_mean", torch.zeros(1, d_y))
+        self.register_buffer("y_running_var", torch.ones(1, d_y))
+        self.register_buffer(
+            "_y_stats_initialized", torch.tensor(False, dtype=torch.bool)
+        )
+        self.y_stats_momentum = 0.9
+        self._y_stats_eps = 1e-6
 
     # ----- diffusion utilities -----
     def _sigma(self, t: torch.Tensor) -> torch.Tensor:
@@ -248,7 +257,12 @@ class DiffusionCEVAE(nn.Module):
     def loss(
         self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
     ) -> torch.Tensor:
-        mu, logv = self.enc_u(x, t_obs, y)
+        if self.training:
+            self._update_y_stats(y)
+
+        y_norm = self._normalise_y(y)
+
+        mu, logv = self.enc_u(x, t_obs, y_norm)
         std = (0.5 * logv).exp()
         eps = torch.randn_like(std)
         u0 = mu + eps * std
@@ -261,7 +275,9 @@ class DiffusionCEVAE(nn.Module):
         else:
             recon_t = torch.tensor(0.0, device=x.device)
         t_in = torch.where(mask, t_obs.clamp_min(0), logits_t.argmax(dim=-1))
-        recon_y = F.mse_loss(self.dec_y(x, t_in, u0), y)
+        y_pred = self.dec_y(x, t_in, u0)
+        recon_y = F.mse_loss(self._normalise_y(y_pred), y_norm)
+        recon_y_raw = F.mse_loss(y_pred, y)
 
         b = x.size(0)
         t_idx = torch.randint(1, self.timesteps + 1, (b,), device=x.device)
@@ -285,6 +301,7 @@ class DiffusionCEVAE(nn.Module):
             self._loss_breakdown = {
                 "recon_x": recon_x.detach(),
                 "recon_y": recon_y.detach(),
+                "recon_y_raw": recon_y_raw.detach(),
                 "recon_t": recon_t.detach()
                 if isinstance(recon_t, torch.Tensor)
                 else torch.tensor(float(recon_t)),
@@ -292,6 +309,7 @@ class DiffusionCEVAE(nn.Module):
                 "lambda_score": torch.tensor(self.lambda_score),
                 "sigma_min_batch": sig.min().detach(),
                 "sigma_max_batch": sig.max().detach(),
+                "y_scale_mean": self._current_y_scale().mean().detach(),
             }
 
         return recon_x + recon_y + recon_t + self.lambda_score * score_loss
@@ -311,7 +329,7 @@ class DiffusionCEVAE(nn.Module):
         if y.ndim == 1:
             y = y.unsqueeze(-1)
         t_dummy = torch.full((b,), -1, dtype=torch.long, device=x.device)
-        mu, _ = self.enc_u(x, t_dummy, y)
+        mu, _ = self.enc_u(x, t_dummy, self._normalise_y(y))
         logits = self.dec_t(x, mu)
         return logits.softmax(dim=-1)
 
@@ -321,6 +339,27 @@ class DiffusionCEVAE(nn.Module):
 
         u = torch.randn(x.size(0), self.d_u, device=x.device)
         return self.dec_y(x, t, u)
+
+    def _current_y_scale(self) -> torch.Tensor:
+        return torch.sqrt(self.y_running_var.clamp_min(self._y_stats_eps))
+
+    @torch.no_grad()
+    def _update_y_stats(self, y: torch.Tensor) -> None:
+        batch_mean = y.mean(dim=0, keepdim=True)
+        batch_var = y.var(dim=0, keepdim=True, unbiased=False)
+        batch_var = batch_var + self._y_stats_eps
+
+        if bool(self._y_stats_initialized.item()):
+            momentum = self.y_stats_momentum
+            self.y_running_mean.mul_(momentum).add_(batch_mean, alpha=1 - momentum)
+            self.y_running_var.mul_(momentum).add_(batch_var, alpha=1 - momentum)
+        else:
+            self.y_running_mean.copy_(batch_mean)
+            self.y_running_var.copy_(batch_var)
+            self._y_stats_initialized.fill_(True)
+
+    def _normalise_y(self, y: torch.Tensor) -> torch.Tensor:
+        return (y - self.y_running_mean) / self._current_y_scale()
 
     @property
     def loss_breakdown(self) -> dict[str, torch.Tensor]:
