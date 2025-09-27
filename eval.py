@@ -350,6 +350,14 @@ class ModelBenchmarker:
             trainer.fit(self.config["training_epochs"])
             train_time = time.perf_counter() - start_time
 
+            breakdown = getattr(model, "loss_breakdown", None)
+            if breakdown:
+                formatted = ", ".join(
+                    f"{name}={value.item():.4f}" if hasattr(value, "item") else f"{name}={value}"
+                    for name, value in breakdown.items()
+                )
+                print(f"    Loss breakdown (last batch): {formatted}")
+
             # Get metrics
             val_metrics = trainer.evaluate(data_bundle.val_loader)
             

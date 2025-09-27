@@ -193,6 +193,7 @@ class DiffusionCEVAE(nn.Module):
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         self.lambda_score = lambda_score
+        self._loss_breakdown: dict[str, torch.Tensor] = {}
         self.enc_u = EncoderU(
             d_x,
             k,
@@ -280,6 +281,19 @@ class DiffusionCEVAE(nn.Module):
         
         score_loss = ((score_pred + noise_over_sig) ** 2).mean()
 
+        with torch.no_grad():
+            self._loss_breakdown = {
+                "recon_x": recon_x.detach(),
+                "recon_y": recon_y.detach(),
+                "recon_t": recon_t.detach()
+                if isinstance(recon_t, torch.Tensor)
+                else torch.tensor(float(recon_t)),
+                "score_loss": score_loss.detach(),
+                "lambda_score": torch.tensor(self.lambda_score),
+                "sigma_min_batch": sig.min().detach(),
+                "sigma_max_batch": sig.max().detach(),
+            }
+
         return recon_x + recon_y + recon_t + self.lambda_score * score_loss
 
     # retain compatibility with GenerativeTrainer
@@ -307,6 +321,15 @@ class DiffusionCEVAE(nn.Module):
 
         u = torch.randn(x.size(0), self.d_u, device=x.device)
         return self.dec_y(x, t, u)
+
+    @property
+    def loss_breakdown(self) -> dict[str, torch.Tensor]:
+        """Return diagnostic loss terms from the most recent ``loss`` call."""
+
+        return {
+            k: v.detach().cpu() if isinstance(v, torch.Tensor) else torch.tensor(float(v))
+            for k, v in self._loss_breakdown.items()
+        }
 
 
 __all__ = ["DiffusionCEVAE"]

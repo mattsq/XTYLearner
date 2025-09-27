@@ -58,6 +58,12 @@ def load_nhefs_dataset(
         inds = np.where(np.isnan(X))
         X[inds] = np.take(col_mean, inds[1])
 
+    # Standardise covariates to zero mean and unit variance to stabilise training
+    feature_mean = X.mean(axis=0)
+    feature_std = X.std(axis=0)
+    feature_std = np.where(feature_std < 1e-6, 1.0, feature_std)
+    X = (X - feature_mean) / feature_std
+
     if n_samples is not None:
         rng = np.random.default_rng(seed)
         indices = rng.choice(len(X), n_samples, replace=False)
