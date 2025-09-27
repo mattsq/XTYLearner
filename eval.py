@@ -253,6 +253,7 @@ class ModelBenchmarker:
             model_kwargs = {"d_in": data_bundle.x_dim + data_bundle.y_dim + 1}
 
         model = get_model(model_name, **model_kwargs)
+        lr = getattr(model, "default_lr", 0.001)
 
         if hasattr(model, "loss_G") and hasattr(model, "loss_D"):
             gen_params: List[torch.nn.Parameter] = []
@@ -296,8 +297,8 @@ class ModelBenchmarker:
                 ]
 
             optimizer = (
-                torch.optim.Adam(gen_params, lr=0.001),
-                torch.optim.Adam(disc_params, lr=0.001),
+                torch.optim.Adam(gen_params, lr=lr),
+                torch.optim.Adam(disc_params, lr=lr),
             )
         else:
             params = [
@@ -307,7 +308,7 @@ class ModelBenchmarker:
             ]
             if not params:
                 params = [torch.zeros(1, requires_grad=True)]
-            optimizer = torch.optim.Adam(params, lr=0.001)
+            optimizer = torch.optim.Adam(params, lr=lr)
 
         return model, optimizer
 

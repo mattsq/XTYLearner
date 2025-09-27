@@ -67,6 +67,8 @@ class Trainer:
         """
 
         trainer_cls = self._select_trainer(model)
+        if grad_clip_norm is None:
+            grad_clip_norm = getattr(model, "grad_clip_norm", None)
         if trainer_cls is AdversarialTrainer:
             if not isinstance(optimizer, (tuple, list)) or len(optimizer) != 2:
                 raise ValueError("AdversarialTrainer requires two optimizers")
