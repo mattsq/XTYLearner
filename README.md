@@ -234,6 +234,9 @@ selecting the most informative unlabelled points:
 - ``DeltaCATE`` – prioritise points with high variance in predicted treatment
   effects.  For continuous treatments it draws multiple treatment samples
   directly without one-hot encoding.
+- ``CATEUncertainty`` – targets epistemic uncertainty in the conditional
+  average treatment effect ``τ(x)`` using model-provided intervals or Monte
+  Carlo samples of both potential outcomes.
 - ``FCCMRadius`` – a weighted combination of these uncertainty scores and the
   coverage radius around labelled data.
 
@@ -245,15 +248,28 @@ scoring samples into the labelled set until the budget is exhausted.
 
 ```python
 from torch.utils.data import DataLoader, TensorDataset
-from xtylearner.active import EntropyT
+from xtylearner.active import CATEUncertainty
 from xtylearner.training import ActiveTrainer
 
 dataset = TensorDataset(X, Y, T)  # use -1 for unlabelled treatments
 loader = DataLoader(dataset, batch_size=32, shuffle=True)
-trainer = ActiveTrainer(model, optimizer, loader, strategy=EntropyT(),
-                        budget=50, batch=10)
+trainer = ActiveTrainer(
+    model,
+    optimizer,
+    loader,
+    strategy=CATEUncertainty(mc_samples=8),
+    budget=50,
+    batch=10,
+)
 trainer.fit(5)
 ```
+
+When configuring experiments via YAML, the same strategy can be selected with::
+
+    active:
+      enabled: true
+      strategy: "cate_uncertainty"
+      query_size: 64
 
 ## Command Line Interface
 
