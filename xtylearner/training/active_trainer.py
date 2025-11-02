@@ -225,7 +225,7 @@ class ActiveTrainer:
                 try:
                     tau = model.predict_cate(X_device)
                 except Exception:
-                    tau = None
+                    pass
                 else:
                     if isinstance(tau, tuple):
                         tau = tau[0]
