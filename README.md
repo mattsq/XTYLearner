@@ -271,9 +271,9 @@ When configuring experiments via YAML, the same strategy can be selected with::
 
     active:
       enabled: true
-    strategy: "conformal_cate_interval"
-    query_size: 64
-    coverage: 0.9
+      strategy: "conformal_cate_interval"
+      query_size: 64
+      coverage: 0.9
 
 ## Command Line Interface
 
