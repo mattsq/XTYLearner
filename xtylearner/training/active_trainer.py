@@ -146,12 +146,11 @@ class ActiveTrainer:
 
             rep_fn = getattr(self._trainer.model, "encoder", None)
             state: Dict[str, Any] = {
-                "round": round_idx,
+                "round": self.current_round,
                 "labels_used": len(L),
                 "labeled_dataset": L,
                 "unlabeled_dataset": U,
             }
-            self.current_round = round_idx
             yield state
 
             scores = self.strategy(
@@ -182,7 +181,6 @@ class ActiveTrainer:
         )
         self._log_status(L, U, action="final")
         self._trainer.fit(num_epochs)
-        self.current_round = round_idx
 
     # --------------------------------------------------------------
     def evaluate(self, data_loader: Iterable) -> Mapping[str, float]:
