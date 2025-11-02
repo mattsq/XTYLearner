@@ -8,5 +8,39 @@
   "statistical_method": "bootstrap",
   "training_epochs": 10,
   "sample_size": 100,
-  "random_seed": 42
+  "random_seed": 42,
+  "active_benchmark": {
+    "datasets": [
+      {
+        "name": "mixed_synth",
+        "loader": "load_mixed_synthetic_dataset",
+        "args": {
+          "n_samples": 5000,
+          "d_x": 10,
+          "label_ratio": 0.1,
+          "seed": 0
+        },
+        "test_fraction": 0.2
+      }
+    ],
+    "models": [
+      {
+        "name": "m2_vae",
+        "args": {
+          "d_x": 10,
+          "d_y": 1,
+          "k": 2
+        }
+      }
+    ],
+    "strategies": [
+      {"name": "random", "args": {}},
+      {"name": "entropy_t", "args": {}},
+      {"name": "cate_uncertainty", "args": {"mc_samples": 8}}
+    ],
+    "budget": 200,
+    "batch": 20,
+    "epochs_per_round": 5,
+    "seeds": [0, 1, 2]
+  }
 }

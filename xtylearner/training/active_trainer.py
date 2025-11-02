@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Iterable, Optional, Mapping
+from typing import Iterable, Optional, Mapping, Iterator, Dict, Any, Callable
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -53,6 +53,7 @@ class ActiveTrainer:
         self.queries = 0
         self._calibrator = None
         self.label_propensity_model = None
+        self.current_round = 0
 
         if hasattr(self.strategy, "set_trainer_context"):
             try:
@@ -80,7 +81,12 @@ class ActiveTrainer:
         return self.queries < self.budget
 
     # --------------------------------------------------------------
-    def fit(self, num_epochs: int) -> None:
+    def fit(self, num_epochs: int, round_callback: Callable[[Dict[str, Any]], None] | None = None) -> None:
+        for state in self.iterate_rounds(num_epochs):
+            if round_callback is not None:
+                round_callback(state)
+
+    def iterate_rounds(self, num_epochs: int) -> Iterator[Dict[str, Any]]:
         dataset = self._trainer.train_loader.dataset  # type: ignore[attr-defined]
         if not hasattr(dataset, "tensors"):
             raise ValueError("ActiveTrainer requires a TensorDataset")
@@ -93,8 +99,10 @@ class ActiveTrainer:
         U = TensorDataset(X[~labelled], Y[~labelled], T[~labelled])
 
         self._log_status(L, U, action="start")
+        self.current_round = 0
 
         while self._budget_left() and len(U) > 0:
+            self.current_round += 1
             loader_L = DataLoader(
                 L, batch_size=self._trainer.train_loader.batch_size, shuffle=True
             )
@@ -137,6 +145,15 @@ class ActiveTrainer:
                 )
 
             rep_fn = getattr(self._trainer.model, "encoder", None)
+            state: Dict[str, Any] = {
+                "round": round_idx,
+                "labels_used": len(L),
+                "labeled_dataset": L,
+                "unlabeled_dataset": U,
+            }
+            self.current_round = round_idx
+            yield state
+
             scores = self.strategy(
                 self._trainer.model, U.tensors[0], rep_fn, self.batch
             )
@@ -165,6 +182,7 @@ class ActiveTrainer:
         )
         self._log_status(L, U, action="final")
         self._trainer.fit(num_epochs)
+        self.current_round = round_idx
 
     # --------------------------------------------------------------
     def evaluate(self, data_loader: Iterable) -> Mapping[str, float]:

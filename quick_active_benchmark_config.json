@@ -1,0 +1,36 @@
+{
+  "active_benchmark": {
+    "datasets": [
+      {
+        "name": "quick_mixed_synth",
+        "loader": "load_mixed_synthetic_dataset",
+        "args": {
+          "n_samples": 400,
+          "d_x": 2,
+          "label_ratio": 0.25,
+          "seed": 123
+        },
+        "test_fraction": 0.25,
+        "batch_size": 32
+      }
+    ],
+    "models": [
+      {
+        "name": "multitask",
+        "args": {
+          "d_x": 2,
+          "d_y": 1,
+          "k": 2
+        }
+      }
+    ],
+    "strategies": [
+      {"name": "random", "args": {}},
+      {"name": "entropy_t", "args": {}}
+    ],
+    "budget": 40,
+    "batch": 10,
+    "epochs_per_round": 2,
+    "seeds": [0]
+  }
+}

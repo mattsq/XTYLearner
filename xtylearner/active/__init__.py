@@ -11,6 +11,7 @@ from .strategies import (
     STRATEGIES,
 )
 from .calibration import ConformalCalibrator, build_conformal_calibrator
+from .registry import get_strategy
 
 __all__ = [
     "QueryStrategy",
@@ -23,4 +24,5 @@ __all__ = [
     "STRATEGIES",
     "ConformalCalibrator",
     "build_conformal_calibrator",
+    "get_strategy",
 ]
