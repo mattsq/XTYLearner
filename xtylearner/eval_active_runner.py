@@ -66,8 +66,14 @@ def _load_active_dataset(
 
 def _build_optimizer(model: torch.nn.Module, lr: float = 1e-3):
     if hasattr(model, "loss_G") and hasattr(model, "loss_D"):
-        opt_g = torch.optim.Adam(model.parameters(), lr=lr)
-        opt_d = torch.optim.Adam(model.parameters(), lr=lr)
+        # Use specialized parameter methods if available to avoid parameter overlap
+        if hasattr(model, "generator_parameters") and hasattr(model, "discriminator_parameters"):
+            opt_g = torch.optim.Adam(model.generator_parameters(), lr=lr)
+            opt_d = torch.optim.Adam(model.discriminator_parameters(), lr=lr)
+        else:
+            # Fallback to all parameters if specialized methods not available
+            opt_g = torch.optim.Adam(model.parameters(), lr=lr)
+            opt_d = torch.optim.Adam(model.parameters(), lr=lr)
         return opt_g, opt_d
 
     params = [p for p in getattr(model, "parameters", lambda: [])() if p.requires_grad]
