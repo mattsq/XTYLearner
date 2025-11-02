@@ -23,6 +23,17 @@ class _LabelPropensityNet(nn.Module):
     """
 
     def __init__(self, in_dim: int, hidden_dim: int = 64) -> None:
+        """Initialize the label propensity network.
+
+        Parameters
+        ----------
+        in_dim : int
+            Dimension of the input features.
+        hidden_dim : int, default=64
+            Number of hidden units in the MLP. When set to 0, creates a linear
+            model without hidden layers (direct mapping from input to output).
+            Must be non-negative.
+        """
         super().__init__()
         hidden_dim = int(hidden_dim)
         if hidden_dim < 0:
