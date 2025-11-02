@@ -377,6 +377,146 @@ class ConformalCATEIntervalStrategy(QueryStrategy):
         return width
 
 
+class DebiasedCoverageAcquisition(QueryStrategy):
+    r"""Acquisition strategy aware of selection bias in label observability.
+
+    Motivation
+    ----------
+    1. Real-world causal data often exhibits missing-not-at-random behaviour –
+       some covariate regions rarely yield reliable labels.  Querying those
+       regions wastes labelling budget and can exacerbate bias in treatment
+       effect estimates.
+    2. ``DebiasedCoverageAcquisition`` models the *label propensity*
+       :math:`s(x) = P(L=1\mid X=x)` to focus queries on areas that are both
+       informative (high CATE uncertainty) *and* realistically acquirable.  The
+       balance term ``s(1-s)`` favours strata with partial coverage while
+       down-weighting unreachable or already saturated regions.
+    3. This behaviour protects overlap assumptions critical for downstream ATE
+       / CATE estimation by avoiding regions with near-zero propensity.
+    """
+
+    name = "debiased_coverage"
+    MIN_BALANCE_WEIGHT = 1e-8  # Threshold below which balance weight is considered collapsed
+
+    def __init__(
+        self,
+        base_need_strategy: str = "cate_uncertainty",
+        balance_fn: str = "s_times_one_minus_s",
+    ) -> None:
+        super().__init__()
+        self.base_need_strategy = base_need_strategy
+        self.balance_fn = balance_fn
+        self._trainer = None
+
+    # ------------------------------------------------------------------
+    def set_trainer_context(self, trainer) -> None:  # pragma: no cover - simple setter
+        """Provide access to the active trainer for propensity predictions."""
+
+        self._trainer = trainer
+
+    # ------------------------------------------------------------------
+    def _ensure_tensor(self, value, device: torch.device) -> torch.Tensor:
+        if isinstance(value, torch.Tensor):
+            return value.to(device=device, dtype=torch.float32)
+        return torch.as_tensor(value, device=device, dtype=torch.float32)
+
+    # ------------------------------------------------------------------
+    def _score_need(
+        self,
+        model: nn.Module,
+        X_unlab: torch.Tensor,
+        rep_fn: Callable[[torch.Tensor], torch.Tensor] | None,
+        batch_size: int,
+    ) -> torch.Tensor:
+        trainer = self._trainer
+        device = X_unlab.device
+
+        if trainer is not None and hasattr(trainer, "score_cate_need"):
+            try:
+                scores = trainer.score_cate_need(X_unlab)
+            except Exception:
+                logger.warning(
+                    "trainer.score_cate_need failed; falling back to base strategy.",
+                    exc_info=True,
+                )
+            else:
+                if scores is not None:
+                    return self._ensure_tensor(scores, device)
+
+        if self.base_need_strategy == "cate_uncertainty":
+            base = CATEUncertainty()
+        elif self.base_need_strategy == "conformal_cate_interval":
+            base = ConformalCATEIntervalStrategy()
+            calibrator = None
+            if trainer is not None and hasattr(trainer, "get_calibrator"):
+                try:
+                    calibrator = trainer.get_calibrator()
+                except Exception:
+                    logger.debug("Unable to access calibrator from trainer", exc_info=True)
+            if calibrator is not None:
+                try:
+                    base.update_calibrator(calibrator)
+                except Exception:
+                    logger.warning(
+                        "Failed to propagate calibrator to base strategy; continuing without it.",
+                        exc_info=True,
+                    )
+        else:
+            raise ValueError(f"Unknown base_need_strategy: {self.base_need_strategy}")
+
+        scores = base(model, X_unlab, rep_fn, batch_size)
+        return self._ensure_tensor(scores, device)
+
+    # ------------------------------------------------------------------
+    def _predict_propensity(self, X_unlab: torch.Tensor) -> torch.Tensor:
+        device = X_unlab.device
+        trainer = self._trainer
+
+        if trainer is None or not hasattr(trainer, "predict_label_propensity"):
+            return torch.full((len(X_unlab),), 0.5, device=device)
+
+        try:
+            propensity = trainer.predict_label_propensity(X_unlab)
+        except Exception:
+            logger.warning(
+                "trainer.predict_label_propensity failed; defaulting to uniform propensity.",
+                exc_info=True,
+            )
+            return torch.full((len(X_unlab),), 0.5, device=device)
+
+        propensity = self._ensure_tensor(propensity, device)
+        return propensity.clamp(0.0, 1.0)
+
+    # ------------------------------------------------------------------
+    def _balance_weight(self, propensity: torch.Tensor) -> torch.Tensor:
+        if self.balance_fn == "s_times_one_minus_s":
+            weight = propensity * (1.0 - propensity)
+        else:
+            logger.warning("Unknown balance_fn %s; falling back to s*(1-s)", self.balance_fn)
+            weight = propensity * (1.0 - propensity)
+
+        # If all propensities collapse to 0 or 1 the balance weight becomes 0.
+        if torch.all(weight <= self.MIN_BALANCE_WEIGHT):
+            return torch.ones_like(weight)
+        return weight
+
+    # ------------------------------------------------------------------
+    def forward(
+        self,
+        model: nn.Module,
+        X_unlab: torch.Tensor,
+        rep_fn: Callable[[torch.Tensor], torch.Tensor] | None,
+        batch_size: int,
+    ) -> torch.Tensor:
+        with torch.no_grad():
+            tau_need = self._score_need(model, X_unlab, rep_fn, batch_size)
+            propensity = self._predict_propensity(X_unlab)
+            weights = self._balance_weight(propensity)
+            scores = tau_need * weights
+            scores = torch.nan_to_num(scores, nan=0.0, posinf=0.0, neginf=0.0)
+            return scores
+
+
 class FCCMRadius(QueryStrategy):
     """Weighted combination of entropy, variance and coverage radius."""
 
@@ -420,6 +560,7 @@ STRATEGIES = {
     "fccm": FCCMRadius,
     "cate_uncertainty": CATEUncertainty,
     "conformal_cate_interval": ConformalCATEIntervalStrategy,
+    "debiased_coverage": DebiasedCoverageAcquisition,
 }
 
 __all__ = [
@@ -428,6 +569,7 @@ __all__ = [
     "DeltaCATE",
     "CATEUncertainty",
     "ConformalCATEIntervalStrategy",
+    "DebiasedCoverageAcquisition",
     "FCCMRadius",
     "STRATEGIES",
 ]

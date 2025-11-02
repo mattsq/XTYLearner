@@ -8,8 +8,13 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from .trainer import Trainer
 from .logger import TrainerLogger, ConsoleLogger
-from ..active import QueryStrategy
+from ..active import (
+    QueryStrategy,
+    CATEUncertainty,
+    ConformalCATEIntervalStrategy,
+)
 from ..active.calibration import build_conformal_calibrator
+from ..active.label_propensity import train_label_propensity_model
 
 
 logger = logging.getLogger(__name__)
@@ -28,7 +33,7 @@ class ActiveTrainer:
         batch: int,
         val_loader: Optional[Iterable] = None,
         device: str = "cpu",
-        logger: Optional["TrainerLogger"] = None,
+        trainer_logger: Optional["TrainerLogger"] = None,
         scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
         grad_clip_norm: float | None = None,
     ) -> None:
@@ -38,7 +43,7 @@ class ActiveTrainer:
             train_loader,
             val_loader,
             device,
-            logger,
+            trainer_logger,
             scheduler,
             grad_clip_norm,
         )
@@ -47,6 +52,17 @@ class ActiveTrainer:
         self.batch = batch
         self.queries = 0
         self._calibrator = None
+        self.label_propensity_model = None
+
+        if hasattr(self.strategy, "set_trainer_context"):
+            try:
+                self.strategy.set_trainer_context(self)
+            except Exception:
+                logger.warning(
+                    "Strategy %s rejected trainer context; continuing without MNAR features.",
+                    strategy.__class__.__name__,
+                    exc_info=True,
+                )
 
     # --------------------------------------------------------------
     def _log_status(
@@ -112,6 +128,14 @@ class ActiveTrainer:
                         exc_info=True,
                     )
 
+            try:
+                self.update_label_propensity_model(L, U)
+            except Exception:
+                logger.warning(
+                    "Failed to update label propensity model; falling back to defaults.",
+                    exc_info=True,
+                )
+
             rep_fn = getattr(self._trainer.model, "encoder", None)
             scores = self.strategy(
                 self._trainer.model, U.tensors[0], rep_fn, self.batch
@@ -159,6 +183,94 @@ class ActiveTrainer:
         """Return the most recent conformal calibrator if available."""
 
         return self._calibrator
+
+    # --------------------------------------------------------------
+    def score_cate_need(self, X_pool: torch.Tensor) -> torch.Tensor:
+        """Return an uncertainty score for the conditional treatment effect."""
+
+        device = getattr(self._trainer, "device", X_pool.device)
+        model = self._trainer.model
+        rep_fn = getattr(model, "encoder", None)
+        calibrator = self._calibrator
+        coverage = getattr(self.strategy, "coverage", 0.9)
+        X_device = X_pool.to(device)
+
+        scores: torch.Tensor | None = None
+
+        with torch.no_grad():
+            if calibrator is not None:
+                base = ConformalCATEIntervalStrategy(coverage=coverage)
+                base.update_calibrator(calibrator)
+                try:
+                    scores = base(model, X_device, rep_fn, self.batch)
+                except Exception:
+                    logger.warning(
+                        "Conformal interval scoring failed; reverting to CATE uncertainty.",
+                        exc_info=True,
+                    )
+                    scores = None
+
+            if scores is None:
+                try:
+                    base_unc = CATEUncertainty()
+                    scores = base_unc(model, X_device, rep_fn, self.batch)
+                except Exception:
+                    logger.warning(
+                        "CATE uncertainty scoring failed; falling back to |tau| heuristic.",
+                        exc_info=True,
+                    )
+                    scores = None
+
+            if scores is None and hasattr(model, "predict_cate"):
+                try:
+                    tau = model.predict_cate(X_device)
+                except Exception:
+                    pass
+                else:
+                    if isinstance(tau, tuple):
+                        tau = tau[0]
+                    if tau is not None:
+                        tau_tensor = torch.as_tensor(tau, device=device, dtype=torch.float32)
+                        if tau_tensor.dim() > 1:
+                            tau_tensor = tau_tensor.view(len(X_pool), -1).mean(dim=1)
+                        scores = tau_tensor.abs()
+
+        if scores is None:
+            scores = torch.zeros(len(X_pool), device=device)
+
+        return torch.as_tensor(scores, device=device, dtype=torch.float32).to(X_pool.device)
+
+    # --------------------------------------------------------------
+    def predict_label_propensity(self, X: torch.Tensor) -> torch.Tensor:
+        r"""Predict :math:`P(L=1\mid X)` using the auxiliary propensity model."""
+
+        model = self.label_propensity_model
+        if model is None:
+            return torch.full((len(X),), 0.5, device=X.device, dtype=torch.float32)
+
+        try:
+            next_param = next(model.parameters(), None)
+        except Exception:
+            next_param = None
+
+        device = next_param.device if next_param is not None else getattr(self._trainer, "device", X.device)
+
+        model.eval()
+        with torch.no_grad():
+            preds = model(X.to(device)).view(-1)
+        return preds.clamp(0.0, 1.0).to(X.device)
+
+    # --------------------------------------------------------------
+    def update_label_propensity_model(
+        self,
+        labeled: TensorDataset,
+        unlabeled: TensorDataset,
+    ) -> None:
+        """(Re)fit the auxiliary label propensity model after each round."""
+
+        device = getattr(self._trainer, "device", "cpu")
+        model = train_label_propensity_model(labeled, unlabeled, device=device)
+        self.label_propensity_model = model
 
     # --------------------------------------------------------------
     def __getattr__(self, name):

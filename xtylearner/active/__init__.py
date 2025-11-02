@@ -6,6 +6,7 @@ from .strategies import (
     DeltaCATE,
     CATEUncertainty,
     ConformalCATEIntervalStrategy,
+    DebiasedCoverageAcquisition,
     FCCMRadius,
     STRATEGIES,
 )
@@ -17,6 +18,7 @@ __all__ = [
     "DeltaCATE",
     "CATEUncertainty",
     "ConformalCATEIntervalStrategy",
+    "DebiasedCoverageAcquisition",
     "FCCMRadius",
     "STRATEGIES",
     "ConformalCalibrator",
