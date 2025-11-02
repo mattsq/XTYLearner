@@ -396,6 +396,7 @@ class DebiasedCoverageAcquisition(QueryStrategy):
     """
 
     name = "debiased_coverage"
+    MIN_BALANCE_WEIGHT = 1e-8  # Threshold below which balance weight is considered collapsed
 
     def __init__(
         self,
@@ -495,7 +496,7 @@ class DebiasedCoverageAcquisition(QueryStrategy):
             weight = propensity * (1.0 - propensity)
 
         # If all propensities collapse to 0 or 1 the balance weight becomes 0.
-        if torch.all(weight <= 1e-8):
+        if torch.all(weight <= self.MIN_BALANCE_WEIGHT):
             return torch.ones_like(weight)
         return weight
 
