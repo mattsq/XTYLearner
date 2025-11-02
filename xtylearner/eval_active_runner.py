@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib
 import math
 import random
-from typing import Any, Dict, Iterable, Iterator, List, Sequence
+from typing import Any, Dict, Iterable, List, Sequence
 
 import numpy as np
 import torch
