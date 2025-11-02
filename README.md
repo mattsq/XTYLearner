@@ -237,6 +237,9 @@ selecting the most informative unlabelled points:
 - ``CATEUncertainty`` – targets epistemic uncertainty in the conditional
   average treatment effect ``τ(x)`` using model-provided intervals or Monte
   Carlo samples of both potential outcomes.
+- ``ConformalCATEIntervalStrategy`` – prioritises units with the widest
+  conformal-style interval around ``τ(x)`` built from calibrated potential
+  outcome residuals.
 - ``FCCMRadius`` – a weighted combination of these uncertainty scores and the
   coverage radius around labelled data.
 
@@ -268,8 +271,9 @@ When configuring experiments via YAML, the same strategy can be selected with::
 
     active:
       enabled: true
-      strategy: "cate_uncertainty"
-      query_size: 64
+    strategy: "conformal_cate_interval"
+    query_size: 64
+    coverage: 0.9
 
 ## Command Line Interface
 

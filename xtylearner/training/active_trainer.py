@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Iterable, Optional, Mapping
 
 import torch
@@ -8,6 +9,10 @@ from torch.utils.data import DataLoader, TensorDataset
 from .trainer import Trainer
 from .logger import TrainerLogger, ConsoleLogger
 from ..active import QueryStrategy
+from ..active.calibration import build_conformal_calibrator
+
+
+logger = logging.getLogger(__name__)
 
 
 class ActiveTrainer:
@@ -41,6 +46,7 @@ class ActiveTrainer:
         self.budget = budget
         self.batch = batch
         self.queries = 0
+        self._calibrator = None
 
     # --------------------------------------------------------------
     def _log_status(
@@ -81,6 +87,30 @@ class ActiveTrainer:
 
             if hasattr(self.strategy, "update_labeled"):
                 self.strategy.update_labeled(L.tensors[0])
+
+            coverage = getattr(self.strategy, "coverage", 0.9)
+            try:
+                calibrator = build_conformal_calibrator(
+                    self._trainer.model,
+                    L,
+                    coverage=coverage,
+                )
+            except Exception:
+                logger.warning(
+                    "Failed to build conformal calibrator; proceeding without calibration.",
+                    exc_info=True,
+                )
+                calibrator = None
+            self._calibrator = calibrator
+            if hasattr(self.strategy, "update_calibrator"):
+                try:
+                    self.strategy.update_calibrator(calibrator)
+                except Exception:
+                    logger.warning(
+                        "Strategy %s failed to accept calibrator.",
+                        self.strategy.__class__.__name__,
+                        exc_info=True,
+                    )
 
             rep_fn = getattr(self._trainer.model, "encoder", None)
             scores = self.strategy(
@@ -123,6 +153,12 @@ class ActiveTrainer:
     # --------------------------------------------------------------
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         return self._trainer.predict_treatment_proba(x, y)
+
+    # --------------------------------------------------------------
+    def get_calibrator(self):
+        """Return the most recent conformal calibrator if available."""
+
+        return self._calibrator
 
     # --------------------------------------------------------------
     def __getattr__(self, name):

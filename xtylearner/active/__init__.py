@@ -5,15 +5,20 @@ from .strategies import (
     EntropyT,
     DeltaCATE,
     CATEUncertainty,
+    ConformalCATEIntervalStrategy,
     FCCMRadius,
     STRATEGIES,
 )
+from .calibration import ConformalCalibrator, build_conformal_calibrator
 
 __all__ = [
     "QueryStrategy",
     "EntropyT",
     "DeltaCATE",
     "CATEUncertainty",
+    "ConformalCATEIntervalStrategy",
     "FCCMRadius",
     "STRATEGIES",
+    "ConformalCalibrator",
+    "build_conformal_calibrator",
 ]

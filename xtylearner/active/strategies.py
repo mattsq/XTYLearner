@@ -4,38 +4,11 @@ from typing import Callable, Tuple
 import torch
 import torch.nn as nn
 
+from .calibration import ConformalCalibrator
+from .utils import predict_outcome
+
 
 logger = logging.getLogger(__name__)
-
-
-def _predict_outcome(
-    model: nn.Module, x: torch.Tensor, t: torch.Tensor
-) -> torch.Tensor:
-    """Return ``y`` predictions for covariates ``x`` and treatment ``t``.
-
-    The helper first checks for a ``predict_outcome`` implementation and
-    otherwise tries a combination of ``head_Y`` and ``h`` attributes.  When no
-    specialised head is found the model is called directly.  This mirrors the
-    logic previously embedded in :class:`DeltaCATE` and is shared with
-    :class:`CATEUncertainty`.
-    """
-
-    if hasattr(model, "predict_outcome"):
-        return model.predict_outcome(x, int(t[0].item()) if t.numel() == 1 else t)
-
-    k = getattr(model, "k", None)
-    if k is not None:
-        t_in = torch.nn.functional.one_hot(t.to(torch.long), k).float()
-    else:
-        t_in = t.unsqueeze(-1) if t.dim() == 1 else t
-
-    if hasattr(model, "head_Y"):
-        if hasattr(model, "h"):
-            h = model.h(x)
-            return model.head_Y(torch.cat([h, t_in], dim=-1))
-        return model.head_Y(torch.cat([x, t_in], dim=-1))
-
-    return model(x, t)
 
 
 class QueryStrategy(nn.Module):
@@ -135,11 +108,11 @@ class DeltaCATE(QueryStrategy):
                         t = model.sample_T(X_unlab)
                     else:
                         raise ValueError("Model must implement sample_T for continuous treatments")
-                    preds.append(_predict_outcome(model, X_unlab, t).unsqueeze(1))
+                    preds.append(predict_outcome(model, X_unlab, t).unsqueeze(1))
             else:
                 for t_val in range(k):
                     t = torch.full((len(X_unlab),), t_val, device=X_unlab.device)
-                    preds.append(_predict_outcome(model, X_unlab, t).unsqueeze(1))
+                    preds.append(predict_outcome(model, X_unlab, t).unsqueeze(1))
             pred = torch.cat(preds, dim=1)
             var = pred.var(dim=1)
             return var.mean(dim=-1)
@@ -238,8 +211,8 @@ class CATEUncertainty(QueryStrategy):
         try:
             with torch.no_grad():
                 for _ in range(mc):
-                    y1 = _predict_outcome(model, X_unlab, t1)
-                    y0 = _predict_outcome(model, X_unlab, t0)
+                    y1 = predict_outcome(model, X_unlab, t1)
+                    y0 = predict_outcome(model, X_unlab, t0)
                     tau_samples.append(
                         self._reduce_tau((y1 - y0).reshape(len(X_unlab), -1))
                     )
@@ -306,6 +279,104 @@ class CATEUncertainty(QueryStrategy):
         return tau_unc
 
 
+class ConformalCATEIntervalStrategy(QueryStrategy):
+    """Rank samples by the width of calibrated CATE intervals."""
+
+    name = "conformal_cate_interval"
+
+    def __init__(
+        self,
+        *,
+        coverage: float = 0.9,
+        fallback: QueryStrategy | None = None,
+    ) -> None:
+        super().__init__()
+        if not (0 < coverage < 1):
+            raise ValueError("coverage must be between 0 and 1")
+        self.coverage = coverage
+        self._fallback = fallback
+        self._calibrator: ConformalCalibrator | None = None
+
+    def update_calibrator(self, calibrator: ConformalCalibrator | None) -> None:
+        """Store the latest conformal calibrator."""
+
+        self._calibrator = calibrator
+
+    def _fallback_strategy(self) -> QueryStrategy:
+        if self._fallback is None:
+            self._fallback = CATEUncertainty()
+        return self._fallback
+
+    def _predict_potential_outcomes(
+        self, model: nn.Module, X_unlab: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor] | None:
+        k = getattr(model, "k", None)
+        if k != 2:
+            logger.warning(
+                "Conformal CATE interval strategy requires binary treatments; falling back."
+            )
+            return None
+
+        device = X_unlab.device
+        t0 = torch.zeros(len(X_unlab), dtype=torch.long, device=device)
+        t1 = torch.ones(len(X_unlab), dtype=torch.long, device=device)
+
+        model_state = model.training
+        model.eval()
+        try:
+            with torch.no_grad():
+                y1 = predict_outcome(model, X_unlab, t1)
+                y0 = predict_outcome(model, X_unlab, t0)
+        except Exception:
+            logger.warning(
+                "Unable to compute potential outcomes for conformal CATE intervals; falling back.",
+                exc_info=True,
+            )
+            return None
+        finally:
+            model.train(model_state)
+
+        if y1.dim() > 1:
+            y1 = y1.view(len(X_unlab), -1).mean(dim=1)
+        if y0.dim() > 1:
+            y0 = y0.view(len(X_unlab), -1).mean(dim=1)
+
+        return y0, y1
+
+    def forward(
+        self,
+        model: nn.Module,
+        X_unlab: torch.Tensor,
+        rep_fn: Callable[[torch.Tensor], torch.Tensor] | None,
+        batch_size: int,
+    ) -> torch.Tensor:
+        calibrator = self._calibrator
+        if calibrator is None:
+            logger.warning(
+                "Conformal CATE interval strategy missing calibrator; using fallback strategy."
+            )
+            fallback = self._fallback_strategy()
+            return fallback(model, X_unlab, rep_fn, batch_size)
+
+        outcomes = self._predict_potential_outcomes(model, X_unlab)
+        if outcomes is None:
+            fallback = self._fallback_strategy()
+            return fallback(model, X_unlab, rep_fn, batch_size)
+
+        y0_hat, y1_hat = outcomes
+        lo1, hi1 = calibrator.interval_for_outcome(y1_hat, t_arm=1)
+        lo0, hi0 = calibrator.interval_for_outcome(y0_hat, t_arm=0)
+
+        tau_lo = lo1 - hi0
+        tau_hi = hi1 - lo0
+        width = torch.clamp(tau_hi - tau_lo, min=0.0)
+
+        if width.dim() > 1:
+            width = width.view(len(X_unlab), -1).mean(dim=1)
+
+        return width
+
+
 class FCCMRadius(QueryStrategy):
     """Weighted combination of entropy, variance and coverage radius."""
 
@@ -348,6 +419,7 @@ STRATEGIES = {
     "var": DeltaCATE,
     "fccm": FCCMRadius,
     "cate_uncertainty": CATEUncertainty,
+    "conformal_cate_interval": ConformalCATEIntervalStrategy,
 }
 
 __all__ = [
@@ -355,6 +427,7 @@ __all__ = [
     "EntropyT",
     "DeltaCATE",
     "CATEUncertainty",
+    "ConformalCATEIntervalStrategy",
     "FCCMRadius",
     "STRATEGIES",
 ]
