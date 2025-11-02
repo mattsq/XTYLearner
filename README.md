@@ -240,6 +240,9 @@ selecting the most informative unlabelled points:
 - ``ConformalCATEIntervalStrategy`` – prioritises units with the widest
   conformal-style interval around ``τ(x)`` built from calibrated potential
   outcome residuals.
+- ``DebiasedCoverageAcquisition`` – models the probability that a reliable
+  label can be obtained for a given covariate vector and targets regions with
+  moderate label propensity, improving coverage under MNAR selection effects.
 - ``FCCMRadius`` – a weighted combination of these uncertainty scores and the
   coverage radius around labelled data.
 
@@ -271,9 +274,9 @@ When configuring experiments via YAML, the same strategy can be selected with::
 
     active:
       enabled: true
-      strategy: "conformal_cate_interval"
+      strategy: "debiased_coverage"
       query_size: 64
-      coverage: 0.9
+      coverage: 0.9  # optional when the trainer exposes a conformal calibrator
 
 ## Command Line Interface
 
