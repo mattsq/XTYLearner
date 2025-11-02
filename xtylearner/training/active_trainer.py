@@ -99,11 +99,10 @@ class ActiveTrainer:
         U = TensorDataset(X[~labelled], Y[~labelled], T[~labelled])
 
         self._log_status(L, U, action="start")
-        round_idx = 0
         self.current_round = 0
 
         while self._budget_left() and len(U) > 0:
-            round_idx += 1
+            self.current_round += 1
             loader_L = DataLoader(
                 L, batch_size=self._trainer.train_loader.batch_size, shuffle=True
             )
