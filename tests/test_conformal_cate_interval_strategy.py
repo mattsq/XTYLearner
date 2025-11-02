@@ -98,7 +98,7 @@ def test_build_conformal_calibrator_estimates_quantiles():
             if t.dim() > 1:
                 t = t.view(-1)
             if t.numel() == 1:
-                t = t.expand(len(X))
+                pass  # t is not used
             return torch.zeros(len(X), device=X.device)
 
     model = ResidualModel()
