@@ -21,17 +21,14 @@ def _load_config(path: Path) -> Dict[str, Any]:
 
 
 def _format_value(value: Any) -> str:
-    try:
-        if value is None:
+    if value is None:
+        return "-"
+    if isinstance(value, float):
+        if value != value:  # NaN check
             return "-"
-        if isinstance(value, float):
-            if value != value:  # NaN check
-                return "-"
-            return f"{value:.4f}"
-        if isinstance(value, (int, str)):
-            return str(value)
-    except Exception:
-        pass
+        return f"{value:.4f}"
+    if isinstance(value, (int, str)):
+        return str(value)
     return str(value)
 
 
