@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -25,7 +26,7 @@ def _format_value(value: Any) -> str:
         if value is None:
             return "-"
         if isinstance(value, float):
-            if value != value:  # NaN check
+            if math.isnan(value):
                 return "-"
             return f"{value:.4f}"
         if isinstance(value, (int, str)):
