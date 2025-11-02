@@ -268,7 +268,7 @@ def _nanstd(values: Iterable[float]) -> float:
         return float("nan")
     if arr.size == 1:
         return float("nan")
-    return float(arr.std(ddof=0))
+    return float(arr.std(ddof=1))
 
 
 def aggregate_across_seeds(runs_for_strategy: List[Dict[str, Any]]) -> Dict[str, Any]:
