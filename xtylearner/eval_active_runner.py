@@ -267,7 +267,7 @@ def _nanstd(values: Iterable[float]) -> float:
     if arr.size == 0:
         return float("nan")
     if arr.size == 1:
-        return 0.0
+        return float("nan")
     return float(arr.std(ddof=0))
 
 
