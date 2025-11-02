@@ -24,7 +24,9 @@ class _LabelPropensityNet(nn.Module):
 
     def __init__(self, in_dim: int, hidden_dim: int = 64) -> None:
         super().__init__()
-        hidden_dim = max(0, int(hidden_dim))
+        hidden_dim = int(hidden_dim)
+        if hidden_dim < 0:
+            raise ValueError(f"hidden_dim must be non-negative, got {hidden_dim}")
         if hidden_dim == 0:
             self._net = nn.Linear(in_dim, 1)
         else:
