@@ -33,7 +33,7 @@ class ActiveTrainer:
         batch: int,
         val_loader: Optional[Iterable] = None,
         device: str = "cpu",
-        logger: Optional["TrainerLogger"] = None,
+        trainer_logger: Optional["TrainerLogger"] = None,
         scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
         grad_clip_norm: float | None = None,
     ) -> None:
@@ -43,7 +43,7 @@ class ActiveTrainer:
             train_loader,
             val_loader,
             device,
-            logger,
+            trainer_logger,
             scheduler,
             grad_clip_norm,
         )

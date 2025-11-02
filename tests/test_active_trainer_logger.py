@@ -22,7 +22,7 @@ def test_active_trainer_logs_progress(capsys):
         DummyStrategy(),
         budget=2,
         batch=1,
-        logger=ConsoleLogger(print_every=1),
+        trainer_logger=ConsoleLogger(print_every=1),
     )
     trainer.fit(1)
     out = capsys.readouterr().out
