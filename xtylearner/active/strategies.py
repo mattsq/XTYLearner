@@ -30,7 +30,7 @@ class EntropyT(QueryStrategy):
 
     @staticmethod
     def _treatment_proba(model: nn.Module, x: torch.Tensor) -> torch.Tensor:
-        """Return ``p(t\mid x)`` predicted by ``model``.
+        r"""Return ``p(t\mid x)`` predicted by ``model``.
 
         The helper tries ``predict_treatment_proba`` if available and falls
         back to common attribute names such as ``cls_t`` or ``head_T``.  When
@@ -123,12 +123,12 @@ class CATEUncertainty(QueryStrategy):
 
     Motivation
     ----------
-    1. ``τ(x) = E[Y\mid X=x, T=1] - E[Y\mid X=x, T=0]`` directly determines
+    1. ``τ(x) = E[Y\\mid X=x, T=1] - E[Y\\mid X=x, T=0]`` directly determines
        which treatment a policy will recommend.  Reducing uncertainty in
        ``τ(x)`` therefore targets the decision metric instead of factual outcome
        error.
     2. Uncertain ``τ(x)`` implies high potential regret for the greedy policy
-       ``t*(x) = argmax_t E[Y\mid X=x, T=t]``.  Querying those points focuses
+       ``t*(x) = argmax_t E[Y\\mid X=x, T=t]``.  Querying those points focuses
        the labelling budget on actionable ambiguities.
     3. Because only factual triples ``(x, t_{obs}, y_{obs})`` are observable the
        strategy relies on modelled potential outcomes and Monte Carlo sampling
@@ -387,7 +387,7 @@ class DebiasedCoverageAcquisition(QueryStrategy):
        regions wastes labelling budget and can exacerbate bias in treatment
        effect estimates.
     2. ``DebiasedCoverageAcquisition`` models the *label propensity*
-       :math:`s(x) = P(L=1\mid X=x)` to focus queries on areas that are both
+       :math:`s(x) = P(L=1\\mid X=x)` to focus queries on areas that are both
        informative (high CATE uncertainty) *and* realistically acquirable.  The
        balance term ``s(1-s)`` favours strata with partial coverage while
        down-weighting unreachable or already saturated regions.
