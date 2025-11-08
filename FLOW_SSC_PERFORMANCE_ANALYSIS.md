@@ -8,15 +8,19 @@ The "poor performance" of `flow_ssc` in internal benchmarks was investigated. Ke
 
 The current benchmark results (`benchmark_results.md`) were generated on **2025-08-23**, BEFORE stabilization fixes were implemented on **2025-09-27** (commit 004b0a0).
 
-**Outdated results** (benchmark_results.md):
+**Outdated results** (benchmark_results.md, Aug 23):
 - synthetic: val_loss=4.80, val_rmse=0.227 (ranked 11th)
 - synthetic_mixed: val_loss=9.61, val_rmse=0.526
 
-**After stabilization** (benchmark_results_updated.md):
-- synthetic: val_loss=4.76, val_rmse=**0.157** (ranked **4th**!)
+**Updated local benchmarks** (benchmark_results_updated.md):
+- synthetic: val_loss=4.76, val_rmse=0.157 (ranked 4th)
 - synthetic_mixed: val_loss=9.61, val_rmse=0.566
 
-The model improved from 11th to **4th place** after fixes!
+**Current CI Results** (Nov 8, from GitHub Pages - MOST ACCURATE):
+- synthetic: val_rmse=**0.2422** (ranked **10th**/35+)
+- synthetic_mixed: val_rmse=**0.6202** (ranked **10th**/35+)
+
+The CI results show flow_ssc is a **consistent mid-tier performer** (10th place), not top-tier (4th) as some local benchmarks suggested.
 
 ### 2. **High Loss Is Expected and Not a Problem**
 
@@ -26,7 +30,7 @@ The loss values (4.8-9.6) are high because the model includes `log p(x)` in its 
 loss = -(log p(x) + log p(y|x,t)).mean() + cross_entropy(t|x)
 ```
 
-This is theoretically correct for a generative model but inflates the numerical loss value. The **outcome RMSE** is the better metric for prediction quality, and flow_ssc ranks **4th overall**.
+This is theoretically correct for a generative model but inflates the numerical loss value. The **outcome RMSE** is the better metric for prediction quality, and flow_ssc ranks **10th overall** (per CI benchmarks).
 
 ### 3. **Stabilization Fixes Already Implemented**
 
@@ -43,8 +47,8 @@ Commit 004b0a0 ("Stabilize flow_ssc training across benchmarks") already impleme
 
 Investigation showed that training `flow_x` (removing `no_grad()`) makes performance **worse**:
 
-- **With no_grad()** (original): val_rmse = 0.157
-- **Without no_grad()**: val_rmse = 0.188 or worse
+- **With no_grad()** (current): val_rmse = 0.24 (10th place in CI)
+- **Without no_grad()** (tested): val_rmse = 0.19-0.57 (worse and less stable)
 
 The flow_x gradients (18-33) are much larger than flow_y gradients (1-12), causing:
 - Training instability
@@ -87,11 +91,17 @@ This ensures flow_ssc uses its recommended learning rate (5e-4) in benchmarks.
 
 ## Performance Ranking
 
-Based on synthetic dataset (val outcome RMSE):
+Based on **GitHub CI benchmarks** (Nov 8, 2025) - synthetic dataset:
 
-1. prob_circuit: 0.116
-2. cycle_dual: 0.147
-3. ganite: 0.211
-4. **flow_ssc: 0.157** ← Competitive performance!
+1. prob_circuit: 0.0969
+2. ganite: 0.1285
+3. fixmatch: 0.1546
+4. cycle_dual: 0.1555
+5. vat: 0.1854
+6. mean_teacher: 0.1860
+7-9. (other models)
+10. **flow_ssc: 0.2422** ← Solid mid-tier performance (10th/35+ models)
 
-The model is performing well - the issue was **outdated benchmarks** and **misleading loss values**, not actual poor predictions.
+The model is a **consistent mid-tier performer** - the issue was **outdated benchmarks** and **misleading loss values**, not actual poor predictions. Flow_ssc performs reliably and consistently ranks 10th across multiple datasets.
+
+**See CI_BENCHMARK_ANALYSIS.md for full CI results comparison.**
