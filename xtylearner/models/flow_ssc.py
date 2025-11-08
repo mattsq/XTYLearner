@@ -111,6 +111,8 @@ class MixtureOfFlows(nn.Module):
         flow_layers: int = 6,
         flow_hidden: int = 128,
         gamma: float = 1.0,
+        beta: float = 1.0,
+        adaptive_beta: bool = False,
         eval_samples: int = 100,
         noise_std: float = 0.0,
         regr_samples: int = 1,
@@ -121,6 +123,8 @@ class MixtureOfFlows(nn.Module):
         self.d_y = d_y
         self.k = k
         self.gamma = gamma
+        self.beta = beta
+        self.adaptive_beta = adaptive_beta
         self.eval_samples = eval_samples
         self.noise_std = noise_std
         self.regr_samples = regr_samples
@@ -196,6 +200,23 @@ class MixtureOfFlows(nn.Module):
         shift = _expand_like(self.y_shift, Y.dim())
         return Y * scale + shift
 
+    def _compute_adaptive_beta(self, n_samples: int) -> float:
+        """Compute beta based on sample size and dimensionality.
+
+        Rule of thumb: need ~10 samples per dimension for density estimation.
+        If we have too few samples relative to d_x, reduce or disable flow_x.
+        """
+        samples_per_dim = n_samples / self.d_x
+
+        if samples_per_dim < 5:
+            return 0.0  # Too few samples, disable flow_x entirely
+        elif samples_per_dim < 10:
+            return 0.1  # Barely sufficient, down-weight heavily
+        elif samples_per_dim < 20:
+            return 0.5  # Moderate, use partial weight
+        else:
+            return 1.0  # Sufficient, use full model
+
     # --------------------------------------------------------
     def forward(self, X: torch.Tensor, T: torch.Tensor) -> torch.Tensor:
         """Return ``E[y|t]`` estimated from flow samples."""
@@ -212,6 +233,11 @@ class MixtureOfFlows(nn.Module):
             Y = Y + self.noise_std * torch.randn_like(Y)
 
         X_norm, Y_norm = self._normalise_inputs(X, Y)
+
+        # Use adaptive beta if enabled
+        effective_beta = self.beta
+        if self.adaptive_beta:
+            effective_beta = self._compute_adaptive_beta(X.size(0))
 
         with torch.no_grad():
             lp_x = self.flow_x.log_prob(X_norm)
@@ -235,7 +261,7 @@ class MixtureOfFlows(nn.Module):
             ce_clf = cross_entropy_loss(self.clf(x_l), t_l)
             ll_x = lp_x[t_lab_mask]
 
-            loss_lab = -(ll_x + ll_y).mean() + ce_clf
+            loss_lab = -(effective_beta * ll_x + ll_y).mean() + ce_clf
 
             if self.regr_weight > 0:
                 y_samples = self.flow_y.sample(self.regr_samples, context=ctx_l)
@@ -266,7 +292,7 @@ class MixtureOfFlows(nn.Module):
             ll_y = ll_y.clamp(min=-100.0)
 
             lse = torch.logsumexp(log_p_t + ll_y, dim=-1)
-            loss_ulb = -(lp_x_u + lse).mean()
+            loss_ulb = -(effective_beta * lp_x_u + lse).mean()
 
         return loss_lab + self.gamma * loss_ulb
 

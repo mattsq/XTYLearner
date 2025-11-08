@@ -16,7 +16,8 @@ def _make_optimizer(model: torch.nn.Module) -> torch.optim.Optimizer:
     params = [p for p in getattr(model, "parameters", lambda: [])() if p.requires_grad]
     if not params:
         params = [torch.zeros(1, requires_grad=True)]
-    return torch.optim.Adam(params, lr=0.001)
+    lr = getattr(model, "default_lr", 0.001)
+    return torch.optim.Adam(params, lr=lr)
 
 
 def _make_gan_optimizer(model: torch.nn.Module):
