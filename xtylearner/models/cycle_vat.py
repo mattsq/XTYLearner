@@ -319,7 +319,7 @@ class CycleVAT(nn.Module):
                     )
                     tau = self.q_conf_end + 0.5 * (
                         self.q_conf_start - self.q_conf_end
-                    ) * (1 + math.cos((1 - s) * math.pi))
+                    ) * (1 + math.cos(s * math.pi))
                     q_miss = q[idx_miss_full]
                     conf = q_miss.max(dim=-1).values
                     gate = conf >= tau
