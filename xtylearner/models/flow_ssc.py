@@ -111,6 +111,7 @@ class MixtureOfFlows(nn.Module):
         flow_layers: int = 6,
         flow_hidden: int = 128,
         gamma: float = 1.0,
+        beta: float = 1.0,
         eval_samples: int = 100,
         noise_std: float = 0.0,
         regr_samples: int = 1,
@@ -121,6 +122,7 @@ class MixtureOfFlows(nn.Module):
         self.d_y = d_y
         self.k = k
         self.gamma = gamma
+        self.beta = beta
         self.eval_samples = eval_samples
         self.noise_std = noise_std
         self.regr_samples = regr_samples
@@ -235,7 +237,7 @@ class MixtureOfFlows(nn.Module):
             ce_clf = cross_entropy_loss(self.clf(x_l), t_l)
             ll_x = lp_x[t_lab_mask]
 
-            loss_lab = -(ll_x + ll_y).mean() + ce_clf
+            loss_lab = -(self.beta * ll_x + ll_y).mean() + ce_clf
 
             if self.regr_weight > 0:
                 y_samples = self.flow_y.sample(self.regr_samples, context=ctx_l)
@@ -266,7 +268,7 @@ class MixtureOfFlows(nn.Module):
             ll_y = ll_y.clamp(min=-100.0)
 
             lse = torch.logsumexp(log_p_t + ll_y, dim=-1)
-            loss_ulb = -(lp_x_u + lse).mean()
+            loss_ulb = -(self.beta * lp_x_u + lse).mean()
 
         return loss_lab + self.gamma * loss_ulb
 
