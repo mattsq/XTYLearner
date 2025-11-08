@@ -8,5 +8,8 @@
   "statistical_method": "bootstrap",
   "training_epochs": 10,
   "sample_size": 100,
+  "dataset_sample_sizes": {
+    "nhefs": null
+  },
   "random_seed": 42
 }

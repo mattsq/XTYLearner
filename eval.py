@@ -82,11 +82,15 @@ class ModelBenchmarker:
     def _prepare_data(self, dataset_name: str) -> BenchmarkDataBundle:
         """Create (or reuse) dataset splits and data loaders."""
 
-        cache_key = (dataset_name, self.config["sample_size"])
+        # Get dataset-specific sample size if configured, otherwise use default
+        dataset_sample_sizes = self.config.get("dataset_sample_sizes", {})
+        n_samples = dataset_sample_sizes.get(dataset_name, self.config["sample_size"])
+
+        cache_key = (dataset_name, n_samples)
         if cache_key in self._data_cache:
             return self._data_cache[cache_key]
 
-        dataset_kwargs: Dict[str, Any] = {"n_samples": self.config["sample_size"]}
+        dataset_kwargs: Dict[str, Any] = {"n_samples": n_samples}
 
         # Add dataset-specific parameters
         if dataset_name in ["synthetic", "synthetic_mixed"]:
