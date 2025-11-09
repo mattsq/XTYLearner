@@ -111,8 +111,6 @@ class MixtureOfFlows(nn.Module):
         flow_layers: int = 6,
         flow_hidden: int = 128,
         gamma: float = 1.0,
-        beta: float = 1.0,
-        adaptive_beta: bool = False,
         eval_samples: int = 100,
         noise_std: float = 0.0,
         regr_samples: int = 1,
@@ -123,14 +121,13 @@ class MixtureOfFlows(nn.Module):
         self.d_y = d_y
         self.k = k
         self.gamma = gamma
-        self.beta = beta
-        self.adaptive_beta = adaptive_beta
         self.eval_samples = eval_samples
         self.noise_std = noise_std
         self.regr_samples = regr_samples
         self.regr_weight = regr_weight
         self.stat_momentum = 0.05
         self._stats_initialized = False
+        self._stats_precomputed = False  # Track if stats were pre-computed
         self._scale_eps = 1e-6
         self.grad_clip_norm = 1.0
         self.default_lr = 5e-4
@@ -154,8 +151,70 @@ class MixtureOfFlows(nn.Module):
         )
 
     # --------------------------------------------------------
+    def initialize_stats_from_data(self, data_loader) -> None:
+        """Pre-compute normalization statistics from full dataset.
+
+        This is more stable than EMA tracking, especially for larger datasets.
+        Should be called before training starts.
+
+        Parameters
+        ----------
+        data_loader : DataLoader
+            DataLoader containing the training data (X, Y, T) tensors.
+        """
+        all_x = []
+        all_y = []
+
+        # Collect all data
+        with torch.no_grad():
+            for batch in data_loader:
+                if len(batch) == 3:  # (X, Y, T)
+                    X, Y, _ = batch
+                else:  # Might be just (X, Y)
+                    X, Y = batch
+
+                all_x.append(X)
+                all_y.append(Y)
+
+        # Concatenate and compute statistics
+        with torch.no_grad():
+            all_x = torch.cat(all_x, dim=0)
+            all_y = torch.cat(all_y, dim=0)
+
+            # Compute global statistics
+            mean_x = all_x.mean(dim=0, keepdim=True)
+            std_x = all_x.std(dim=0, keepdim=True, unbiased=False)
+            mean_y = all_y.mean(dim=0, keepdim=True)
+            std_y = all_y.std(dim=0, keepdim=True, unbiased=False)
+
+            # Clamp to avoid division by zero
+            std_x = std_x.clamp_min(self._scale_eps)
+            std_y = std_y.clamp_min(self._scale_eps)
+
+            # Set the statistics
+            self.x_shift.copy_(mean_x)
+            self.x_scale.copy_(std_x)
+            self.y_shift.copy_(mean_y)
+            self.y_scale.copy_(std_y)
+
+            self._stats_initialized = True
+            self._stats_precomputed = True
+
+        # Log the statistics
+        print(f"Pre-computed normalization statistics from {len(all_x)} samples:")
+        print(f"  X: mean={mean_x.mean().item():.4f}, std={std_x.mean().item():.4f}")
+        print(f"  Y: mean={mean_y.item():.4f}, std={std_y.item():.4f}")
+
     def _update_stats(self, X: torch.Tensor, Y: torch.Tensor) -> None:
-        """Track running mean and scale for normalising inputs."""
+        """Track running mean and scale for normalising inputs.
+
+        If statistics were pre-computed via initialize_stats_from_data(),
+        this method does nothing (keeps the pre-computed values).
+        Otherwise, uses exponential moving average (EMA) as before.
+        """
+        # Skip EMA updates if stats were pre-computed
+        if self._stats_precomputed:
+            return
 
         with torch.no_grad():
             mean_x = X.mean(dim=0, keepdim=True)
@@ -200,23 +259,6 @@ class MixtureOfFlows(nn.Module):
         shift = _expand_like(self.y_shift, Y.dim())
         return Y * scale + shift
 
-    def _compute_adaptive_beta(self, n_samples: int) -> float:
-        """Compute beta based on sample size and dimensionality.
-
-        Rule of thumb: need ~10 samples per dimension for density estimation.
-        If we have too few samples relative to d_x, reduce or disable flow_x.
-        """
-        samples_per_dim = n_samples / self.d_x
-
-        if samples_per_dim < 5:
-            return 0.0  # Too few samples, disable flow_x entirely
-        elif samples_per_dim < 10:
-            return 0.1  # Barely sufficient, down-weight heavily
-        elif samples_per_dim < 20:
-            return 0.5  # Moderate, use partial weight
-        else:
-            return 1.0  # Sufficient, use full model
-
     # --------------------------------------------------------
     def forward(self, X: torch.Tensor, T: torch.Tensor) -> torch.Tensor:
         """Return ``E[y|t]`` estimated from flow samples."""
@@ -233,11 +275,6 @@ class MixtureOfFlows(nn.Module):
             Y = Y + self.noise_std * torch.randn_like(Y)
 
         X_norm, Y_norm = self._normalise_inputs(X, Y)
-
-        # Use adaptive beta if enabled
-        effective_beta = self.beta
-        if self.adaptive_beta:
-            effective_beta = self._compute_adaptive_beta(X.size(0))
 
         with torch.no_grad():
             lp_x = self.flow_x.log_prob(X_norm)
@@ -261,7 +298,7 @@ class MixtureOfFlows(nn.Module):
             ce_clf = cross_entropy_loss(self.clf(x_l), t_l)
             ll_x = lp_x[t_lab_mask]
 
-            loss_lab = -(effective_beta * ll_x + ll_y).mean() + ce_clf
+            loss_lab = -(ll_x + ll_y).mean() + ce_clf
 
             if self.regr_weight > 0:
                 y_samples = self.flow_y.sample(self.regr_samples, context=ctx_l)
@@ -292,7 +329,7 @@ class MixtureOfFlows(nn.Module):
             ll_y = ll_y.clamp(min=-100.0)
 
             lse = torch.logsumexp(log_p_t + ll_y, dim=-1)
-            loss_ulb = -(effective_beta * lp_x_u + lse).mean()
+            loss_ulb = -(lp_x_u + lse).mean()
 
         return loss_lab + self.gamma * loss_ulb
 

@@ -66,6 +66,11 @@ class Trainer:
             Optional optuna trial object.
         """
 
+        # Pre-compute normalization statistics if model supports it
+        # This is important for models like flow_ssc that use normalization
+        if hasattr(model, "initialize_stats_from_data"):
+            model.initialize_stats_from_data(train_loader)
+
         trainer_cls = self._select_trainer(model)
         if grad_clip_norm is None:
             grad_clip_norm = getattr(model, "grad_clip_norm", None)
