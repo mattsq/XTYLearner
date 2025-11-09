@@ -127,6 +127,7 @@ class MixtureOfFlows(nn.Module):
         self.regr_weight = regr_weight
         self.stat_momentum = 0.05
         self._stats_initialized = False
+        self._stats_precomputed = False  # Track if stats were pre-computed
         self._scale_eps = 1e-6
         self.grad_clip_norm = 1.0
         self.default_lr = 5e-4
@@ -150,8 +151,70 @@ class MixtureOfFlows(nn.Module):
         )
 
     # --------------------------------------------------------
+    def initialize_stats_from_data(self, data_loader) -> None:
+        """Pre-compute normalization statistics from full dataset.
+
+        This is more stable than EMA tracking, especially for larger datasets.
+        Should be called before training starts.
+
+        Parameters
+        ----------
+        data_loader : DataLoader
+            DataLoader containing the training data (X, Y, T) tensors.
+        """
+        all_x = []
+        all_y = []
+
+        # Collect all data
+        with torch.no_grad():
+            for batch in data_loader:
+                if len(batch) == 3:  # (X, Y, T)
+                    X, Y, _ = batch
+                else:  # Might be just (X, Y)
+                    X, Y = batch
+
+                all_x.append(X)
+                all_y.append(Y)
+
+        # Concatenate and compute statistics
+        with torch.no_grad():
+            all_x = torch.cat(all_x, dim=0)
+            all_y = torch.cat(all_y, dim=0)
+
+            # Compute global statistics
+            mean_x = all_x.mean(dim=0, keepdim=True)
+            std_x = all_x.std(dim=0, keepdim=True, unbiased=False)
+            mean_y = all_y.mean(dim=0, keepdim=True)
+            std_y = all_y.std(dim=0, keepdim=True, unbiased=False)
+
+            # Clamp to avoid division by zero
+            std_x = std_x.clamp_min(self._scale_eps)
+            std_y = std_y.clamp_min(self._scale_eps)
+
+            # Set the statistics
+            self.x_shift.copy_(mean_x)
+            self.x_scale.copy_(std_x)
+            self.y_shift.copy_(mean_y)
+            self.y_scale.copy_(std_y)
+
+            self._stats_initialized = True
+            self._stats_precomputed = True
+
+        # Log the statistics
+        print(f"Pre-computed normalization statistics from {len(all_x)} samples:")
+        print(f"  X: mean={mean_x.mean().item():.4f}, std={std_x.mean().item():.4f}")
+        print(f"  Y: mean={mean_y.item():.4f}, std={std_y.item():.4f}")
+
     def _update_stats(self, X: torch.Tensor, Y: torch.Tensor) -> None:
-        """Track running mean and scale for normalising inputs."""
+        """Track running mean and scale for normalising inputs.
+
+        If statistics were pre-computed via initialize_stats_from_data(),
+        this method does nothing (keeps the pre-computed values).
+        Otherwise, uses exponential moving average (EMA) as before.
+        """
+        # Skip EMA updates if stats were pre-computed
+        if self._stats_precomputed:
+            return
 
         with torch.no_grad():
             mean_x = X.mean(dim=0, keepdim=True)
