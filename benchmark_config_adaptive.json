@@ -1,0 +1,73 @@
+{
+  "description": "Adaptive benchmark with model-specific epoch budgets and increased samples",
+  "version": "2.0",
+  "rationale": {
+    "epochs": "Different models have different convergence speeds. Fast convergers (em, lp_knn) need only 5-10 epochs, while diffusion models need 30.",
+    "samples": "Increased from 100 to 1000 for more stable results and better representation of model capabilities."
+  },
+  "sample_sizes": {
+    "synthetic": 1000,
+    "synthetic_mixed": 1000,
+    "criteo_uplift": 1000,
+    "nhefs": 1566
+  },
+  "epoch_budgets": {
+    "em": 5,
+    "lp_knn": 5,
+    "prob_circuit": 10,
+    "vat": 10,
+    "mean_teacher": 10,
+    "fixmatch": 10,
+    "cycle_dual": 15,
+    "multitask": 15,
+    "dragon_net": 15,
+    "ganite": 15,
+    "semiite": 15,
+    "ctm_t": 15,
+    "gnn_scm": 20,
+    "diffusion_gnn_scm": 20,
+    "gnn_ebm": 20,
+    "m2_vae": 20,
+    "ss_cevae": 20,
+    "cevae_m": 20,
+    "diffusion_cevae": 25,
+    "ccl_cpc": 15,
+    "cycle_vat": 15,
+    "cacore": 15,
+    "vacim": 15,
+    "scgm": 15,
+    "joint_ebm": 20,
+    "eg_ddi": 20,
+    "flow_ssc": 25,
+    "cnflow": 25,
+    "gflownet_treatment": 25,
+    "bridge_diff": 30,
+    "lt_flow_diff": 30,
+    "jsbf": 30,
+    "factor_vae_plus": 25,
+    "deconfounder_cfm": 25,
+    "masked_tabular_transformer": 20,
+    "tab_jepa": 20,
+    "vime": 20,
+    "crf": 20,
+    "crf_discrete": 20
+  },
+  "default_epochs": 20,
+  "training_config": {
+    "batch_size": 32,
+    "learning_rate_schedule": "constant",
+    "early_stopping": false,
+    "random_seed": 42
+  },
+  "computational_cost": {
+    "estimated_speedup_vs_uniform_30": "~40%",
+    "notes": "By using appropriate epochs per model, we avoid overtraining fast convergers while giving slow convergers adequate time."
+  },
+  "statistics": {
+    "num_models": 39,
+    "total_epochs": 715,
+    "average_epochs_per_model": 18.3,
+    "min_epochs": 5,
+    "max_epochs": 30
+  }
+}
