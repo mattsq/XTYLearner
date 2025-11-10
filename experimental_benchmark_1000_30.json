@@ -1,0 +1,284 @@
+{
+  "config": {
+    "n_samples": 1000,
+    "epochs": 30,
+    "batch_size": 32,
+    "description": "Experimental benchmark with increased data and training"
+  },
+  "results": [
+    {
+      "model": "prob_circuit",
+      "dataset": "synthetic",
+      "error": "'ProbCircuitModel' object has no attribute 'parameters'"
+    },
+    {
+      "model": "vat",
+      "dataset": "synthetic",
+      "train_loss": 0.032354373135603964,
+      "train_rmse": 0.09674652107059956,
+      "train_acc": 1.0,
+      "val_loss": 0.033124651527032256,
+      "val_rmse": 0.10300049791112542,
+      "val_acc": 1.0,
+      "train_time_seconds": 2.799147367477417
+    },
+    {
+      "model": "mean_teacher",
+      "dataset": "synthetic",
+      "train_loss": 0.010095306992297992,
+      "train_rmse": 0.09895048243924975,
+      "train_acc": 1.0,
+      "val_loss": 0.010749963708803989,
+      "val_rmse": 0.10217277216725051,
+      "val_acc": 1.0,
+      "train_time_seconds": 2.6629631519317627
+    },
+    {
+      "model": "fixmatch",
+      "dataset": "synthetic",
+      "train_loss": 0.010435351839987561,
+      "train_rmse": 0.10087152430787683,
+      "train_acc": 1.0,
+      "val_loss": 0.012320510053541511,
+      "val_rmse": 0.109331542160362,
+      "val_acc": 1.0,
+      "train_time_seconds": 2.1533777713775635
+    },
+    {
+      "model": "ganite",
+      "dataset": "synthetic",
+      "train_loss": 0.3825194202363491,
+      "train_rmse": 0.09568261029198766,
+      "train_acc": 1.0,
+      "val_loss": 0.390774792060256,
+      "val_rmse": 0.10757728572934866,
+      "val_acc": 1.0,
+      "train_time_seconds": 5.4012885093688965
+    },
+    {
+      "model": "cycle_dual",
+      "dataset": "synthetic",
+      "train_loss": 1.6179880909621716,
+      "train_rmse": 0.09611608646810055,
+      "train_acc": 1.0,
+      "val_loss": 1.4966665618121624,
+      "val_rmse": 0.1041030939668417,
+      "val_acc": 1.0,
+      "train_time_seconds": 3.300698757171631
+    },
+    {
+      "model": "flow_ssc",
+      "dataset": "synthetic",
+      "train_loss": 6.679486095905304,
+      "train_rmse": 0.24134743958711624,
+      "train_acc": 0.9765625,
+      "val_loss": 6.66979706287384,
+      "val_rmse": 0.257625431753695,
+      "val_acc": 0.970703125,
+      "train_time_seconds": 50.7201726436615
+    },
+    {
+      "model": "multitask",
+      "dataset": "synthetic",
+      "train_loss": 0.5526075959205627,
+      "train_rmse": 0.09673772379755974,
+      "train_acc": 1.0,
+      "val_loss": 0.519170980900526,
+      "val_rmse": 0.10671686893329024,
+      "val_acc": 1.0,
+      "train_time_seconds": 4.057744264602661
+    },
+    {
+      "model": "bridge_diff",
+      "dataset": "synthetic",
+      "train_loss": 0.7126263584941626,
+      "train_rmse": 0.19809696357697248,
+      "train_acc": 1.0,
+      "val_loss": 0.7937651835381985,
+      "val_rmse": 0.19688842445611954,
+      "val_acc": 1.0,
+      "train_time_seconds": 58.34807348251343
+    },
+    {
+      "model": "diffusion_cevae",
+      "dataset": "synthetic",
+      "train_loss": 4.86358705163002,
+      "train_rmse": 0.8367900364100933,
+      "train_acc": 1.0,
+      "val_loss": 4.641113772988319,
+      "val_rmse": 0.7936297245323658,
+      "val_acc": 1.0,
+      "train_time_seconds": 5.487256288528442
+    },
+    {
+      "model": "lt_flow_diff",
+      "dataset": "synthetic",
+      "train_loss": -1.4672026932239532,
+      "train_rmse": 0.584422105923295,
+      "train_acc": 1.0,
+      "val_loss": -1.4488596096634865,
+      "val_rmse": 0.5755864344537258,
+      "val_acc": 1.0,
+      "train_time_seconds": 16.17586374282837
+    },
+    {
+      "model": "m2_vae",
+      "dataset": "synthetic",
+      "train_loss": 4.404887944459915,
+      "train_rmse": 0.12473458144813776,
+      "train_acc": 1.0,
+      "val_loss": 4.29745888710022,
+      "val_rmse": 0.12999687250703573,
+      "val_acc": 1.0,
+      "train_time_seconds": 5.285665512084961
+    },
+    {
+      "model": "ccl_cpc",
+      "dataset": "synthetic",
+      "train_loss": -1.8121390342712402,
+      "train_rmse": 0.0987940663471818,
+      "train_acc": 1.0,
+      "val_loss": -1.7520023360848427,
+      "val_rmse": 0.10299371788278222,
+      "val_acc": 1.0,
+      "train_time_seconds": 2.925811529159546
+    },
+    {
+      "model": "prob_circuit",
+      "dataset": "synthetic_mixed",
+      "error": "'ProbCircuitModel' object has no attribute 'parameters'"
+    },
+    {
+      "model": "vat",
+      "dataset": "synthetic_mixed",
+      "train_loss": 0.025423584622330964,
+      "train_rmse": 0.09969409182667732,
+      "train_acc": 1.0,
+      "val_loss": 0.025590790435671806,
+      "val_rmse": 0.10463832831010222,
+      "val_acc": 1.0,
+      "train_time_seconds": 3.2097394466400146
+    },
+    {
+      "model": "mean_teacher",
+      "dataset": "synthetic_mixed",
+      "train_loss": 0.010342064109863713,
+      "train_rmse": 0.10522860428318381,
+      "train_acc": 1.0,
+      "val_loss": 0.013649346568854526,
+      "val_rmse": 0.11474808678030968,
+      "val_acc": 1.0,
+      "train_time_seconds": 3.408477306365967
+    },
+    {
+      "model": "fixmatch",
+      "dataset": "synthetic_mixed",
+      "train_loss": 0.3134165247902274,
+      "train_rmse": 0.2073457813821733,
+      "train_acc": 0.9916294626891613,
+      "val_loss": 0.25975965801626444,
+      "val_rmse": 0.1741521218791604,
+      "val_acc": 0.9859068617224693,
+      "train_time_seconds": 3.753384590148926
+    },
+    {
+      "model": "ganite",
+      "dataset": "synthetic_mixed",
+      "train_loss": 0.6267671659588814,
+      "train_rmse": 0.10608765622600913,
+      "train_acc": 1.0,
+      "val_loss": 0.6359240971505642,
+      "val_rmse": 0.12018293980509043,
+      "val_acc": 1.0,
+      "train_time_seconds": 6.319156646728516
+    },
+    {
+      "model": "cycle_dual",
+      "dataset": "synthetic_mixed",
+      "train_loss": 1.5822336450219154,
+      "train_rmse": 0.09837030060589314,
+      "train_acc": 1.0,
+      "val_loss": 1.5159144513309002,
+      "val_rmse": 0.10399243328720331,
+      "val_acc": 1.0,
+      "train_time_seconds": 3.8921401500701904
+    },
+    {
+      "model": "flow_ssc",
+      "dataset": "synthetic_mixed",
+      "train_loss": 11.710248947143555,
+      "train_rmse": 0.4545082226395607,
+      "train_acc": 0.9271137826144695,
+      "val_loss": 11.182134568691254,
+      "val_rmse": 0.46597365010529757,
+      "val_acc": 0.9380227252840996,
+      "train_time_seconds": 56.38230633735657
+    },
+    {
+      "model": "multitask",
+      "dataset": "synthetic_mixed",
+      "train_loss": 0.5062494594603777,
+      "train_rmse": 0.10065330937504768,
+      "train_acc": 1.0,
+      "val_loss": 0.5561468452215195,
+      "val_rmse": 0.10367682063952088,
+      "val_acc": 1.0,
+      "train_time_seconds": 3.9016542434692383
+    },
+    {
+      "model": "bridge_diff",
+      "dataset": "synthetic_mixed",
+      "train_loss": 1.6051742807030678,
+      "train_rmse": 0.22203506156802177,
+      "train_acc": 1.0,
+      "val_loss": 1.547493577003479,
+      "val_rmse": 0.231536952778697,
+      "val_acc": 1.0,
+      "train_time_seconds": 108.76410412788391
+    },
+    {
+      "model": "diffusion_cevae",
+      "dataset": "synthetic_mixed",
+      "train_loss": 4.672253742814064,
+      "train_rmse": 0.9825372360646725,
+      "train_acc": 1.0,
+      "val_loss": 4.8484601974487305,
+      "val_rmse": 0.9552641995251179,
+      "val_acc": 1.0,
+      "train_time_seconds": 6.06107497215271
+    },
+    {
+      "model": "lt_flow_diff",
+      "dataset": "synthetic_mixed",
+      "train_loss": -1.592984288930893,
+      "train_rmse": 0.7805619537830353,
+      "train_acc": 1.0,
+      "val_loss": -1.5981675013899803,
+      "val_rmse": 0.7557527385652065,
+      "val_acc": 1.0,
+      "train_time_seconds": 23.487396240234375
+    },
+    {
+      "model": "m2_vae",
+      "dataset": "synthetic_mixed",
+      "train_loss": -933257112.0,
+      "train_rmse": 1.1072398610413074,
+      "train_acc": 0.47015114687383175,
+      "val_loss": -837289008.0,
+      "val_rmse": 1.0756597183644772,
+      "val_acc": 0.5235174698755145,
+      "train_time_seconds": 9.735158681869507
+    },
+    {
+      "model": "ccl_cpc",
+      "dataset": "synthetic_mixed",
+      "train_loss": -0.9046756289899349,
+      "train_rmse": 0.10336589394137263,
+      "train_acc": 1.0,
+      "val_loss": -0.8337077498435974,
+      "val_rmse": 0.11261541116982698,
+      "val_acc": 1.0,
+      "train_time_seconds": 3.3630380630493164
+    }
+  ]
+}
