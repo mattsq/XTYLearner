@@ -73,6 +73,7 @@ EPOCH_BUDGETS = {
     "masked_tabular_transformer": 20,
     "tab_jepa": 20,
     "vime": 20,
+    "dag_transformer": 20,
 
     # Conditional flow models
     "crf": 20,
