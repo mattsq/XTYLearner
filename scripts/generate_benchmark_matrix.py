@@ -49,6 +49,7 @@ FULL_MATRIX = {
         "crf_discrete",
         "ctm_t",
         "cycle_vat",
+        "dag_transformer",
         "deconfounder_cfm",
         "diffusion_gnn_scm",
         "eg_ddi",
@@ -60,6 +61,54 @@ FULL_MATRIX = {
         "lt_flow_diff",
         "m2_vae",
         "scgm",
+        "vime",
+    ],
+    "dataset": ["synthetic", "synthetic_mixed", "criteo_uplift", "nhefs"],
+}
+
+# Comprehensive matrix for workflow_dispatch: all models that work on GitHub runners
+# Excludes only ss_dml which requires optional doubleml dependency
+WORKFLOW_DISPATCH_MATRIX = {
+    "model": [
+        "bridge_diff",
+        "cacore",
+        "ccl_cpc",
+        "cevae_m",
+        "cnflow",
+        "crf",
+        "crf_discrete",
+        "ctm_t",
+        "cycle_dual",
+        "cycle_vat",
+        "dag_transformer",
+        "deconfounder_cfm",
+        "diffusion_cevae",
+        "diffusion_gnn_scm",
+        "dragon_net",
+        "eg_ddi",
+        "em",
+        "factor_vae_plus",
+        "fixmatch",
+        "flow_ssc",
+        "ganite",
+        "gflownet_treatment",
+        "gnn_ebm",
+        "gnn_scm",
+        "joint_ebm",
+        "jsbf",
+        "lp_knn",
+        "lt_flow_diff",
+        "m2_vae",
+        "masked_tabular_transformer",
+        "mean_teacher",
+        "multitask",
+        "prob_circuit",
+        "scgm",
+        "semiite",
+        "ss_cevae",
+        "tab_jepa",
+        "vacim",
+        "vat",
         "vime",
     ],
     "dataset": ["synthetic", "synthetic_mixed", "criteo_uplift", "nhefs"],
@@ -130,6 +179,7 @@ KNOWN_MODELS = (
     set(FULL_MATRIX["model"])
     | set(DEFAULT_MATRIX["model"])
     | set(PR_MATRIX["model"])
+    | set(WORKFLOW_DISPATCH_MATRIX["model"])
     | REGISTERED_MODELS
 )
 
@@ -171,6 +221,8 @@ def choose_matrix(
         return {"model": sorted(models), "dataset": ["synthetic", "synthetic_mixed", "criteo_uplift", "nhefs"]}
     if event_name == "pull_request":
         return PR_MATRIX
+    if event_name == "workflow_dispatch":
+        return WORKFLOW_DISPATCH_MATRIX
     if full_benchmark:
         return FULL_MATRIX
     return DEFAULT_MATRIX
