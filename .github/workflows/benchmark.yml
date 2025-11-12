@@ -168,6 +168,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Restore prepared virtualenv
+        id: restore-venv
+        continue-on-error: true
         uses: actions/cache/restore@v4
         with:
           path: .venv
@@ -183,10 +185,21 @@ jobs:
               )
             ) }}
 
+      - name: Build virtualenv if cache failed
+        if: steps.restore-venv.outcome != 'success' || hashFiles('.venv/bin/python') == ''
+        run: |
+          echo "Cache restore failed or incomplete - rebuilding virtualenv"
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install --no-cache-dir -r requirements.txt
+          pip install --no-cache-dir matplotlib pandas numpy scipy
+          pip install --no-cache-dir -e .
+
       - name: Ensure venv availability
         run: |
           if [ ! -x .venv/bin/python ]; then
-            echo "Prepared virtualenv cache missing" >&2
+            echo "Failed to prepare virtualenv" >&2
             exit 1
           fi
           echo ".venv/bin" >> "$GITHUB_PATH"
