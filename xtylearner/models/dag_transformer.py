@@ -416,8 +416,40 @@ class DAGTransformer(nn.Module):
         if self.estimator in ['outcome', 'aipw']:
             y_pred = self.outcome_head(y_token)
         else:
-            raise ValueError(f"Cannot predict outcome with estimator={self.estimator}")
+            # For IPW-only estimator, we still need to provide outcome predictions
+            # Create a simple outcome head if needed
+            if not hasattr(self, '_outcome_head_fallback'):
+                self._outcome_head_fallback = make_mlp(
+                    [self.d_model, 128, 1],
+                    dropout=0.1
+                ).to(x.device)
+            y_pred = self._outcome_head_fallback(y_token)
 
+        return y_pred
+
+    def predict_outcome(self, x: torch.Tensor, t: int | torch.Tensor) -> torch.Tensor:
+        """Predict outcome for all rows in ``x`` under treatment ``t``.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Covariates of shape (batch, d_x)
+        t : int or torch.Tensor
+            Treatment value (scalar) or tensor of treatments
+
+        Returns
+        -------
+        torch.Tensor
+            Predicted outcomes of shape (batch,) or (batch, d_y)
+        """
+        if isinstance(t, int):
+            t = torch.full((x.size(0),), t, dtype=torch.long, device=x.device)
+        elif t.dim() == 0:
+            t = torch.full((x.size(0),), int(t.item()), dtype=torch.long, device=x.device)
+
+        y_pred = self.forward(x, t)
+        if self.d_y == 1:
+            return y_pred.squeeze(-1)
         return y_pred
 
     def predict_propensity(self, x: torch.Tensor) -> torch.Tensor:
@@ -433,9 +465,6 @@ class DAGTransformer(nn.Module):
         torch.Tensor
             Propensity scores of shape (batch, k)
         """
-        if self.estimator not in ['ipw', 'aipw']:
-            raise ValueError(f"Propensity prediction requires estimator='ipw' or 'aipw'")
-
         # Embed inputs with missing treatment
         t_missing = torch.full((x.size(0),), -1, dtype=torch.long, device=x.device)
         tokens = self.embed_sequence(x, t_missing, y=None)
@@ -451,8 +480,68 @@ class DAGTransformer(nn.Module):
         t_token = tokens[:, self.d_x, :]  # Treatment token
 
         # Predict propensity
-        logits = self.propensity_head(t_token)
+        if self.estimator in ['ipw', 'aipw']:
+            logits = self.propensity_head(t_token)
+        else:
+            # For outcome-only estimator, create a propensity head if needed
+            if not hasattr(self, '_propensity_head_fallback'):
+                self._propensity_head_fallback = make_mlp(
+                    [self.d_model, 128, self.k],
+                    dropout=0.1
+                ).to(x.device)
+            logits = self._propensity_head_fallback(t_token)
         return F.softmax(logits, dim=-1)
+
+    def predict_treatment_proba(
+        self, x: torch.Tensor, y: torch.Tensor | None = None
+    ) -> torch.Tensor:
+        """Return ``p(t|x)`` or ``p(t|x,y)`` depending on ``y``.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Covariates of shape (batch, d_x)
+        y : torch.Tensor, optional
+            Outcomes of shape (batch,) or (batch, d_y)
+
+        Returns
+        -------
+        torch.Tensor
+            Treatment probabilities of shape (batch, k)
+        """
+        if y is None:
+            # Return p(t|x) using propensity model
+            return self.predict_propensity(x)
+        else:
+            # Return p(t|x,y) by embedding both x and y
+            if y.dim() == 1:
+                y = y.unsqueeze(1)
+
+            t_missing = torch.full((x.size(0),), -1, dtype=torch.long, device=x.device)
+            tokens = self.embed_sequence(x, t_missing, y)
+
+            # Get DAG mask
+            dag_mask = self.get_dag_mask()
+
+            # Apply transformer layers
+            for layer in self.layers:
+                tokens = layer(tokens, dag_mask)
+
+            # Extract treatment token representation
+            t_token = tokens[:, self.d_x, :]  # Treatment token
+
+            # Predict p(t|x,y)
+            if self.estimator in ['ipw', 'aipw']:
+                logits = self.propensity_head(t_token)
+            else:
+                if not hasattr(self, '_propensity_head_fallback'):
+                    self._propensity_head_fallback = make_mlp(
+                        [self.d_model, 128, self.k],
+                        dropout=0.1
+                    ).to(x.device)
+                logits = self._propensity_head_fallback(t_token)
+
+            return F.softmax(logits, dim=-1)
 
     def loss(
         self,

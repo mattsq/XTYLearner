@@ -279,3 +279,62 @@ def test_dag_transformer_acyclicity_loss():
     model_fixed = DAGTransformer(d_x=3, d_y=1, k=2, learn_dag=False)
     acyc_loss_fixed = model_fixed.dag_acyclicity_loss()
     assert acyc_loss_fixed.item() == 0.0
+
+
+def test_dag_transformer_predict_outcome():
+    """Test predict_outcome method with different input types."""
+    model = DAGTransformer(d_x=3, d_y=1, k=2)
+
+    x = torch.randn(5, 3)
+
+    # Test with scalar treatment
+    y_pred_scalar = model.predict_outcome(x, t=0)
+    assert y_pred_scalar.shape == (5,)
+
+    # Test with tensor treatment (0-dim)
+    y_pred_0d = model.predict_outcome(x, t=torch.tensor(1))
+    assert y_pred_0d.shape == (5,)
+
+    # Test with tensor treatment (1-dim)
+    t = torch.tensor([0, 1, 0, 1, 0])
+    y_pred_1d = model.predict_outcome(x, t=t)
+    assert y_pred_1d.shape == (5,)
+
+
+def test_dag_transformer_predict_treatment_proba_xy():
+    """Test predict_treatment_proba with both x and y."""
+    model = DAGTransformer(d_x=3, d_y=1, k=2)
+
+    x = torch.randn(5, 3)
+    y = torch.randn(5)
+
+    # Test p(t|x)
+    probs_x = model.predict_treatment_proba(x)
+    assert probs_x.shape == (5, 2)
+    assert torch.allclose(probs_x.sum(dim=1), torch.ones(5), atol=1e-5)
+
+    # Test p(t|x,y)
+    probs_xy = model.predict_treatment_proba(x, y)
+    assert probs_xy.shape == (5, 2)
+    assert torch.allclose(probs_xy.sum(dim=1), torch.ones(5), atol=1e-5)
+
+
+def test_dag_transformer_outcome_only_estimator():
+    """Test that outcome-only estimator can still predict propensity."""
+    model = DAGTransformer(d_x=3, d_y=1, k=2, estimator='outcome')
+
+    x = torch.randn(5, 3)
+    y = torch.randn(5)
+    t = torch.tensor([0, 1, 0, 1, 0])
+
+    # Should still be able to predict outcomes
+    y_pred = model.predict_outcome(x, t=0)
+    assert y_pred.shape == (5,)
+
+    # Should still be able to predict treatment proba (using fallback)
+    probs = model.predict_treatment_proba(x)
+    assert probs.shape == (5, 2)
+
+    # Should be able to train
+    loss = model.loss(x, y, t)
+    assert loss.dim() == 0
