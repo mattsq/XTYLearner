@@ -14,6 +14,7 @@ from .bridge_diff import BridgeDiff
 from .lt_flow_diff import LTFlowDiff
 from .prob_circuit_model import ProbCircuitModel
 from .masked_tabular_transformer import MaskedTabularTransformer
+from .dag_transformer import DAGTransformer
 from .ccl_cpc_model import CCL_CPCModel
 from .gflownet_treatment import GFlowNetTreatment
 from .dragon_net import DragonNet
@@ -55,6 +56,7 @@ __all__ = [
     "JointEBM",
     "GNN_EBM",
     "MaskedTabularTransformer",
+    "DAGTransformer",
     "CCL_CPCModel",
     "DragonNet",
     "CaCoRE",
