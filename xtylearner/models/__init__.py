@@ -15,6 +15,7 @@ from .lt_flow_diff import LTFlowDiff
 from .prob_circuit_model import ProbCircuitModel
 from .masked_tabular_transformer import MaskedTabularTransformer
 from .dag_transformer import DAGTransformer
+from .adversarial_flow import AFOutcomeModel
 from .ccl_cpc_model import CCL_CPCModel
 from .gflownet_treatment import GFlowNetTreatment
 from .dragon_net import DragonNet
@@ -62,6 +63,7 @@ __all__ = [
     "CaCoRE",
     "ProbCircuitModel",
     "GFlowNetTreatment",
+    "AFOutcomeModel",
     "EMModel",
     "LP_KNN",
     "MeanTeacher",
