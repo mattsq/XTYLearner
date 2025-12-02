@@ -223,5 +223,32 @@ class AFOutcomeModel(nn.Module):
     def discriminator_parameters(self):
         yield from self.discriminator.parameters()
 
+    # --------------------------------------------------------------
+    @torch.no_grad()
+    def predict_treatment_proba(self, *args) -> torch.Tensor:
+        """Return a simple categorical prior over treatments.
+
+        This model does not learn a treatment classifier, but the training
+        pipelines expect a ``p(t\mid x,y)`` interface. We therefore provide a
+        uniform distribution across the configured ``k`` classes to satisfy
+        evaluation hooks without raising, regardless of whether inputs are
+        provided as separate ``(x, y)`` tensors or a concatenated ``[x, y]``
+        array.
+        """
+
+        if len(args) == 1:
+            xy = torch.as_tensor(args[0])
+            x = xy[..., : self.d_x]
+            y = xy[..., -self.d_y :]
+        elif len(args) == 2:
+            x, y = (torch.as_tensor(a) for a in args)
+        else:
+            raise ValueError("predict_treatment_proba expects (x, y) or (xy,)")
+
+        batch = x.shape[0]
+        num_classes = self.k if self.k is not None else 1
+        probs = torch.full((batch, num_classes), 1.0 / num_classes, device=x.device)
+        return probs
+
 
 __all__ = ["AFOutcomeModel", "OTSchedule", "GradientScaler"]
