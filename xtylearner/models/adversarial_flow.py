@@ -89,6 +89,7 @@ class AFOutcomeModel(nn.Module):
         dims_d = [disc_in, *hidden_dims, 1]
         self.generator = make_mlp(dims_g, residual=True)
         self.discriminator = make_mlp(dims_d, residual=True)
+        self.head_T = make_mlp([d_x + d_y, *hidden_dims, (k or 1)], residual=True)
 
     # --------------------------------------------------------------
     def _embed_t(self, t: torch.Tensor) -> torch.Tensor:
@@ -214,6 +215,15 @@ class AFOutcomeModel(nn.Module):
             z = torch.randn(x.size(0), self.d_y, device=x.device, dtype=x.dtype)
             preds.append(self._generate(z, x, t))
         return torch.stack(preds, dim=0).mean(dim=0)
+
+    @torch.no_grad()
+    def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Return an estimated ``p(t|x,y)`` from a lightweight propensity head."""
+
+        logits = self.head_T(torch.cat([x, y], dim=-1))
+        if self.k is None or self.k == 1:
+            return torch.sigmoid(logits)
+        return logits.softmax(dim=-1)
 
     def generator_parameters(self):
         yield from self.generator.parameters()
