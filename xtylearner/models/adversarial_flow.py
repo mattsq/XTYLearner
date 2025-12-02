@@ -151,10 +151,13 @@ class AFOutcomeModel(nn.Module):
         self.step_count += 1
         z = torch.randn(x.size(0), self.d_y, device=x.device, dtype=x.dtype)
         y_fake = self._generate(z, x, t_obs)
-        if not y_fake.requires_grad:
-            y_fake = y_fake.requires_grad_(True)
-        y_fake_adv = y_fake.clone()
-        y_fake_adv.register_hook(self.grad_scaler.scale)
+        if torch.is_grad_enabled():
+            if not y_fake.requires_grad:
+                y_fake = y_fake.requires_grad_(True)
+            y_fake_adv = y_fake.clone()
+            y_fake_adv.register_hook(self.grad_scaler.scale)
+        else:
+            y_fake_adv = y_fake
 
         disc_fake = self.discriminator(self._concat_features(x, t_obs, y_fake_adv))
         with torch.no_grad():
