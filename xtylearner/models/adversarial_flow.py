@@ -181,15 +181,25 @@ class AFOutcomeModel(nn.Module):
         with torch.no_grad():
             y_fake = self._generate(z, x, t_obs)
 
-        real_in = self._concat_features(x, t_obs, y).detach().requires_grad_(True)
-        fake_in = self._concat_features(x, t_obs, y_fake).detach().requires_grad_(True)
+        grad_enabled = torch.is_grad_enabled()
+        real_in = self._concat_features(x, t_obs, y)
+        fake_in = self._concat_features(x, t_obs, y_fake)
+
+        if grad_enabled:
+            real_in = real_in.detach().requires_grad_(True)
+            fake_in = fake_in.detach().requires_grad_(True)
 
         disc_real = self.discriminator(real_in)
         disc_fake = self.discriminator(fake_in)
         _, loss_d_adv = self._relativistic_hinge(disc_real, disc_fake)
 
-        loss_r1 = self._gradient_penalty(disc_real, real_in)
-        loss_r2 = self._gradient_penalty(disc_fake, fake_in)
+        if grad_enabled:
+            loss_r1 = self._gradient_penalty(disc_real, real_in)
+            loss_r2 = self._gradient_penalty(disc_fake, fake_in)
+        else:
+            loss_r1 = torch.zeros((), device=x.device, dtype=x.dtype)
+            loss_r2 = torch.zeros((), device=x.device, dtype=x.dtype)
+
         logits_mean = torch.cat([disc_real, disc_fake], dim=0).mean()
         loss_cp = logits_mean.pow(2)
 
