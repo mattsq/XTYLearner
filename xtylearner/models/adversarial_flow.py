@@ -90,6 +90,13 @@ class AFOutcomeModel(nn.Module):
         self.generator = make_mlp(dims_g, residual=True)
         self.discriminator = make_mlp(dims_d, residual=True)
 
+        if self.k is not None:
+            prop_in = d_x + d_y
+            dims_p = [prop_in, *hidden_dims, self.k]
+            self.propensity_head = make_mlp(dims_p, residual=True)
+        else:
+            self.propensity_head = None
+
     # --------------------------------------------------------------
     def _embed_t(self, t: torch.Tensor) -> torch.Tensor:
         if self.k is None:
@@ -107,6 +114,11 @@ class AFOutcomeModel(nn.Module):
     ) -> torch.Tensor:
         t_feat = self._embed_t(t)
         return torch.cat([x, t_feat, y], dim=-1)
+
+    def _propensity_logits(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        if self.propensity_head is None:
+            raise RuntimeError("Propensity head not defined for k=None.")
+        return self.propensity_head(torch.cat([x, y], dim=-1))
 
     def _current_lambda_ot(self) -> float:
         if self.ot_schedule is None:
@@ -236,18 +248,14 @@ class AFOutcomeModel(nn.Module):
     def discriminator_parameters(self):
         yield from self.discriminator.parameters()
 
+    def propensity_parameters(self):
+        if self.propensity_head is not None:
+            yield from self.propensity_head.parameters()
+
     # --------------------------------------------------------------
     @torch.no_grad()
     def predict_treatment_proba(self, *args) -> torch.Tensor:
-        """Return a simple categorical prior over treatments.
-
-        This model does not learn a treatment classifier, but the training
-        pipelines expect a ``p(t\mid x,y)`` interface. We therefore provide a
-        uniform distribution across the configured ``k`` classes to satisfy
-        evaluation hooks without raising, regardless of whether inputs are
-        provided as separate ``(x, y)`` tensors or a concatenated ``[x, y]``
-        array.
-        """
+        """Estimate :math:`p(t\mid x,y)` using the learned propensity head."""
 
         if len(args) == 1:
             xy = torch.as_tensor(args[0])
@@ -258,10 +266,29 @@ class AFOutcomeModel(nn.Module):
         else:
             raise ValueError("predict_treatment_proba expects (x, y) or (xy,)")
 
-        batch = x.shape[0]
-        num_classes = self.k if self.k is not None else 1
-        probs = torch.full((batch, num_classes), 1.0 / num_classes, device=x.device)
-        return probs
+        if self.propensity_head is None:
+            batch = x.shape[0]
+            return torch.ones(batch, 1, device=x.device)
+
+        logits = self._propensity_logits(x, y)
+        return logits.softmax(dim=-1)
+
+    def loss_T(
+        self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
+    ) -> dict[str, torch.Tensor]:
+        """Cross-entropy loss for the propensity head on observed treatments."""
+
+        if self.propensity_head is None:
+            raise RuntimeError("Propensity head not defined for k=None.")
+
+        mask = t_obs >= 0
+        if not mask.any():
+            return {"loss_T": torch.zeros((), device=x.device, dtype=x.dtype)}
+
+        logits = self._propensity_logits(x[mask], y[mask])
+        targets = t_obs[mask].long()
+        loss = F.cross_entropy(logits, targets)
+        return {"loss_T": loss}
 
 
 __all__ = ["AFOutcomeModel", "OTSchedule", "GradientScaler"]
