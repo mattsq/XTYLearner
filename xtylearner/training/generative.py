@@ -57,6 +57,9 @@ class GenerativeTrainer(BaseTrainer):
                 loss.backward()
                 self._clip_grads()
                 self.optimizer.step()
+                # Update model state after optimizer step (e.g., EMA for mean teacher)
+                if hasattr(self.model, "step") and callable(self.model.step):
+                    self.model.step()
                 if self.logger:
                     metrics = dict(self._metrics_from_loss(loss))
                     metrics.update(self._treatment_metrics(X, Y, T_obs))
