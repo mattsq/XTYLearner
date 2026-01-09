@@ -12,29 +12,37 @@ def centre_per_row(E: torch.Tensor) -> torch.Tensor:
     return E - E.mean(dim=-1, keepdim=True)
 
 
-def ramp_up_sigmoid(epoch: int, ramp: int, max_val: float = 1.0) -> float:
-    """Smoothly increase a scaling factor during training.
+def ramp_up_sigmoid(current: int, rampup_length: int, max_val: float = 1.0) -> float:
+    """Gaussian ramp-up from Temporal Ensembling paper (arXiv:1610.02242).
 
-    The function returns a value in ``[0, max_val]`` following the
-    ``exp(-5(1 - t)^2)`` schedule used in many curriculum learning
-    schemes, where ``t`` is clipped to ``epoch / ramp``.
+    Returns value in [0, max_val] that starts near 0 and reaches max_val
+    at current >= rampup_length.
+
+    The Gaussian version stays very low early on (giving the supervised loss
+    time to establish good features before consistency kicks in), then rises
+    steeply. This is superior to a standard sigmoid which would already be at
+    0.5 when training starts, potentially destabilising learning when the
+    teacher's predictions are still poor.
 
     Parameters
     ----------
-    epoch:
-        Current training epoch.
-    ramp:
-        Duration of the ramp in epochs.
+    current:
+        Current training step.
+    rampup_length:
+        Duration of the ramp in steps.
     max_val:
-        Maximum scaling factor after ``ramp`` epochs.
+        Maximum scaling factor after ``rampup_length`` steps.
 
     Returns
     -------
     float
-        The scaling value for the given ``epoch``.
+        The scaling value for the given step.
     """
-    t = min(epoch / ramp, 1.0)
-    return max_val * math.exp(-5 * (1 - t) ** 2)
+    if rampup_length == 0:
+        return max_val
+    current = max(0.0, min(float(current), float(rampup_length)))
+    phase = 1.0 - current / rampup_length
+    return max_val * math.exp(-5.0 * phase * phase)
 
 
 def reparameterise(mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
