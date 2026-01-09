@@ -4,6 +4,26 @@ import torch
 import torch.nn.functional as F
 
 
+# --- soft cross-entropy helper ---------------------------------------
+def soft_cross_entropy(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    """Compute cross-entropy loss with soft targets.
+
+    Parameters
+    ----------
+    logits:
+        Model predictions (before softmax).
+    targets:
+        Soft target probabilities (already probabilities, not logits).
+
+    Returns
+    -------
+    torch.Tensor
+        Cross-entropy loss for each sample.
+    """
+    log_probs = F.log_softmax(logits, dim=1)
+    return -(targets * log_probs).sum(dim=1)
+
+
 # --- tabular augmentations -------------------------------------------
 def weak_aug(x: torch.Tensor) -> torch.Tensor:
     """Apply light Gaussian noise to ``x``.
@@ -21,7 +41,7 @@ def weak_aug(x: torch.Tensor) -> torch.Tensor:
     return x + 0.01 * torch.randn_like(x)
 
 
-def strong_aug(x: torch.Tensor) -> torch.Tensor:
+def strong_aug(x: torch.Tensor) -> tuple[torch.Tensor, float, torch.Tensor]:
     """Apply MixUp and feature dropout augmentations.
 
     Parameters
@@ -31,20 +51,24 @@ def strong_aug(x: torch.Tensor) -> torch.Tensor:
 
     Returns
     -------
-    torch.Tensor
-        Augmented tensor of the same shape as ``x``.
+    tuple[torch.Tensor, float, torch.Tensor]
+        A tuple containing:
+        - Augmented tensor of the same shape as ``x``
+        - Lambda value used for MixUp
+        - Permutation indices used for MixUp
     """
     lam = torch.distributions.Beta(1.0, 1.0).sample().item()
-    idx = torch.randperm(x.size(0))
+    idx = torch.randperm(x.size(0), device=x.device)
     x_mix = lam * x + (1 - lam) * x[idx]
     mask = torch.rand_like(x).bernoulli_(0.15)
     noise = torch.randn_like(x) * x.std(0, keepdim=True)
-    return torch.where(mask.bool(), noise, x_mix)
+    x_aug = torch.where(mask.bool(), noise, x_mix)
+    return x_aug, lam, idx
 
 
 # --- FixMatch loss helper --------------------------------------------
 def fixmatch_unsup_loss(model, x_u: torch.Tensor, tau: float = 0.95) -> torch.Tensor:
-    """Unsupervised FixMatch loss for unlabelled data.
+    """Unsupervised FixMatch loss for unlabelled data with MixMatch-style label mixing.
 
     Parameters
     ----------
@@ -62,14 +86,24 @@ def fixmatch_unsup_loss(model, x_u: torch.Tensor, tau: float = 0.95) -> torch.Te
     """
     with torch.no_grad():
         p_w = F.softmax(model(weak_aug(x_u)), dim=1)
-        max_p, y_star = p_w.max(1)
+        max_p, _ = p_w.max(1)
         mask = max_p.ge(tau).float()
 
     if mask.sum() == 0:
         return torch.tensor(0.0, device=x_u.device)
 
-    p_s = model(strong_aug(x_u))
-    loss = F.cross_entropy(p_s, y_star, reduction="none")
+    # Apply strong augmentation and get mixing parameters
+    x_strong, lam, idx = strong_aug(x_u)
+
+    # Mix the pseudo-label probabilities (MixMatch-style)
+    with torch.no_grad():
+        targets = lam * p_w + (1 - lam) * p_w[idx]
+
+    # Compute predictions on strongly augmented data
+    p_s = model(x_strong)
+
+    # Use soft cross-entropy since targets are now probability distributions
+    loss = soft_cross_entropy(p_s, targets)
     return (loss * mask).mean()
 
 
