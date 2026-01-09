@@ -618,48 +618,84 @@ def compute_sample_weights(model, x_u, x_val, y_val):
 
 ## 6. Confidence-Based Soft Weighting (Minimal Approach)
 
+> ✅ **STATUS: IMPLEMENTED** in `xtylearner/models/mean_teacher.py`
+
 For a lightweight solution that doesn't require new model architectures, add confidence-based weighting to existing Mean Teacher or FixMatch implementations.
 
-### 6.1 Implementation
+### 6.1 Usage
+
+The Mean Teacher model now includes built-in OOD weighting. Enable it via constructor parameters:
 
 ```python
-def weighted_consistency_loss(
-    student_logits: torch.Tensor,
-    teacher_logits: torch.Tensor,
-    temperature: float = 1.0,
-    conf_threshold: float = 0.5,
-) -> torch.Tensor:
-    """Consistency loss with soft OOD weighting based on teacher confidence."""
+from xtylearner.models import get_model
 
-    teacher_probs = F.softmax(teacher_logits / temperature, dim=-1)
-    student_probs = F.softmax(student_logits / temperature, dim=-1)
+model = get_model(
+    "mean_teacher",
+    d_x=10,
+    d_y=1,
+    k=3,
+    # OOD weighting parameters (all optional, shown with defaults)
+    ood_weighting=True,       # Enable/disable OOD weighting
+    ood_threshold=0.5,        # Confidence threshold (samples below are down-weighted)
+    ood_sharpness=10.0,       # Sigmoid sharpness for soft weighting
+)
+```
 
+To disable OOD weighting and revert to standard Mean Teacher behavior:
+
+```python
+model = get_model("mean_teacher", d_x=10, d_y=1, k=3, ood_weighting=False)
+```
+
+### 6.2 Implementation Details
+
+The weighting is applied per-sample in the consistency loss:
+
+```python
+def _compute_ood_weights(self, teacher_probs: torch.Tensor) -> torch.Tensor:
+    """Compute per-sample OOD weights based on teacher confidence."""
     # Max confidence as in-distribution indicator
     max_conf, _ = teacher_probs.max(dim=-1)
 
-    # Soft weight: sigmoid centered at threshold
-    # Low confidence → likely OOD → low weight
-    ood_weight = torch.sigmoid(10.0 * (max_conf - conf_threshold))
-
-    # Weighted MSE loss
-    mse = ((student_probs - teacher_probs.detach()) ** 2).mean(dim=-1)
-
-    return (ood_weight * mse).mean()
+    # Soft sigmoid weighting centered at threshold
+    # High confidence -> weight ≈ 1 (likely in-distribution)
+    # Low confidence -> weight ≈ 0 (likely OOD)
+    weights = torch.sigmoid(
+        self.ood_sharpness * (max_conf - self.ood_threshold)
+    )
+    return weights
 ```
 
-### 6.2 Integration with Mean Teacher
-
-Modify the `loss()` method in `mean_teacher.py`:
+The consistency loss then becomes:
 
 ```python
-# Replace the consistency loss computation with:
-L_cons = weighted_consistency_loss(
-    cons_logits,
-    teacher_logits,
-    temperature=1.0,
-    conf_threshold=0.5,
-)
+if self.ood_weighting:
+    ood_weights = self._compute_ood_weights(teacher_probs)
+    per_sample_mse = ((student_probs - teacher_probs) ** 2).mean(dim=-1)
+    L_cons = (ood_weights * per_sample_mse).mean()
+else:
+    L_cons = F.mse_loss(student_probs, teacher_probs)
 ```
+
+### 6.3 Diagnostics
+
+Use `predict_ood_score()` to inspect which samples are being down-weighted:
+
+```python
+# Get OOD scores for unlabelled data (higher = more likely OOD)
+ood_scores = model.predict_ood_score(x_unlabelled, y_unlabelled)
+
+# Samples with score > 0.5 are being significantly down-weighted
+likely_ood = ood_scores > 0.5
+print(f"Detected {likely_ood.sum()} likely OOD samples out of {len(ood_scores)}")
+```
+
+### 6.4 Hyperparameter Tuning
+
+| Parameter | Default | Guidance |
+|-----------|---------|----------|
+| `ood_threshold` | 0.5 | Lower if many OOD samples expected; raise if false positives are an issue |
+| `ood_sharpness` | 10.0 | Higher = sharper cutoff; lower = more gradual weighting |
 
 ---
 
@@ -848,7 +884,10 @@ def compute_dedim(
 
 ## 11. Recommended Implementation Order
 
-1. **Start simple**: Add confidence-based weighting to existing Mean Teacher (Section 6)
+1. ✅ **COMPLETE**: Confidence-based weighting added to Mean Teacher (Section 6)
+   - Implemented in `xtylearner/models/mean_teacher.py`
+   - New parameters: `ood_weighting`, `ood_threshold`, `ood_sharpness`
+   - New method: `predict_ood_score()` for diagnostics
 2. **If insufficient**: Implement UASD for soft distillation (Section 4)
 3. **For best results**: Implement OpenMatch with OVA + SOCR (Section 3)
 4. **For severe mismatch**: Consider Clone architecture (Section 8)
