@@ -92,9 +92,13 @@ class OpenMatch(nn.Module):
         return self.classifier(features)
 
     def _is_ood(self, ova_scores: torch.Tensor) -> torch.Tensor:
-        """Detect OOD samples: OOD if max OVA score < threshold."""
+        """Detect OOD samples: OOD if OOD score > threshold.
+
+        OOD score is defined as 1 - max(h_k(x)), following §3.2 of the docs.
+        """
         max_ova, _ = ova_scores.max(dim=-1)
-        return max_ova < self.tau_ova
+        ood_score = 1.0 - max_ova
+        return ood_score > self.tau_ova
 
     def _add_noise(self, x: torch.Tensor, scale: float = 0.1) -> torch.Tensor:
         """Add Gaussian noise for consistency regularization."""
