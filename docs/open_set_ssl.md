@@ -739,6 +739,8 @@ def energy_weighted_loss(
 
 ## 8. Clone: Closed Loop Networks
 
+> ✅ **STATUS: IMPLEMENTED** in `xtylearner/models/clone.py`
+
 **Citation**: Closed Loop Networks for Open-Set Semi-Supervised Learning. *Information Sciences, 2024*. [9]
 
 ### 8.1 Core Idea
@@ -762,57 +764,90 @@ A feedback loop connects them: the OOD detector filters samples for the classifi
          │          inform OOD training)
 ```
 
-### 8.3 Implementation Sketch
+### 8.3 Implementation for XTYLearner
+
+The full implementation is available in `xtylearner/models/clone.py`. Key features include:
+
+#### 8.3.1 Decoupled Architecture
 
 ```python
-@register_model("clone")
-class Clone(nn.Module):
-    """Closed Loop Networks for Open-Set SSL."""
+# Independent OOD detection network (outputs binary OOD probability)
+self.ood_network = make_mlp([d_x + d_y, *hidden_dims, 1])
 
-    def __init__(self, d_x, d_y, k, hidden_dims=(128, 128), ...):
-        super().__init__()
+# Independent classifier network (outputs K-way logits)
+self.classifier_network = make_mlp([d_x + d_y, *hidden_dims, k])
 
-        # Independent OOD detection network
-        self.ood_network = make_mlp([d_x + d_y, *hidden_dims, 1])
-
-        # Independent classifier network
-        self.classifier_network = make_mlp([d_x + d_y, *hidden_dims, k])
-
-        # Outcome network (shared)
-        self.outcome = make_mlp([d_x + k, *hidden_dims, d_y])
-
-    def predict_ood(self, inp):
-        """Binary OOD prediction."""
-        return torch.sigmoid(self.ood_network(inp))
-
-    def predict_class(self, inp):
-        """K-way classification."""
-        return self.classifier_network(inp)
-
-    def loss(self, x, y, t_obs):
-        inp = torch.cat([x, y], dim=-1)
-        labelled = t_obs >= 0
-
-        # Phase 1: Train OOD detector on labelled (known in-dist)
-        if labelled.any():
-            ood_pred = self.predict_ood(inp[labelled])
-            # Labelled samples are in-distribution (target = 0)
-            L_ood = F.binary_cross_entropy(ood_pred, torch.zeros_like(ood_pred))
-
-        # Phase 2: Train classifier on filtered unlabelled
-        if (~labelled).any():
-            with torch.no_grad():
-                ood_scores = self.predict_ood(inp[~labelled])
-                is_inlier = ood_scores < 0.5
-
-            if is_inlier.any():
-                # FixMatch-style pseudo-labeling on inliers
-                ...
-
-        # Phase 3: Feedback - use confident classifier predictions
-        # to train OOD detector on pseudo-OOD samples
-        ...
+# Shared outcome network
+self.outcome = make_mlp([d_x + k, *hidden_dims, d_y])
 ```
+
+#### 8.3.2 Three-Phase Training
+
+**Phase 1: Supervised Training on Labelled Data**
+- Train outcome network with MSE loss
+- Train classifier with cross-entropy loss
+- Train OOD detector with target = 0 (labelled samples are in-distribution)
+
+**Phase 2: Filtered Pseudo-Labeling on Unlabelled Data**
+- Use OOD detector to filter unlabelled samples (score < `tau_ood`)
+- Apply FixMatch-style pseudo-labeling on filtered inliers only
+- Only use high-confidence predictions (`max_prob >= tau`)
+
+**Phase 3: Feedback Mechanism**
+- Confident classifier predictions → train OOD detector as in-distribution
+- Detected OOD samples → reinforce OOD detector training
+- Weighted by prediction confidence for robust signal
+
+#### 8.3.3 Usage
+
+```python
+from xtylearner.models import get_model
+
+model = get_model(
+    "clone",
+    d_x=10,
+    d_y=1,
+    k=3,
+    # Architecture parameters
+    hidden_dims=(128, 128),
+    activation=nn.ReLU,
+    dropout=0.1,
+    # FixMatch parameters
+    tau=0.95,              # Confidence threshold for pseudo-labels
+    tau_ood=0.5,           # OOD detection threshold
+    lambda_u=1.0,          # Weight for unsupervised loss
+    lambda_feedback=0.5,   # Weight for feedback loss
+    ramp_up=40,            # Steps for unsupervised loss ramp-up
+)
+
+# Training
+loss = model.loss(x, y, t_obs)
+loss.backward()
+optimizer.step()
+model.step()  # Increment step counter
+
+# Inference
+probs = model.predict_treatment_proba(x, y)  # Treatment probabilities
+ood_scores = model.predict_ood_score(x, y)   # OOD scores (0-1, higher = more OOD)
+outcomes = model.predict_outcome(x, t)        # Outcome predictions
+```
+
+### 8.4 Key Hyperparameters
+
+| Parameter | Default | Notes |
+|-----------|---------|-------|
+| `tau` | 0.95 | FixMatch confidence threshold for pseudo-labeling |
+| `tau_ood` | 0.5 | OOD detection threshold (samples with score > threshold are filtered) |
+| `lambda_u` | 1.0 | Weight for unsupervised classification loss |
+| `lambda_feedback` | 0.5 | Weight for feedback loss (classifier → OOD detector) |
+| `ramp_up` | 40 | Number of steps for unsupervised loss ramp-up |
+
+### 8.5 Advantages of Decoupled Architecture
+
+- **Robustness**: Classifier degradation from OOD exposure doesn't affect OOD detection
+- **Specialization**: Each network optimizes for its specific task
+- **Feedback loop**: Confident predictions improve OOD detection over time
+- **No shared bottleneck**: Independent networks prevent catastrophic interference
 
 ---
 
@@ -888,9 +923,24 @@ def compute_dedim(
    - Implemented in `xtylearner/models/mean_teacher.py`
    - New parameters: `ood_weighting`, `ood_threshold`, `ood_sharpness`
    - New method: `predict_ood_score()` for diagnostics
-2. **If insufficient**: Implement UASD for soft distillation (Section 4)
-3. **For best results**: Implement OpenMatch with OVA + SOCR (Section 3)
-4. **For severe mismatch**: Consider Clone architecture (Section 8)
+2. ✅ **COMPLETE**: UASD for soft distillation (Section 4)
+   - Implemented in `xtylearner/models/uasd.py`
+   - Uses EMA-based soft targets and entropy filtering
+   - Comprehensive test coverage in `tests/models/test_uasd.py`
+3. ✅ **COMPLETE**: OpenMatch with OVA + SOCR (Section 3)
+   - Implemented in `xtylearner/models/openmatch.py`
+   - One-vs-All OOD detection with soft consistency regularization
+   - Test coverage in `tests/models/test_openmatch.py`
+4. ✅ **COMPLETE**: Clone architecture for severe OOD mismatch (Section 8)
+   - Implemented in `xtylearner/models/clone.py`
+   - Decoupled OOD detector and classifier with feedback loop
+   - Test coverage in `tests/models/test_clone.py`
+
+**All core methods are now implemented!** Choose based on your use case:
+- **Quick integration**: Mean Teacher with OOD weighting
+- **Resource-limited**: UASD
+- **General OSSL**: OpenMatch
+- **Severe OOD contamination**: Clone
 
 ---
 
