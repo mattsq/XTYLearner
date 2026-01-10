@@ -20,6 +20,18 @@ class MeanTeacher(nn.Module):
     - Feature-wise noise calibration using running statistics
     - Gaussian ramp-up for consistency weight
     - External EMA update after optimizer step
+    - **Confidence-based OOD weighting** to handle unlabelled data with
+      out-of-distribution samples (treatments not in labelled set)
+
+    The OOD weighting uses teacher prediction confidence as an in-distribution
+    indicator: low confidence samples are down-weighted in the consistency loss
+    to prevent confirmation bias and model collapse from OOD samples.
+
+    References
+    ----------
+    - Tarvainen & Valpola, "Mean teachers are better role models", NeurIPS 2017
+    - Saito et al., "OpenMatch: Open-set Consistency Regularization", NeurIPS 2021
+    - Chen et al., "Semi-Supervised Learning under Class Distribution Mismatch", AAAI 2020
     """
 
     def __init__(
@@ -39,6 +51,10 @@ class MeanTeacher(nn.Module):
         noise_scale: float = 0.1,
         noise_momentum: float = 0.01,
         logit_distance_cost: float = 0.01,
+        # OOD weighting parameters
+        ood_weighting: bool = True,
+        ood_threshold: float = 0.5,
+        ood_sharpness: float = 10.0,
     ) -> None:
         super().__init__()
         self.k = k
@@ -81,6 +97,11 @@ class MeanTeacher(nn.Module):
         self.noise_momentum = noise_momentum
         self.logit_distance_cost = logit_distance_cost
         self.step_count = 0  # Renamed to avoid shadowing step() method
+
+        # OOD weighting parameters
+        self.ood_weighting = ood_weighting
+        self.ood_threshold = ood_threshold
+        self.ood_sharpness = ood_sharpness
 
         # Running statistics for feature-wise noise calibration
         self.register_buffer("running_x_std", torch.ones(d_x))
@@ -139,6 +160,35 @@ class MeanTeacher(nn.Module):
         """
         features = self.teacher_backbone(inp)
         return self.teacher_head(features)
+
+    # --------------------------------------------------------------
+    def _compute_ood_weights(self, teacher_probs: torch.Tensor) -> torch.Tensor:
+        """Compute per-sample OOD weights based on teacher confidence.
+
+        Samples with low max probability (uncertain predictions) are likely
+        out-of-distribution and receive lower weight in the consistency loss.
+        This prevents confirmation bias from propagating incorrect pseudo-labels.
+
+        Parameters
+        ----------
+        teacher_probs:
+            Softmax probabilities from teacher network [batch_size, k]
+
+        Returns
+        -------
+        torch.Tensor
+            Per-sample weights in [0, 1], shape [batch_size]
+        """
+        # Max confidence as in-distribution indicator
+        max_conf, _ = teacher_probs.max(dim=-1)
+
+        # Soft sigmoid weighting centered at threshold
+        # High confidence -> weight ≈ 1 (likely in-distribution)
+        # Low confidence -> weight ≈ 0 (likely OOD)
+        weights = torch.sigmoid(
+            self.ood_sharpness * (max_conf - self.ood_threshold)
+        )
+        return weights
 
     # --------------------------------------------------------------
     def update_teacher(self) -> None:
@@ -221,10 +271,19 @@ class MeanTeacher(nn.Module):
             loss += F.cross_entropy(class_logits[labelled], t_use)
 
         # Consistency loss (on all data, uses cons head)
-        L_cons = F.mse_loss(
-            cons_logits.softmax(dim=-1),
-            teacher_logits.softmax(dim=-1)
-        )
+        student_probs = cons_logits.softmax(dim=-1)
+        teacher_probs = teacher_logits.softmax(dim=-1)
+
+        if self.ood_weighting:
+            # Per-sample weighted consistency loss for OOD robustness
+            # Low-confidence samples (likely OOD) receive lower weight
+            ood_weights = self._compute_ood_weights(teacher_probs)
+            per_sample_mse = ((student_probs - teacher_probs) ** 2).mean(dim=-1)
+            L_cons = (ood_weights * per_sample_mse).mean()
+        else:
+            # Standard unweighted consistency loss
+            L_cons = F.mse_loss(student_probs, teacher_probs)
+
         lam = self._consistency_weight()
         loss = loss + lam * L_cons
 
@@ -253,6 +312,31 @@ class MeanTeacher(nn.Module):
         inp = torch.cat([x, y], dim=-1)
         logits = self._teacher_forward(inp)
         return logits.softmax(dim=-1)
+
+    # --------------------------------------------------------------
+    @torch.no_grad()
+    def predict_ood_score(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Predict out-of-distribution score for each sample.
+
+        Higher scores indicate samples that are likely OOD (low teacher confidence).
+        This can be used for diagnostics or post-hoc filtering.
+
+        Parameters
+        ----------
+        x:
+            Covariates [batch_size, d_x]
+        y:
+            Outcomes [batch_size, d_y]
+
+        Returns
+        -------
+        torch.Tensor
+            OOD scores in [0, 1], shape [batch_size]. Higher = more likely OOD.
+        """
+        probs = self.predict_treatment_proba(x, y)
+        max_conf, _ = probs.max(dim=-1)
+        # Invert: low confidence = high OOD score
+        return 1.0 - max_conf
 
 
 __all__ = ["MeanTeacher"]
