@@ -37,6 +37,7 @@ from .cnflow_model import CNFlowModel
 from .semiite import SemiITE
 from .ctm_t import CTMT
 from .uasd import UASD
+from .openmatch import OpenMatch
 from .scgm import SCGM
 from .crf import CRFModel, CRFDiscreteModel
 from .registry import get_model, get_model_names, get_model_args
@@ -84,6 +85,7 @@ __all__ = [
     "CRFDiscreteModel",
     "TabJEPA",
     "UASD",
+    "OpenMatch",
     "get_model",
     "get_model_names",
     "get_model_args",
