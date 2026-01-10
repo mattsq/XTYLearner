@@ -36,6 +36,7 @@ from .factor_vae_plus import FactorVAEPlus
 from .cnflow_model import CNFlowModel
 from .semiite import SemiITE
 from .ctm_t import CTMT
+from .uasd import UASD
 from .scgm import SCGM
 from .crf import CRFModel, CRFDiscreteModel
 from .registry import get_model, get_model_names, get_model_args
@@ -82,6 +83,7 @@ __all__ = [
     "CRFModel",
     "CRFDiscreteModel",
     "TabJEPA",
+    "UASD",
     "get_model",
     "get_model_names",
     "get_model_args",
