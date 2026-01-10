@@ -38,6 +38,7 @@ from .semiite import SemiITE
 from .ctm_t import CTMT
 from .uasd import UASD
 from .openmatch import OpenMatch
+from .clone import Clone
 from .scgm import SCGM
 from .crf import CRFModel, CRFDiscreteModel
 from .registry import get_model, get_model_names, get_model_args
@@ -86,6 +87,7 @@ __all__ = [
     "TabJEPA",
     "UASD",
     "OpenMatch",
+    "Clone",
     "get_model",
     "get_model_names",
     "get_model_args",
