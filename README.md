@@ -99,6 +99,17 @@ The model registry exposes a variety of architectures grouped below by type.
   estimation with a reconstruction head for ``p(t\|x,y)``.
 - ``CCL_CPCModel`` – a contrastive predictive coding model for sequential
   covariates and partially observed labels.
+- ``DAGTransformer`` – a transformer encoder incorporating causal DAG structure
+  into the attention mechanism for improved treatment effect estimation.
+
+#### Open-Set SSL
+
+- ``Clone`` – closed loop networks for open-set semi-supervised learning using
+  independent OOD detector and classifier networks with feedback.
+- ``OpenMatch`` – open-set SSL combining FixMatch-style pseudo-labeling with
+  one-vs-all OOD detection and soft open-set consistency regularization.
+- ``UASD`` – uncertainty-aware self-distillation that uses EMA-accumulated soft
+  targets to detect and filter out-of-distribution samples.
 
 #### Generative
 
