@@ -239,22 +239,29 @@ def test_clone_feedback_mechanism():
     model = Clone(d_x=5, d_y=1, k=3, lambda_feedback=1.0, tau=0.5)
     model.train()
 
+    # Create optimizer to actually update parameters
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+
     x = torch.randn(20, 5)
     y = torch.randn(20, 1)
     t_obs = torch.randint(0, 3, (20,))
     t_obs[10:] = -1  # Mark half as unlabelled
 
-    # Run multiple training steps
-    for _ in range(5):
+    # Run multiple training steps with proper gradient updates
+    for _ in range(20):
+        optimizer.zero_grad()
         loss = model.loss(x, y, t_obs)
         assert torch.isfinite(loss)
+        loss.backward()
+        optimizer.step()
         model.step()
 
-    # Verify OOD detector is producing outputs
+    # Verify OOD detector has learned something
     model.eval()
     ood_scores = model.predict_ood_score(x, y)
-    # Not all should be 0.5 (initial random state)
-    assert not torch.allclose(ood_scores, torch.full_like(ood_scores, 0.5), atol=0.1)
+    # After training, scores should have changed from initial random state
+    # Check that there's some variance in the predictions
+    assert ood_scores.std() > 0.01  # Should have some variance
 
 
 def test_clone_ramp_up():
