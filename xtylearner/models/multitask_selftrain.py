@@ -19,6 +19,8 @@ import torch.nn as nn
 from .layers import make_mlp
 from .registry import register_model
 from ..training.metrics import cross_entropy_loss, mse_loss
+from .heads import OrdinalHead
+from ..losses import coral_loss, cumulative_link_loss
 
 
 # ------------------------------------------------------------
@@ -45,9 +47,13 @@ class MultiTask(nn.Module):
         activation=nn.ReLU,
         dropout=None,
         norm_layer=None,
+        ordinal: bool = False,
+        ordinal_method: str = "coral",
     ):
         super().__init__()
         self.k = k
+        self.ordinal = ordinal
+        self.ordinal_method = ordinal_method
         self.h = make_mlp(
             [d_x, *hidden_dims, h_dim],
             activation=activation,
@@ -61,12 +67,30 @@ class MultiTask(nn.Module):
             dropout=dropout,
             norm_layer=norm_layer,
         )  # predict Y
-        self.head_T = make_mlp(
-            [d_x + d_y, *hidden_dims, k],
-            activation=activation,
-            dropout=dropout,
-            norm_layer=norm_layer,
-        )  # predict T
+
+        # Treatment head: keep monolithic when ordinal=False, split when ordinal=True
+        if ordinal:
+            # Split for ordinal classification
+            self.head_T_features = make_mlp(
+                [d_x + d_y, *hidden_dims],
+                activation=activation,
+                dropout=dropout,
+                norm_layer=norm_layer,
+            )
+            t_in_dim = hidden_dims[-1] if hidden_dims else d_x + d_y
+            self.head_T_classifier = OrdinalHead(t_in_dim, k, method=ordinal_method)
+            self.head_T = None  # Not used in ordinal mode
+        else:
+            # Keep original monolithic structure for backward compatibility
+            self.head_T = make_mlp(
+                [d_x + d_y, *hidden_dims, k],
+                activation=activation,
+                dropout=dropout,
+                norm_layer=norm_layer,
+            )  # predict T
+            self.head_T_features = None
+            self.head_T_classifier = None
+
         self.head_X = make_mlp(
             [d_y + k, *hidden_dims, d_x],
             activation=activation,
@@ -78,7 +102,11 @@ class MultiTask(nn.Module):
     def _forward_all(self, X, Y, T_onehot):
         h_x = self.h(X)
         Y_hat = self.head_Y(torch.cat([h_x, T_onehot], -1))
-        logits_T = self.head_T(torch.cat([X, Y], -1))
+        if self.ordinal:
+            t_features = self.head_T_features(torch.cat([X, Y], -1))
+            logits_T = self.head_T_classifier(t_features)
+        else:
+            logits_T = self.head_T(torch.cat([X, Y], -1))
         X_hat = self.head_X(torch.cat([Y, T_onehot], -1))
         return Y_hat, logits_T, X_hat
 
@@ -109,7 +137,16 @@ class MultiTask(nn.Module):
         if labelled.any():
             loss = mse_loss(Y_hat[labelled], Y[labelled])
             loss += mse_loss(X_hat[labelled], X[labelled])
-            loss += cross_entropy_loss(logits_T[labelled], T_obs[labelled])
+            # Use ordinal losses if ordinal mode is enabled
+            if self.ordinal:
+                if self.ordinal_method == "coral":
+                    loss += coral_loss(logits_T[labelled], T_obs[labelled].to(torch.long), self.k)
+                elif self.ordinal_method == "cumulative":
+                    loss += cumulative_link_loss(logits_T[labelled], T_obs[labelled].to(torch.long), self.k)
+                else:
+                    loss += cross_entropy_loss(logits_T[labelled], T_obs[labelled])
+            else:
+                loss += cross_entropy_loss(logits_T[labelled], T_obs[labelled])
         else:
             # ensure returned tensor participates in autograd graph
             loss = (Y_hat.sum() + logits_T.sum() + X_hat.sum()) * 0.0
@@ -120,8 +157,14 @@ class MultiTask(nn.Module):
     def predict_treatment_proba(self, X: torch.Tensor, Y: torch.Tensor) -> torch.Tensor:
         """Return posterior ``p(t|x,y)`` from the classification head."""
 
-        logits = self.head_T(torch.cat([X, Y], dim=-1))
-        return logits.softmax(dim=-1)
+        if self.ordinal:
+            t_features = self.head_T_features(torch.cat([X, Y], dim=-1))
+            if self.ordinal_method in ["coral", "cumulative"]:
+                return self.head_T_classifier.predict_proba(t_features)
+            return self.head_T_classifier(t_features).softmax(dim=-1)
+        else:
+            logits = self.head_T(torch.cat([X, Y], dim=-1))
+            return logits.softmax(dim=-1)
 
 
 class DataWrapper(torch.utils.data.Dataset):

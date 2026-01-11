@@ -198,9 +198,9 @@ def spearman_correlation(predictions, targets):
     """Spearman rank correlation coefficient."""
 ```
 
-### Phase 2: Model Integration
+### Phase 2: Model Integration ✅ COMPLETED
 
-#### 4.4 Add Ordinal Flag to Model Registry
+#### 4.4 Add Ordinal Flag to Model Registry ✅
 
 Update model instantiation to support ordinal mode:
 
@@ -216,21 +216,30 @@ model = create_model(
 )
 ```
 
-#### 4.5 Update Key Models
+**Implementation**: The registry passes kwargs through to model constructors unchanged, so no registry modifications needed.
+
+#### 4.5 Update Key Models ✅
 
 Priority models to update (high impact, representative architectures):
 
-1. **`dragon_net`** - Discriminative baseline with propensity/outcome heads
-2. **`cycle_dual`** - Semi-supervised with cycle consistency
-3. **`multitask`** - Simple multi-task baseline
-4. **`ss_cevae`** - Generative model with treatment encoder
-5. **`jsbf`** - Diffusion model with discrete treatment handling
+1. **`dragon_net`** ✅ - Discriminative baseline with propensity/outcome heads
+2. **`cycle_dual`** ✅ - Semi-supervised with cycle consistency
+3. **`multitask`** ✅ - Simple multi-task baseline
+4. **`ss_cevae`** ✅ - Generative model with treatment encoder
+5. **`jsbf`** ✅ - Diffusion model with discrete treatment handling
 
 For each model:
-- Add `ordinal: bool = False` parameter to `__init__`
-- Replace treatment head with `OrdinalHead` when `ordinal=True`
-- Update `loss()` to use appropriate ordinal loss
-- Update `predict_treatment_proba()` to return proper ordinal probabilities
+- Add `ordinal: bool = False` parameter to `__init__` ✅
+- Replace treatment head with `OrdinalHead` when `ordinal=True` ✅
+- Update `loss()` to use appropriate ordinal loss ✅
+- Update `predict_treatment_proba()` to return proper ordinal probabilities ✅
+
+**Implementation Notes**:
+- All models now support `ordinal` and `ordinal_method` parameters
+- Treatment classification heads split into feature extractor + OrdinalHead
+- Loss functions updated to use `coral_loss` or `cumulative_link_loss` when ordinal=True
+- Probability prediction methods handle ordinal outputs via `predict_proba()`
+- Backward compatible: `ordinal=False` (default) maintains existing behavior
 
 #### 4.6 Create Ordinal-Specific Model Variants (Optional)
 
@@ -241,6 +250,8 @@ For maximum flexibility, create dedicated ordinal variants:
 class OrdinalDragonNet(DragonNet):
     """DragonNet with built-in ordinal classification."""
 ```
+
+**Status**: Deferred - not needed as models support ordinal mode via flag
 
 ### Phase 3: Training Integration
 

@@ -9,8 +9,8 @@ import torch
 import torch.nn as nn
 
 from .layers import make_mlp
-from .heads import LowRankDiagHead
-from ..losses import nll_lowrank_diag
+from .heads import LowRankDiagHead, OrdinalHead
+from ..losses import nll_lowrank_diag, coral_loss, cumulative_link_loss
 
 from .registry import register_model
 from ..training.metrics import cross_entropy_loss, mse_loss
@@ -38,10 +38,14 @@ class CycleDual(nn.Module):
         residual: bool = False,
         lowrank_head: bool = False,
         rank: int = 4,
+        ordinal: bool = False,
+        ordinal_method: str = "coral",
     ):
         super().__init__()
         self.k = k
         self.lowrank_head = lowrank_head
+        self.ordinal = ordinal
+        self.ordinal_method = ordinal_method
         d_t = k if k is not None else 1
 
         if k is not None:
@@ -79,14 +83,43 @@ class CycleDual(nn.Module):
             residual=residual,
         )
 
-        out_dim_C = k if k is not None else 1
-        self.C = make_mlp(
-            [d_x + d_y, *hidden_dims, out_dim_C],
-            activation=activation,
-            dropout=dropout,
-            norm_layer=norm_layer,
-            residual=residual,
-        )
+        # Classifier C: (X, Y) -> T
+        # When ordinal=True, split into features + head; otherwise keep as single MLP
+        if k is not None:
+            if ordinal:
+                # Split for ordinal classification
+                self.C_features = make_mlp(
+                    [d_x + d_y, *hidden_dims],
+                    activation=activation,
+                    dropout=dropout,
+                    norm_layer=norm_layer,
+                    residual=residual,
+                )
+                c_in_dim = hidden_dims[-1] if hidden_dims else d_x + d_y
+                self.C_head = OrdinalHead(c_in_dim, k, method=ordinal_method)
+                self.C = None  # Not used in ordinal mode
+            else:
+                # Keep original monolithic structure for backward compatibility
+                self.C = make_mlp(
+                    [d_x + d_y, *hidden_dims, k],
+                    activation=activation,
+                    dropout=dropout,
+                    norm_layer=norm_layer,
+                    residual=residual,
+                )
+                self.C_features = None
+                self.C_head = None
+        else:
+            # For continuous treatment, keep the original structure
+            self.C = make_mlp(
+                [d_x + d_y, *hidden_dims, 1],
+                activation=activation,
+                dropout=dropout,
+                norm_layer=norm_layer,
+                residual=residual,
+            )
+            self.C_features = None
+            self.C_head = None
 
     # ------------------------------------------------------------------
     def forward(self, X: torch.Tensor, T: torch.Tensor):
@@ -123,9 +156,20 @@ class CycleDual(nn.Module):
 
         # === STEP 1 : make *some* treatment for every row =============
         XY = torch.cat([X, Y], -1)
-        logits_T = self.C(XY)
+        if self.ordinal:
+            c_features = self.C_features(XY)
+            logits_T = self.C_head(c_features)
+        else:
+            logits_T = self.C(XY)
+
         if self.k is not None:
-            T_pred = logits_T.argmax(-1)
+            # For ordinal heads, we need class probabilities for prediction
+            if self.ordinal and self.ordinal_method in ["coral", "cumulative"]:
+                c_features = self.C_features(XY)
+                probs_T = self.C_head.predict_proba(c_features)
+                T_pred = probs_T.argmax(-1)
+            else:
+                T_pred = logits_T.argmax(-1)
             T_use = torch.where(labelled, T_obs.to(torch.long), T_pred)
             T_1h = self.t_embedding(T_use)
         else:
@@ -174,11 +218,19 @@ class CycleDual(nn.Module):
             L_sup_Y = mse(Y_hat[labelled], Y[labelled]) if labelled.any() else 0.0
         L_sup_X = mse(X_hat[labelled], X[labelled]) if labelled.any() else 0.0
         if self.k is not None:
-            L_sup_T = (
-                cross_entropy_loss(logits_T[labelled], T_obs[labelled].to(torch.long))
-                if labelled.any()
-                else 0.0
-            )
+            if labelled.any():
+                # Use ordinal losses if ordinal mode is enabled
+                if self.ordinal:
+                    if self.ordinal_method == "coral":
+                        L_sup_T = coral_loss(logits_T[labelled], T_obs[labelled].to(torch.long), self.k)
+                    elif self.ordinal_method == "cumulative":
+                        L_sup_T = cumulative_link_loss(logits_T[labelled], T_obs[labelled].to(torch.long), self.k)
+                    else:
+                        L_sup_T = cross_entropy_loss(logits_T[labelled], T_obs[labelled].to(torch.long))
+                else:
+                    L_sup_T = cross_entropy_loss(logits_T[labelled], T_obs[labelled].to(torch.long))
+            else:
+                L_sup_T = 0.0
         else:
             L_sup_T = (
                 mse(logits_T[labelled].squeeze(-1), T_obs[labelled].float())
@@ -202,8 +254,18 @@ class CycleDual(nn.Module):
 
         # entropy regulariser – push classifier to be confident on unlabelled
         if unlabelled.any() and self.k is not None:
-            P_ulb = logits_T[unlabelled].softmax(-1)
-            L_ent = -(P_ulb * P_ulb.log()).sum(-1).mean()
+            # Get class probabilities for entropy computation
+            if self.ordinal and self.ordinal_method in ["coral", "cumulative"]:
+                c_features_ulb = self.C_features(XY[unlabelled])
+                P_ulb = self.C_head.predict_proba(c_features_ulb)
+            else:
+                # Recompute logits for unlabeled if needed
+                if self.ordinal:
+                    logits_ulb = self.C_head(self.C_features(XY[unlabelled]))
+                else:
+                    logits_ulb = logits_T[unlabelled]
+                P_ulb = logits_ulb.softmax(-1)
+            L_ent = -(P_ulb * (P_ulb + 1e-8).log()).sum(-1).mean()
         else:
             L_ent = 0.0
 
@@ -222,10 +284,20 @@ class CycleDual(nn.Module):
     def predict_treatment_proba(self, X: torch.Tensor, Y: torch.Tensor) -> torch.Tensor:
         """Return posterior ``p(t|x,y)`` from the classifier ``C``."""
 
-        logits = self.C(torch.cat([X, Y], dim=-1))
-        if self.k is None:
-            return logits.squeeze(-1)
-        return logits.softmax(dim=-1)
+        XY = torch.cat([X, Y], dim=-1)
+        if self.ordinal:
+            c_features = self.C_features(XY)
+            if self.k is None:
+                return self.C_head(c_features).squeeze(-1)
+            # Use ordinal predict_proba if ordinal mode is enabled
+            if self.ordinal_method in ["coral", "cumulative"]:
+                return self.C_head.predict_proba(c_features)
+            return self.C_head(c_features).softmax(dim=-1)
+        else:
+            logits = self.C(XY)
+            if self.k is None:
+                return logits.squeeze(-1)
+            return logits.softmax(dim=-1)
 
 
 __all__ = ["CycleDual"]

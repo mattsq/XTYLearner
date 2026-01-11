@@ -9,13 +9,26 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .registry import register_model
+from .heads import OrdinalHead
+from ..losses import coral_loss, cumulative_link_loss
 
 
 class ScoreNet(nn.Module):
     """Simple score network predicting continuous and discrete scores."""
 
-    def __init__(self, d_x: int, d_y: int, k: int, hidden: int) -> None:
+    def __init__(
+        self,
+        d_x: int,
+        d_y: int,
+        k: int,
+        hidden: int,
+        ordinal: bool = False,
+        ordinal_method: str = "coral",
+    ) -> None:
         super().__init__()
+        self.ordinal = ordinal
+        self.ordinal_method = ordinal_method
+        self.k = k
         self.t_embed = nn.Embedding(k, hidden)
         self.time_mlp = nn.Sequential(
             nn.Linear(1, hidden),
@@ -29,7 +42,10 @@ class ScoreNet(nn.Module):
             nn.SiLU(),
         )
         self.score_head = nn.Linear(hidden, d_x + d_y)
-        self.class_head = nn.Linear(hidden, k)
+        if ordinal:
+            self.class_head = OrdinalHead(hidden, k, method=ordinal_method)
+        else:
+            self.class_head = nn.Linear(hidden, k)
 
     def forward(
         self, xy: torch.Tensor, t_corrupt: torch.Tensor, tau: torch.Tensor
@@ -41,6 +57,18 @@ class ScoreNet(nn.Module):
         score = self.score_head(h)
         logits = self.class_head(h)
         return score, logits
+
+    def predict_proba(
+        self, xy: torch.Tensor, t_corrupt: torch.Tensor, tau: torch.Tensor
+    ) -> torch.Tensor:
+        """Get class probabilities."""
+        t_emb = self.t_embed(t_corrupt)
+        time_emb = self.time_mlp(tau)
+        h = torch.cat([xy, t_emb, time_emb], dim=-1)
+        h = self.trunk(h)
+        if self.ordinal and self.ordinal_method in ["coral", "cumulative"]:
+            return self.class_head.predict_proba(h)
+        return F.softmax(self.class_head(h), dim=-1)
 
 
 @register_model("jsbf")
@@ -74,6 +102,8 @@ class JSBF(nn.Module):
         sigma_max: float = 1.0,
         k: int = 2,
         cls_coef: float = 1.0,
+        ordinal: bool = False,
+        ordinal_method: str = "coral",
     ) -> None:
         super().__init__()
         self.d_x = d_x
@@ -84,7 +114,9 @@ class JSBF(nn.Module):
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         self.cls_coef = cls_coef
-        self.net = ScoreNet(d_x, d_y, k, hidden)
+        self.ordinal = ordinal
+        self.ordinal_method = ordinal_method
+        self.net = ScoreNet(d_x, d_y, k, hidden, ordinal=ordinal, ordinal_method=ordinal_method)
 
     # ----- diffusion utilities -----
     def _sigma(self, t: torch.Tensor) -> torch.Tensor:
@@ -139,12 +171,25 @@ class JSBF(nn.Module):
         score_target = -eps / sig_t_clamped
         score_loss = F.mse_loss(score_pred, score_target) * sig_t_clamped.mean()**2
 
-        cls_per_row = F.cross_entropy(logits_pred, t_cln, reduction="none")
-        # Handle case where no treatments are observed (all are -1)
-        if t_mask.any():
-            cls_loss = cls_per_row[t_mask].mean()
+        # Use ordinal losses if ordinal mode is enabled
+        if self.ordinal:
+            if t_mask.any():
+                if self.ordinal_method == "coral":
+                    cls_loss = coral_loss(logits_pred[t_mask], t_cln[t_mask], self.k)
+                elif self.ordinal_method == "cumulative":
+                    cls_loss = cumulative_link_loss(logits_pred[t_mask], t_cln[t_mask], self.k)
+                else:
+                    cls_per_row = F.cross_entropy(logits_pred, t_cln, reduction="none")
+                    cls_loss = cls_per_row[t_mask].mean()
+            else:
+                cls_loss = torch.tensor(0.0, device=x.device, requires_grad=True)
         else:
-            cls_loss = torch.tensor(0.0, device=x.device, requires_grad=True)
+            cls_per_row = F.cross_entropy(logits_pred, t_cln, reduction="none")
+            # Handle case where no treatments are observed (all are -1)
+            if t_mask.any():
+                cls_loss = cls_per_row[t_mask].mean()
+            else:
+                cls_loss = torch.tensor(0.0, device=x.device, requires_grad=True)
 
         return score_loss + self.cls_coef * cls_loss
 
@@ -168,7 +213,11 @@ class JSBF(nn.Module):
             # Clamp step to prevent numerical issues
             step_clamped = step.clamp_min(0.0)
             xy = xy + step_clamped * score + step_clamped.sqrt() * torch.randn_like(xy)
-            probs = F.softmax(logits, -1)
+            # Get probabilities for sampling
+            if self.ordinal and self.ordinal_method in ["coral", "cumulative"]:
+                probs = self.net.predict_proba(xy, t, tau)
+            else:
+                probs = F.softmax(logits, -1)
             t = torch.multinomial(probs, 1).squeeze(-1)
 
         x = xy[:, : self.d_x]
@@ -183,6 +232,8 @@ class JSBF(nn.Module):
         xy = torch.cat([x, y], dim=-1)
         tau = torch.zeros(x.size(0), 1, device=x.device)
         t_dummy = torch.zeros(x.size(0), dtype=torch.long, device=x.device)
+        if self.ordinal and self.ordinal_method in ["coral", "cumulative"]:
+            return self.net.predict_proba(xy, t_dummy, tau)
         _, logits = self.net(xy, t_dummy, tau)
         return logits[:, : self.k].softmax(dim=-1)
 
