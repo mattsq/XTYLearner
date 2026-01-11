@@ -140,7 +140,7 @@ $$L = \sum_{i: T_i > T_j} \max(0, m - (s_i - s_j))$$
 
 ## 4. Implementation Plan
 
-### Phase 1: Core Infrastructure
+### Phase 1: Core Infrastructure ✅ COMPLETED
 
 #### 4.1 Add Ordinal Loss Functions (`losses.py`)
 
