@@ -10,7 +10,13 @@ import optuna
 
 import numpy as np
 
-from .metrics import accuracy, rmse_loss
+from .metrics import (
+    accuracy,
+    rmse_loss,
+    ordinal_mae,
+    quadratic_weighted_kappa,
+    adjacent_accuracy,
+)
 
 
 from .logger import TrainerLogger
@@ -132,7 +138,13 @@ class BaseTrainer(ABC):
     def _treatment_metrics(
         self, x: torch.Tensor, y: torch.Tensor, t_obs: torch.Tensor
     ) -> Mapping[str, float]:
-        """Return NLL and accuracy of ``p(t|x,y)`` for observed labels."""
+        """Return NLL and accuracy of ``p(t|x,y)`` for observed labels.
+
+        For ordinal models, also computes ordinal-specific metrics:
+        - treatment_mae: Mean Absolute Error on class indices
+        - treatment_qwk: Quadratic Weighted Kappa
+        - treatment_adjacent_acc: Adjacent-class accuracy
+        """
 
         if not hasattr(self.model, "predict_treatment_proba") and not any(
             hasattr(self.model, attr) for attr in ["cls_t", "head_T", "C"]
@@ -161,8 +173,32 @@ class BaseTrainer(ABC):
         if t_obs.dim() > 1 and t_obs.size(-1) == 1:
             t_obs = t_obs.squeeze(-1)
         nll = F.nll_loss(log_probs[mask], t_obs[mask])
-        acc = accuracy(log_probs[mask], t_obs[mask])
-        return {"nll": float(nll.item()), "accuracy": float(acc.item())}
+
+        # Check if model is in ordinal mode
+        is_ordinal = getattr(self.model, "ordinal", False)
+
+        metrics: dict[str, float] = {"nll": float(nll.item())}
+
+        if is_ordinal:
+            # Compute ordinal-specific metrics
+            preds = probs[mask].argmax(dim=-1)
+            targets = t_obs[mask]
+
+            metrics["treatment_mae"] = float(ordinal_mae(preds, targets).item())
+            metrics["treatment_qwk"] = float(
+                quadratic_weighted_kappa(preds, targets, k).item()
+            )
+            metrics["treatment_adjacent_acc"] = float(
+                adjacent_accuracy(preds, targets).item()
+            )
+            # Also include exact accuracy for comparison
+            metrics["treatment_accuracy"] = float(accuracy(log_probs[mask], t_obs[mask]).item())
+        else:
+            # Standard accuracy for non-ordinal models
+            acc = accuracy(log_probs[mask], t_obs[mask])
+            metrics["accuracy"] = float(acc.item())
+
+        return metrics
 
     # --------------------------------------------------------------
     def _predict_outcome(

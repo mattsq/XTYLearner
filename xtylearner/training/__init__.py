@@ -4,6 +4,7 @@ from .base_trainer import BaseTrainer
 from .logger import TrainerLogger, ConsoleLogger
 from .trainer import Trainer
 from .supervised import SupervisedTrainer
+from .ordinal_trainer import OrdinalTrainer
 from .adversarial import AdversarialTrainer
 from .generative import GenerativeTrainer
 from .diffusion import DiffusionTrainer
@@ -23,6 +24,7 @@ from .metrics import (
 __all__ = [
     "BaseTrainer",
     "SupervisedTrainer",
+    "OrdinalTrainer",
     "GenerativeTrainer",
     "DiffusionTrainer",
     "CTMTrainer",
