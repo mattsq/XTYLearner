@@ -432,3 +432,123 @@ class TestOrdinalMetrics:
         assert metrics["mae"] == 0.0
         assert torch.isclose(metrics["qwk"], torch.tensor(1.0))
         assert torch.isclose(metrics["spearman"], torch.tensor(1.0))
+
+
+# ---------------------------------------------------------------------------
+# Trainer Integration Tests
+# ---------------------------------------------------------------------------
+
+
+class TestTrainerIntegration:
+    """Tests for ordinal classification integration with trainers."""
+
+    def test_base_trainer_ordinal_metrics(self):
+        """Test that BaseTrainer computes ordinal metrics for ordinal models."""
+        from xtylearner.models import create_model
+        from xtylearner.training import SupervisedTrainer
+
+        # Create a simple ordinal model
+        model = create_model(
+            "dragon_net", d_x=5, d_y=1, k=4, ordinal=True, ordinal_method="coral"
+        )
+
+        # Create dummy data
+        batch_size = 16
+        x = torch.randn(batch_size, 5)
+        y = torch.randn(batch_size, 1)
+        t = torch.randint(0, 4, (batch_size,))
+
+        # Create trainer
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+        train_loader = [(x, y, t)]
+        trainer = SupervisedTrainer(model, optimizer, train_loader)
+
+        # Compute treatment metrics
+        metrics = trainer._treatment_metrics(x, y, t)
+
+        # Verify ordinal metrics are computed
+        assert "treatment_mae" in metrics
+        assert "treatment_qwk" in metrics
+        assert "treatment_adjacent_acc" in metrics
+        assert "treatment_accuracy" in metrics
+        assert "nll" in metrics
+
+    def test_base_trainer_non_ordinal_metrics(self):
+        """Test that BaseTrainer uses standard metrics for non-ordinal models."""
+        from xtylearner.models import create_model
+        from xtylearner.training import SupervisedTrainer
+
+        # Create a standard (non-ordinal) model
+        model = create_model("dragon_net", d_x=5, d_y=1, k=4, ordinal=False)
+
+        # Create dummy data
+        batch_size = 16
+        x = torch.randn(batch_size, 5)
+        y = torch.randn(batch_size, 1)
+        t = torch.randint(0, 4, (batch_size,))
+
+        # Create trainer
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+        train_loader = [(x, y, t)]
+        trainer = SupervisedTrainer(model, optimizer, train_loader)
+
+        # Compute treatment metrics
+        metrics = trainer._treatment_metrics(x, y, t)
+
+        # Verify standard metrics are computed (not ordinal metrics)
+        assert "accuracy" in metrics
+        assert "nll" in metrics
+        assert "treatment_mae" not in metrics
+        assert "treatment_qwk" not in metrics
+        assert "treatment_adjacent_acc" not in metrics
+
+    def test_ordinal_trainer_evaluate(self):
+        """Test that OrdinalTrainer.evaluate() returns ordinal metrics."""
+        from xtylearner.models import create_model
+        from xtylearner.training import OrdinalTrainer
+
+        # Create ordinal model
+        model = create_model(
+            "dragon_net", d_x=5, d_y=1, k=4, ordinal=True, ordinal_method="coral"
+        )
+
+        # Create dummy data
+        batch_size = 16
+        x = torch.randn(batch_size, 5)
+        y = torch.randn(batch_size, 1)
+        t = torch.randint(0, 4, (batch_size,))
+
+        # Create trainer
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+        train_loader = [(x, y, t)]
+        val_loader = [(x, y, t)]
+        trainer = OrdinalTrainer(model, optimizer, train_loader, val_loader)
+
+        # Evaluate
+        metrics = trainer.evaluate(val_loader)
+
+        # Verify ordinal metrics are in the output
+        assert "treatment mae" in metrics
+        assert "treatment qwk" in metrics
+        assert "treatment adjacent acc" in metrics
+        assert "treatment accuracy" in metrics
+        assert "loss" in metrics
+
+    def test_ordinal_trainer_warning_non_ordinal(self):
+        """Test that OrdinalTrainer warns when used with non-ordinal model."""
+        import warnings
+        from xtylearner.models import create_model
+        from xtylearner.training import OrdinalTrainer
+
+        # Create non-ordinal model
+        model = create_model("dragon_net", d_x=5, d_y=1, k=4, ordinal=False)
+
+        # Create trainer - should warn
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+        train_loader = [(torch.randn(16, 5), torch.randn(16, 1), torch.randint(0, 4, (16,)))]
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            trainer = OrdinalTrainer(model, optimizer, train_loader)
+            assert len(w) == 1
+            assert "ordinal=True" in str(w[0].message)
