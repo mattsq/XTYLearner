@@ -84,31 +84,42 @@ class CycleDual(nn.Module):
         )
 
         # Classifier C: (X, Y) -> T
-        # Split into feature extractor and head for ordinal support
+        # When ordinal=True, split into features + head; otherwise keep as single MLP
         if k is not None:
-            self.C_features = make_mlp(
-                [d_x + d_y, *hidden_dims],
-                activation=activation,
-                dropout=dropout,
-                norm_layer=norm_layer,
-                residual=residual,
-            )
-            c_in_dim = hidden_dims[-1] if hidden_dims else d_x + d_y
             if ordinal:
+                # Split for ordinal classification
+                self.C_features = make_mlp(
+                    [d_x + d_y, *hidden_dims],
+                    activation=activation,
+                    dropout=dropout,
+                    norm_layer=norm_layer,
+                    residual=residual,
+                )
+                c_in_dim = hidden_dims[-1] if hidden_dims else d_x + d_y
                 self.C_head = OrdinalHead(c_in_dim, k, method=ordinal_method)
+                self.C = None  # Not used in ordinal mode
             else:
-                self.C_head = nn.Linear(c_in_dim, k)
+                # Keep original monolithic structure for backward compatibility
+                self.C = make_mlp(
+                    [d_x + d_y, *hidden_dims, k],
+                    activation=activation,
+                    dropout=dropout,
+                    norm_layer=norm_layer,
+                    residual=residual,
+                )
+                self.C_features = None
+                self.C_head = None
         else:
             # For continuous treatment, keep the original structure
-            self.C_features = make_mlp(
-                [d_x + d_y, *hidden_dims],
+            self.C = make_mlp(
+                [d_x + d_y, *hidden_dims, 1],
                 activation=activation,
                 dropout=dropout,
                 norm_layer=norm_layer,
                 residual=residual,
             )
-            c_in_dim = hidden_dims[-1] if hidden_dims else d_x + d_y
-            self.C_head = nn.Linear(c_in_dim, 1)
+            self.C_features = None
+            self.C_head = None
 
     # ------------------------------------------------------------------
     def forward(self, X: torch.Tensor, T: torch.Tensor):
@@ -145,11 +156,16 @@ class CycleDual(nn.Module):
 
         # === STEP 1 : make *some* treatment for every row =============
         XY = torch.cat([X, Y], -1)
-        c_features = self.C_features(XY)
-        logits_T = self.C_head(c_features)
+        if self.ordinal:
+            c_features = self.C_features(XY)
+            logits_T = self.C_head(c_features)
+        else:
+            logits_T = self.C(XY)
+
         if self.k is not None:
             # For ordinal heads, we need class probabilities for prediction
             if self.ordinal and self.ordinal_method in ["coral", "cumulative"]:
+                c_features = self.C_features(XY)
                 probs_T = self.C_head.predict_proba(c_features)
                 T_pred = probs_T.argmax(-1)
             else:
@@ -243,7 +259,12 @@ class CycleDual(nn.Module):
                 c_features_ulb = self.C_features(XY[unlabelled])
                 P_ulb = self.C_head.predict_proba(c_features_ulb)
             else:
-                P_ulb = logits_T[unlabelled].softmax(-1)
+                # Recompute logits for unlabeled if needed
+                if self.ordinal:
+                    logits_ulb = self.C_head(self.C_features(XY[unlabelled]))
+                else:
+                    logits_ulb = logits_T[unlabelled]
+                P_ulb = logits_ulb.softmax(-1)
             L_ent = -(P_ulb * (P_ulb + 1e-8).log()).sum(-1).mean()
         else:
             L_ent = 0.0
@@ -263,13 +284,20 @@ class CycleDual(nn.Module):
     def predict_treatment_proba(self, X: torch.Tensor, Y: torch.Tensor) -> torch.Tensor:
         """Return posterior ``p(t|x,y)`` from the classifier ``C``."""
 
-        c_features = self.C_features(torch.cat([X, Y], dim=-1))
-        if self.k is None:
-            return self.C_head(c_features).squeeze(-1)
-        # Use ordinal predict_proba if ordinal mode is enabled
-        if self.ordinal and self.ordinal_method in ["coral", "cumulative"]:
-            return self.C_head.predict_proba(c_features)
-        return self.C_head(c_features).softmax(dim=-1)
+        XY = torch.cat([X, Y], dim=-1)
+        if self.ordinal:
+            c_features = self.C_features(XY)
+            if self.k is None:
+                return self.C_head(c_features).squeeze(-1)
+            # Use ordinal predict_proba if ordinal mode is enabled
+            if self.ordinal_method in ["coral", "cumulative"]:
+                return self.C_head.predict_proba(c_features)
+            return self.C_head(c_features).softmax(dim=-1)
+        else:
+            logits = self.C(XY)
+            if self.k is None:
+                return logits.squeeze(-1)
+            return logits.softmax(dim=-1)
 
 
 __all__ = ["CycleDual"]
