@@ -444,11 +444,11 @@ class TestTrainerIntegration:
 
     def test_base_trainer_ordinal_metrics(self):
         """Test that BaseTrainer computes ordinal metrics for ordinal models."""
-        from xtylearner.models import create_model
+        from xtylearner.models import get_model
         from xtylearner.training import SupervisedTrainer
 
         # Create a simple ordinal model
-        model = create_model(
+        model = get_model(
             "dragon_net", d_x=5, d_y=1, k=4, ordinal=True, ordinal_method="coral"
         )
 
@@ -475,11 +475,11 @@ class TestTrainerIntegration:
 
     def test_base_trainer_non_ordinal_metrics(self):
         """Test that BaseTrainer uses standard metrics for non-ordinal models."""
-        from xtylearner.models import create_model
+        from xtylearner.models import get_model
         from xtylearner.training import SupervisedTrainer
 
         # Create a standard (non-ordinal) model
-        model = create_model("dragon_net", d_x=5, d_y=1, k=4, ordinal=False)
+        model = get_model("dragon_net", d_x=5, d_y=1, k=4, ordinal=False)
 
         # Create dummy data
         batch_size = 16
@@ -504,11 +504,11 @@ class TestTrainerIntegration:
 
     def test_ordinal_trainer_evaluate(self):
         """Test that OrdinalTrainer.evaluate() returns ordinal metrics."""
-        from xtylearner.models import create_model
+        from xtylearner.models import get_model
         from xtylearner.training import OrdinalTrainer
 
         # Create ordinal model
-        model = create_model(
+        model = get_model(
             "dragon_net", d_x=5, d_y=1, k=4, ordinal=True, ordinal_method="coral"
         )
 
@@ -537,11 +537,11 @@ class TestTrainerIntegration:
     def test_ordinal_trainer_warning_non_ordinal(self):
         """Test that OrdinalTrainer warns when used with non-ordinal model."""
         import warnings
-        from xtylearner.models import create_model
+        from xtylearner.models import get_model
         from xtylearner.training import OrdinalTrainer
 
         # Create non-ordinal model
-        model = create_model("dragon_net", d_x=5, d_y=1, k=4, ordinal=False)
+        model = get_model("dragon_net", d_x=5, d_y=1, k=4, ordinal=False)
 
         # Create trainer - should warn
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
