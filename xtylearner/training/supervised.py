@@ -100,13 +100,17 @@ class SupervisedTrainer(BaseTrainer):
         """
         metrics = self._eval_metrics(data_loader)
         loss_val = metrics.get("loss", next(iter(metrics.values()), 0.0))
-        return {
+        result = {
             "loss": float(loss_val),
             "treatment accuracy": float(metrics.get("accuracy", 0.0)),
             "outcome rmse": float(metrics.get("rmse", 0.0)),
             "outcome rmse labelled": float(metrics.get("rmse_labelled", 0.0)),
             "outcome rmse unlabelled": float(metrics.get("rmse_unlabelled", 0.0)),
         }
+        # Add treatment rmse for continuous treatment models
+        if "treatment_rmse" in metrics:
+            result["treatment rmse"] = float(metrics["treatment_rmse"])
+        return result
 
     def predict(self, *inputs: torch.Tensor):
         """Return model outputs for ``inputs``.

@@ -144,6 +144,9 @@ class BaseTrainer(ABC):
         - treatment_mae: Mean Absolute Error on class indices
         - treatment_qwk: Quadratic Weighted Kappa
         - treatment_adjacent_acc: Adjacent-class accuracy
+
+        For continuous treatment models (k=None), computes:
+        - treatment_rmse: Root Mean Squared Error of treatment predictions
         """
 
         if not hasattr(self.model, "predict_treatment_proba") and not any(
@@ -166,8 +169,22 @@ class BaseTrainer(ABC):
             probs = probs[0]
 
         k = getattr(self.model, "k", "missing")
+
+        # Handle continuous treatment (k=None)
         if k is None:
-            return {}
+            # For continuous treatments, probs is actually the predicted treatment values
+            t_pred = probs[mask]
+            t_true = t_obs[mask]
+
+            # Ensure dimensions match
+            if t_pred.dim() == 0:
+                t_pred = t_pred.unsqueeze(0)
+            if t_true.dim() == 0:
+                t_true = t_true.unsqueeze(0)
+
+            # Compute RMSE
+            treatment_rmse = rmse_loss(t_pred, t_true)
+            return {"treatment_rmse": float(treatment_rmse.item())}
 
         log_probs = probs.clamp_min(1e-12).log()
         if t_obs.dim() > 1 and t_obs.size(-1) == 1:

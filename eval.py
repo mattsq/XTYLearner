@@ -194,7 +194,17 @@ class ModelBenchmarker:
 
         # Actual measurements
         print(f"Running {self.config['iterations']} measurement iterations...")
-        metric_samples = {metric: [] for metric in self.config["metrics"]}
+
+        # Determine metrics based on dataset type
+        is_continuous = dataset_name == "synthetic_mixed_continuous"
+        metrics_to_track = self.config["metrics"].copy()
+
+        # Replace treatment accuracy with treatment rmse for continuous datasets
+        if is_continuous and "val_treatment_accuracy" in metrics_to_track:
+            metrics_to_track.remove("val_treatment_accuracy")
+            metrics_to_track.append("val_treatment_rmse")
+
+        metric_samples = {metric: [] for metric in metrics_to_track}
 
         iteration_start = time.perf_counter()
         cumulative_train_time = 0.0
@@ -203,8 +213,8 @@ class ModelBenchmarker:
             iteration_results = self._run_single_benchmark(
                 model_name, dataset_name, data_bundle
             )
-            
-            for metric in self.config["metrics"]:
+
+            for metric in metrics_to_track:
                 if metric in iteration_results:
                     metric_samples[metric].append(iteration_results[metric])
             train_time_value = iteration_results.get("train_time_seconds")
@@ -458,21 +468,36 @@ class ModelBenchmarker:
 
             # Get metrics
             val_metrics = trainer.evaluate(data_bundle.val_loader)
-            
+
+            # Determine if this is a continuous treatment dataset
+            is_continuous = dataset_name == "synthetic_mixed_continuous"
+
             # Return standardized metrics
-            return {
+            result = {
                 "val_outcome_rmse": val_metrics.get("outcome rmse", float("nan")),
-                "val_treatment_accuracy": val_metrics.get("treatment accuracy", float("nan")),
                 "train_time_seconds": train_time
             }
+
+            # Add treatment metric based on type
+            if is_continuous:
+                result["val_treatment_rmse"] = val_metrics.get("treatment rmse", float("nan"))
+            else:
+                result["val_treatment_accuracy"] = val_metrics.get("treatment accuracy", float("nan"))
+
+            return result
             
         except Exception as e:
             print(f"    Error in benchmark: {e}")
-            return {
+            is_continuous = dataset_name == "synthetic_mixed_continuous"
+            result = {
                 "val_outcome_rmse": float("nan"),
-                "val_treatment_accuracy": float("nan"),
                 "train_time_seconds": float("nan")
             }
+            if is_continuous:
+                result["val_treatment_rmse"] = float("nan")
+            else:
+                result["val_treatment_accuracy"] = float("nan")
+            return result
 
     def _summarize_loss_records(
         self, records: List[Dict[str, float]]
@@ -588,11 +613,11 @@ class ModelBenchmarker:
     
     def _get_unit(self, metric_name: str) -> str:
         """Get appropriate unit for metric."""
-        if "rmse" in metric_name:
+        if "rmse" in metric_name.lower():
             return "rmse"
-        elif "accuracy" in metric_name:
+        elif "accuracy" in metric_name.lower():
             return "accuracy"
-        elif "time" in metric_name or "seconds" in metric_name:
+        elif "time" in metric_name.lower() or "seconds" in metric_name.lower():
             return "seconds"
         else:
             return "value"
