@@ -38,7 +38,7 @@ class MeanTeacher(nn.Module):
         self,
         d_x: int,
         d_y: int,
-        k: int = 2,
+        k: int | None = 2,
         *,
         hidden_dims: tuple[int, ...] | list[int] = (128, 128),
         activation: type[nn.Module] = nn.ReLU,
@@ -60,10 +60,19 @@ class MeanTeacher(nn.Module):
         self.k = k
         self.d_x = d_x
         self.d_y = d_y
+        d_t = k if k is not None else 1
+
+        # Treatment embedding (only for discrete treatments)
+        if k is not None:
+            self.t_embedding = nn.Embedding.from_pretrained(
+                torch.eye(k), freeze=True
+            )
+        else:
+            self.t_embedding = None
 
         # Outcome prediction network
         self.outcome = make_mlp(
-            [d_x + k, *hidden_dims, d_y],
+            [d_x + d_t, *hidden_dims, d_y],
             activation=activation,
             dropout=dropout,
             norm_layer=norm_layer,
@@ -78,8 +87,8 @@ class MeanTeacher(nn.Module):
             norm_layer=norm_layer,
             residual=residual,
         )
-        self.student_class_head = nn.Linear(hidden_dims[-1], k)  # For supervised loss
-        self.student_cons_head = nn.Linear(hidden_dims[-1], k)   # For consistency loss
+        self.student_class_head = nn.Linear(hidden_dims[-1], d_t)  # For supervised loss
+        self.student_cons_head = nn.Linear(hidden_dims[-1], d_t)   # For consistency loss
 
         # Teacher network: backbone + consistency head (EMA copy)
         self.teacher_backbone = deepcopy(self.student_backbone)
@@ -110,8 +119,11 @@ class MeanTeacher(nn.Module):
     # --------------------------------------------------------------
     def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """Predict outcome ``y`` from covariates ``x`` and treatment ``t``."""
-        t_onehot = F.one_hot(t.to(torch.long), self.k).float()
-        return self.outcome(torch.cat([x, t_onehot], dim=-1))
+        if self.k is not None:
+            t_1h = self.t_embedding(t.to(torch.long))
+        else:
+            t_1h = t.unsqueeze(-1).float()
+        return self.outcome(torch.cat([x, t_1h], dim=-1))
 
     # --------------------------------------------------------------
     def _consistency_weight(self) -> float:
@@ -162,7 +174,7 @@ class MeanTeacher(nn.Module):
         return self.teacher_head(features)
 
     # --------------------------------------------------------------
-    def _compute_ood_weights(self, teacher_probs: torch.Tensor) -> torch.Tensor:
+    def _compute_ood_weights(self, teacher_output: torch.Tensor, is_discrete: bool) -> torch.Tensor:
         """Compute per-sample OOD weights based on teacher confidence.
 
         Samples with low max probability (uncertain predictions) are likely
@@ -171,16 +183,24 @@ class MeanTeacher(nn.Module):
 
         Parameters
         ----------
-        teacher_probs:
-            Softmax probabilities from teacher network [batch_size, k]
+        teacher_output:
+            For discrete: Softmax probabilities from teacher network [batch_size, k]
+            For continuous: Raw predictions [batch_size, 1] (OOD weighting disabled)
+
+        is_discrete:
+            Whether this is a discrete treatment problem
 
         Returns
         -------
         torch.Tensor
             Per-sample weights in [0, 1], shape [batch_size]
         """
+        if not is_discrete:
+            # For continuous treatments, return uniform weights (no OOD detection)
+            return torch.ones(teacher_output.size(0), device=teacher_output.device)
+
         # Max confidence as in-distribution indicator
-        max_conf, _ = teacher_probs.max(dim=-1)
+        max_conf, _ = teacher_output.max(dim=-1)
 
         # Soft sigmoid weighting centered at threshold
         # High confidence -> weight ≈ 1 (likely in-distribution)
@@ -261,28 +281,53 @@ class MeanTeacher(nn.Module):
         # Supervised losses (on labeled data only)
         if labelled.any():
             t_use = t_obs[labelled].clamp_min(0)
-            t_onehot = F.one_hot(t_use.to(torch.long), self.k).float()
 
-            # Outcome prediction loss
-            y_hat = self.outcome(torch.cat([x[labelled], t_onehot], dim=-1))
-            loss += F.mse_loss(y_hat, y[labelled])
+            if self.k is not None:
+                # Discrete treatments: use embedding and cross-entropy
+                t_1h = self.t_embedding(t_use.to(torch.long))
 
-            # Treatment classification loss (uses class head)
-            loss += F.cross_entropy(class_logits[labelled], t_use)
+                # Outcome prediction loss
+                y_hat = self.outcome(torch.cat([x[labelled], t_1h], dim=-1))
+                loss += F.mse_loss(y_hat, y[labelled])
+
+                # Treatment classification loss (uses class head)
+                loss += F.cross_entropy(class_logits[labelled], t_use)
+            else:
+                # Continuous treatments: use unsqueeze and MSE
+                t_1h = t_use.unsqueeze(-1).float()
+
+                # Outcome prediction loss
+                y_hat = self.outcome(torch.cat([x[labelled], t_1h], dim=-1))
+                loss += F.mse_loss(y_hat, y[labelled])
+
+                # Treatment regression loss (uses class head)
+                loss += F.mse_loss(class_logits[labelled].squeeze(-1), t_use.float())
 
         # Consistency loss (on all data, uses cons head)
-        student_probs = cons_logits.softmax(dim=-1)
-        teacher_probs = teacher_logits.softmax(dim=-1)
+        if self.k is not None:
+            # Discrete: use softmax probabilities
+            student_probs = cons_logits.softmax(dim=-1)
+            teacher_probs = teacher_logits.softmax(dim=-1)
 
-        if self.ood_weighting:
-            # Per-sample weighted consistency loss for OOD robustness
-            # Low-confidence samples (likely OOD) receive lower weight
-            ood_weights = self._compute_ood_weights(teacher_probs)
-            per_sample_mse = ((student_probs - teacher_probs) ** 2).mean(dim=-1)
-            L_cons = (ood_weights * per_sample_mse).mean()
+            if self.ood_weighting:
+                # Per-sample weighted consistency loss for OOD robustness
+                # Low-confidence samples (likely OOD) receive lower weight
+                ood_weights = self._compute_ood_weights(teacher_probs, is_discrete=True)
+                per_sample_mse = ((student_probs - teacher_probs) ** 2).mean(dim=-1)
+                L_cons = (ood_weights * per_sample_mse).mean()
+            else:
+                # Standard unweighted consistency loss
+                L_cons = F.mse_loss(student_probs, teacher_probs)
         else:
-            # Standard unweighted consistency loss
-            L_cons = F.mse_loss(student_probs, teacher_probs)
+            # Continuous: use raw predictions
+            if self.ood_weighting:
+                # OOD weighting disabled for continuous treatments
+                ood_weights = self._compute_ood_weights(teacher_logits, is_discrete=False)
+                per_sample_mse = ((cons_logits - teacher_logits) ** 2).mean(dim=-1)
+                L_cons = (ood_weights * per_sample_mse).mean()
+            else:
+                # Standard unweighted consistency loss
+                L_cons = F.mse_loss(cons_logits, teacher_logits)
 
         lam = self._consistency_weight()
         loss = loss + lam * L_cons
@@ -296,22 +341,36 @@ class MeanTeacher(nn.Module):
 
     # --------------------------------------------------------------
     @torch.no_grad()
-    def predict_outcome(self, x: torch.Tensor, t: int | torch.Tensor) -> torch.Tensor:
+    def predict_outcome(self, x: torch.Tensor, t: int | float | torch.Tensor) -> torch.Tensor:
         """Return outcome predictions for covariates ``x`` and treatment ``t``."""
-        if isinstance(t, int):
-            t = torch.full((x.size(0),), t, dtype=torch.long, device=x.device)
-        elif t.dim() == 0:
-            t = t.expand(x.size(0)).to(torch.long)
-        t_onehot = F.one_hot(t.to(torch.long), self.k).float()
-        return self.outcome(torch.cat([x, t_onehot], dim=-1))
+        if self.k is not None:
+            # Discrete treatments
+            if isinstance(t, (int, float)):
+                t = torch.full((x.size(0),), t, dtype=torch.long, device=x.device)
+            elif t.dim() == 0:
+                t = t.expand(x.size(0)).to(torch.long)
+            t_1h = self.t_embedding(t.to(torch.long))
+        else:
+            # Continuous treatments
+            if isinstance(t, (int, float)):
+                t = torch.full((x.size(0),), t, dtype=torch.float, device=x.device)
+            elif t.dim() == 0:
+                t = t.expand(x.size(0)).float()
+            t_1h = t.unsqueeze(-1).float()
+        return self.outcome(torch.cat([x, t_1h], dim=-1))
 
     # --------------------------------------------------------------
     @torch.no_grad()
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Predict treatment probabilities using teacher network (more stable)."""
+        """Predict treatment probabilities (discrete) or values (continuous) using teacher network."""
         inp = torch.cat([x, y], dim=-1)
         logits = self._teacher_forward(inp)
-        return logits.softmax(dim=-1)
+        if self.k is not None:
+            # Discrete: return probabilities
+            return logits.softmax(dim=-1)
+        else:
+            # Continuous: return raw predictions
+            return logits.squeeze(-1)
 
     # --------------------------------------------------------------
     @torch.no_grad()
@@ -320,6 +379,9 @@ class MeanTeacher(nn.Module):
 
         Higher scores indicate samples that are likely OOD (low teacher confidence).
         This can be used for diagnostics or post-hoc filtering.
+
+        Note: OOD detection is only available for discrete treatments (k is not None).
+        For continuous treatments, returns zeros.
 
         Parameters
         ----------
@@ -333,6 +395,10 @@ class MeanTeacher(nn.Module):
         torch.Tensor
             OOD scores in [0, 1], shape [batch_size]. Higher = more likely OOD.
         """
+        if self.k is None:
+            # OOD detection not supported for continuous treatments
+            return torch.zeros(x.size(0), device=x.device)
+
         probs = self.predict_treatment_proba(x, y)
         max_conf, _ = probs.max(dim=-1)
         # Invert: low confidence = high OOD score
