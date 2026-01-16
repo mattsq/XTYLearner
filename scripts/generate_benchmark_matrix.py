@@ -15,6 +15,21 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+# Models that support k=None (continuous treatments)
+CONTINUOUS_TREATMENT_MODELS = {
+    "cycle_dual",
+    "mean_teacher",
+    "tab_jepa",
+    "prob_circuit",
+    "ganite",
+    "gnn_scm",
+    "gnn_ebm",
+    "ctm_t",
+    "ss_dml",
+    "lp_knn",
+    "deconfounder_cfm",
+}
+
 PR_MATRIX = {
     "model": ["cycle_dual", "mean_teacher"],
     "dataset": ["synthetic", "criteo_uplift", "nhefs"],
@@ -208,6 +223,29 @@ def files_to_models(files: Sequence[str]) -> List[str]:
     return sorted({name for name in resolved if name in KNOWN_MODELS})
 
 
+def expand_matrix_with_masked_continuous(matrix: dict[str, Sequence[str]]) -> dict[str, list[dict[str, str]]]:
+    """Expand matrix to include masked_continuous dataset for compatible models.
+
+    Returns a matrix in the format expected by GitHub Actions with explicit
+    model-dataset combinations.
+    """
+    combinations = []
+    models = matrix["model"]
+    datasets = matrix["dataset"]
+
+    # Add regular model-dataset combinations
+    for model in models:
+        for dataset in datasets:
+            combinations.append({"model": model, "dataset": dataset})
+
+    # Add masked_continuous dataset only for models that support k=None
+    for model in models:
+        if model in CONTINUOUS_TREATMENT_MODELS:
+            combinations.append({"model": model, "dataset": "masked_continuous"})
+
+    return {"include": combinations}
+
+
 def choose_matrix(
     event_name: str,
     full_benchmark: bool,
@@ -218,14 +256,15 @@ def choose_matrix(
     models.update(files_to_models(changed_model_files))
 
     if models:
-        return {"model": sorted(models), "dataset": ["synthetic", "synthetic_mixed", "criteo_uplift", "nhefs"]}
+        base_matrix = {"model": sorted(models), "dataset": ["synthetic", "synthetic_mixed", "criteo_uplift", "nhefs"]}
+        return expand_matrix_with_masked_continuous(base_matrix)
     if event_name == "pull_request":
-        return PR_MATRIX
+        return expand_matrix_with_masked_continuous(PR_MATRIX)
     if event_name == "workflow_dispatch":
-        return WORKFLOW_DISPATCH_MATRIX
+        return expand_matrix_with_masked_continuous(WORKFLOW_DISPATCH_MATRIX)
     if full_benchmark:
-        return FULL_MATRIX
-    return DEFAULT_MATRIX
+        return expand_matrix_with_masked_continuous(FULL_MATRIX)
+    return expand_matrix_with_masked_continuous(DEFAULT_MATRIX)
 
 
 def main() -> int:

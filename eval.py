@@ -97,6 +97,8 @@ class ModelBenchmarker:
             dataset_kwargs["d_x"] = 2
         if dataset_name == "synthetic_mixed":
             dataset_kwargs.update({"label_ratio": 0.5})
+        elif dataset_name == "masked_continuous":
+            dataset_kwargs.update({"d_x": 2, "label_ratio": 0.5})
         elif dataset_name == "criteo_uplift":
             dataset_kwargs.update({"prefer_real": False, "seed": 42})
         elif dataset_name == "nhefs":
@@ -108,7 +110,7 @@ class ModelBenchmarker:
         }
         if "d_x" in dataset_kwargs:
             cache_params["d_x"] = dataset_kwargs["d_x"]
-        if dataset_name == "synthetic_mixed":
+        if dataset_name in ["synthetic_mixed", "masked_continuous"]:
             cache_params["label_ratio"] = dataset_kwargs["label_ratio"]
         elif dataset_name == "criteo_uplift":
             cache_params["prefer_real"] = dataset_kwargs["prefer_real"]
@@ -186,7 +188,7 @@ class ModelBenchmarker:
             warmup_start = time.perf_counter()
             for i in range(warmup_iterations):
                 print(f"  Warmup {i+1}/{warmup_iterations}")
-                self._run_warmup_pass(model_name, data_bundle)
+                self._run_warmup_pass(model_name, data_bundle, dataset_name)
             timing_record["warmup_seconds"] = time.perf_counter() - warmup_start
         else:
             print("Skipping warmup iterations (configured as 0).")
@@ -289,11 +291,13 @@ class ModelBenchmarker:
         return results
     
     def _build_model_components(
-        self, model_name: str, data_bundle: BenchmarkDataBundle
+        self, model_name: str, data_bundle: BenchmarkDataBundle, dataset_name: str = ""
     ) -> Tuple[Any, Any]:
         """Instantiate a model and its optimiser based on ``model_name``."""
 
-        model_kwargs = {"d_x": data_bundle.x_dim, "d_y": data_bundle.y_dim, "k": 2}
+        # Use k=None for continuous treatment datasets
+        k_value = None if dataset_name == "masked_continuous" else 2
+        model_kwargs = {"d_x": data_bundle.x_dim, "d_y": data_bundle.y_dim, "k": k_value}
 
         if model_name == "lp_knn":
             model_kwargs["n_neighbors"] = 3
@@ -361,12 +365,12 @@ class ModelBenchmarker:
         return model, optimizer
 
     def _run_warmup_pass(
-        self, model_name: str, data_bundle: BenchmarkDataBundle
+        self, model_name: str, data_bundle: BenchmarkDataBundle, dataset_name: str = ""
     ) -> None:
         """Perform a lightweight warmup to stabilise kernels and data pipelines."""
 
         try:
-            model, optimizer = self._build_model_components(model_name, data_bundle)
+            model, optimizer = self._build_model_components(model_name, data_bundle, dataset_name)
             trainer = Trainer(
                 model,
                 optimizer,
@@ -387,7 +391,7 @@ class ModelBenchmarker:
     ) -> Dict[str, float]:
         """Run a single benchmark iteration and return metrics."""
         try:
-            model, opt = self._build_model_components(model_name, data_bundle)
+            model, opt = self._build_model_components(model_name, data_bundle, dataset_name)
 
             # Train and evaluate
             start_time = time.perf_counter()
