@@ -93,9 +93,9 @@ class ModelBenchmarker:
         dataset_kwargs: Dict[str, Any] = {"n_samples": n_samples}
 
         # Add dataset-specific parameters
-        if dataset_name in ["synthetic", "synthetic_mixed"]:
+        if dataset_name in ["synthetic", "synthetic_mixed", "synthetic_mixed_continuous"]:
             dataset_kwargs["d_x"] = 2
-        if dataset_name == "synthetic_mixed":
+        if dataset_name in ["synthetic_mixed", "synthetic_mixed_continuous"]:
             dataset_kwargs.update({"label_ratio": 0.5})
         elif dataset_name == "criteo_uplift":
             dataset_kwargs.update({"prefer_real": False, "seed": 42})
@@ -108,7 +108,7 @@ class ModelBenchmarker:
         }
         if "d_x" in dataset_kwargs:
             cache_params["d_x"] = dataset_kwargs["d_x"]
-        if dataset_name == "synthetic_mixed":
+        if dataset_name in ["synthetic_mixed", "synthetic_mixed_continuous"]:
             cache_params["label_ratio"] = dataset_kwargs["label_ratio"]
         elif dataset_name == "criteo_uplift":
             cache_params["prefer_real"] = dataset_kwargs["prefer_real"]
@@ -186,7 +186,7 @@ class ModelBenchmarker:
             warmup_start = time.perf_counter()
             for i in range(warmup_iterations):
                 print(f"  Warmup {i+1}/{warmup_iterations}")
-                self._run_warmup_pass(model_name, data_bundle)
+                self._run_warmup_pass(model_name, data_bundle, dataset_name)
             timing_record["warmup_seconds"] = time.perf_counter() - warmup_start
         else:
             print("Skipping warmup iterations (configured as 0).")
@@ -194,7 +194,17 @@ class ModelBenchmarker:
 
         # Actual measurements
         print(f"Running {self.config['iterations']} measurement iterations...")
-        metric_samples = {metric: [] for metric in self.config["metrics"]}
+
+        # Determine metrics based on dataset type
+        is_continuous = dataset_name == "synthetic_mixed_continuous"
+        metrics_to_track = self.config["metrics"].copy()
+
+        # Replace treatment accuracy with treatment rmse for continuous datasets
+        if is_continuous and "val_treatment_accuracy" in metrics_to_track:
+            metrics_to_track.remove("val_treatment_accuracy")
+            metrics_to_track.append("val_treatment_rmse")
+
+        metric_samples = {metric: [] for metric in metrics_to_track}
 
         iteration_start = time.perf_counter()
         cumulative_train_time = 0.0
@@ -203,8 +213,8 @@ class ModelBenchmarker:
             iteration_results = self._run_single_benchmark(
                 model_name, dataset_name, data_bundle
             )
-            
-            for metric in self.config["metrics"]:
+
+            for metric in metrics_to_track:
                 if metric in iteration_results:
                     metric_samples[metric].append(iteration_results[metric])
             train_time_value = iteration_results.get("train_time_seconds")
@@ -289,11 +299,15 @@ class ModelBenchmarker:
         return results
     
     def _build_model_components(
-        self, model_name: str, data_bundle: BenchmarkDataBundle
+        self, model_name: str, data_bundle: BenchmarkDataBundle, dataset_name: str = ""
     ) -> Tuple[Any, Any]:
         """Instantiate a model and its optimiser based on ``model_name``."""
 
-        model_kwargs = {"d_x": data_bundle.x_dim, "d_y": data_bundle.y_dim, "k": 2}
+        # Determine k based on dataset
+        # Continuous treatment datasets use k=None
+        k = None if dataset_name == "synthetic_mixed_continuous" else 2
+
+        model_kwargs = {"d_x": data_bundle.x_dim, "d_y": data_bundle.y_dim, "k": k}
 
         if model_name == "lp_knn":
             model_kwargs["n_neighbors"] = 3
@@ -361,12 +375,12 @@ class ModelBenchmarker:
         return model, optimizer
 
     def _run_warmup_pass(
-        self, model_name: str, data_bundle: BenchmarkDataBundle
+        self, model_name: str, data_bundle: BenchmarkDataBundle, dataset_name: str = ""
     ) -> None:
         """Perform a lightweight warmup to stabilise kernels and data pipelines."""
 
         try:
-            model, optimizer = self._build_model_components(model_name, data_bundle)
+            model, optimizer = self._build_model_components(model_name, data_bundle, dataset_name)
             trainer = Trainer(
                 model,
                 optimizer,
@@ -387,7 +401,7 @@ class ModelBenchmarker:
     ) -> Dict[str, float]:
         """Run a single benchmark iteration and return metrics."""
         try:
-            model, opt = self._build_model_components(model_name, data_bundle)
+            model, opt = self._build_model_components(model_name, data_bundle, dataset_name)
 
             # Train and evaluate
             start_time = time.perf_counter()
@@ -454,21 +468,36 @@ class ModelBenchmarker:
 
             # Get metrics
             val_metrics = trainer.evaluate(data_bundle.val_loader)
-            
+
+            # Determine if this is a continuous treatment dataset
+            is_continuous = dataset_name == "synthetic_mixed_continuous"
+
             # Return standardized metrics
-            return {
+            result = {
                 "val_outcome_rmse": val_metrics.get("outcome rmse", float("nan")),
-                "val_treatment_accuracy": val_metrics.get("treatment accuracy", float("nan")),
                 "train_time_seconds": train_time
             }
+
+            # Add treatment metric based on type
+            if is_continuous:
+                result["val_treatment_rmse"] = val_metrics.get("treatment rmse", float("nan"))
+            else:
+                result["val_treatment_accuracy"] = val_metrics.get("treatment accuracy", float("nan"))
+
+            return result
             
         except Exception as e:
             print(f"    Error in benchmark: {e}")
-            return {
+            is_continuous = dataset_name == "synthetic_mixed_continuous"
+            result = {
                 "val_outcome_rmse": float("nan"),
-                "val_treatment_accuracy": float("nan"),
                 "train_time_seconds": float("nan")
             }
+            if is_continuous:
+                result["val_treatment_rmse"] = float("nan")
+            else:
+                result["val_treatment_accuracy"] = float("nan")
+            return result
 
     def _summarize_loss_records(
         self, records: List[Dict[str, float]]
@@ -584,11 +613,11 @@ class ModelBenchmarker:
     
     def _get_unit(self, metric_name: str) -> str:
         """Get appropriate unit for metric."""
-        if "rmse" in metric_name:
+        if "rmse" in metric_name.lower():
             return "rmse"
-        elif "accuracy" in metric_name:
+        elif "accuracy" in metric_name.lower():
             return "accuracy"
-        elif "time" in metric_name or "seconds" in metric_name:
+        elif "time" in metric_name.lower() or "seconds" in metric_name.lower():
             return "seconds"
         else:
             return "value"

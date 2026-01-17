@@ -7,6 +7,7 @@ from xtylearner.data import (
     load_toy_dataset,
     load_synthetic_dataset,
     load_mixed_synthetic_dataset,
+    get_dataset,
 )
 from xtylearner import load_tabular_dataset
 
@@ -153,6 +154,33 @@ def test_continuous_treatment_toy_dataset():
     ds = load_toy_dataset(n_samples=4, d_x=2, seed=0, continuous_treatment=True)
     _, _, T = ds.tensors
     assert T.dtype == torch.float32
+
+
+def test_continuous_treatment_mixed_synthetic_dataset():
+    ds = load_mixed_synthetic_dataset(
+        n_samples=10, d_x=3, seed=3, label_ratio=0.6, continuous_treatment=True
+    )
+    X, Y, T = ds.tensors
+    assert X.shape == (10, 3)
+    assert Y.shape == (10, 1)
+    assert T.shape == (10,)
+    assert T.dtype == torch.float32
+    # Check that some treatments are masked (-1)
+    assert (T == -1).sum() > 0
+    # Check that some treatments are observed (not -1)
+    assert (T != -1).sum() > 0
+
+
+def test_get_dataset_synthetic_mixed_continuous():
+    ds = get_dataset("synthetic_mixed_continuous", n_samples=8, d_x=2, seed=5, label_ratio=0.5)
+    X, Y, T = ds.tensors
+    assert X.shape == (8, 2)
+    assert Y.shape == (8, 1)
+    assert T.shape == (8,)
+    assert T.dtype == torch.float32
+    # Verify it's a mixed dataset (some masked treatments)
+    assert (T == -1).sum() > 0
+    assert (T != -1).sum() > 0
 
 
 def test_load_tabular_float_treatment():

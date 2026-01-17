@@ -35,3 +35,26 @@ def test_benchmarker_builds_ganite_optimizers():
     assert params_g, "generator optimizer should manage parameters"
     assert params_d, "discriminator optimizer should manage parameters"
     assert params_g.isdisjoint(params_d), "G/D optimizers must not share params"
+
+
+def test_benchmarker_handles_continuous_treatment_dataset():
+    """Verify that continuous treatment datasets trigger k=None in model building."""
+    benchmarker = ModelBenchmarker()
+    bundle = BenchmarkDataBundle(
+        train_loader=None,
+        val_loader=None,
+        x_dim=2,
+        y_dim=1,
+    )
+
+    # Test with continuous treatment dataset
+    model, _ = benchmarker._build_model_components(
+        "cycle_dual", bundle, dataset_name="synthetic_mixed_continuous"
+    )
+    assert model.k is None, "Model should have k=None for continuous treatment"
+
+    # Test with discrete treatment dataset
+    model, _ = benchmarker._build_model_components(
+        "cycle_dual", bundle, dataset_name="synthetic"
+    )
+    assert model.k == 2, "Model should have k=2 for discrete treatment"

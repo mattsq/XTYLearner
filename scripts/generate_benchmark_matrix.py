@@ -15,9 +15,28 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+# Models that support k=None (continuous treatment)
+CONTINUOUS_TREATMENT_MODELS = {
+    "bridge_diff",
+    "cevae_m",
+    "ctm_t",
+    "cycle_dual",
+    "deconfounder_cfm",
+    "ganite",
+    "gnn_ebm",
+    "gnn_scm",
+    "lp_knn",
+    "lt_flow_diff",
+    "mean_teacher",
+    "prob_circuit",
+    "scgm",
+    "ss_dml",
+    "tab_jepa",
+}
+
 PR_MATRIX = {
     "model": ["cycle_dual", "mean_teacher"],
-    "dataset": ["synthetic", "criteo_uplift", "nhefs"],
+    "dataset": ["synthetic", "synthetic_mixed_continuous", "criteo_uplift", "nhefs"],
 }
 
 FULL_MATRIX = {
@@ -63,7 +82,7 @@ FULL_MATRIX = {
         "scgm",
         "vime",
     ],
-    "dataset": ["synthetic", "synthetic_mixed", "criteo_uplift", "nhefs"],
+    "dataset": ["synthetic", "synthetic_mixed", "synthetic_mixed_continuous", "criteo_uplift", "nhefs"],
 }
 
 # Comprehensive matrix for workflow_dispatch: all models that work on GitHub runners
@@ -111,7 +130,7 @@ WORKFLOW_DISPATCH_MATRIX = {
         "vat",
         "vime",
     ],
-    "dataset": ["synthetic", "synthetic_mixed", "criteo_uplift", "nhefs"],
+    "dataset": ["synthetic", "synthetic_mixed", "synthetic_mixed_continuous", "criteo_uplift", "nhefs"],
 }
 
 DEFAULT_MATRIX = {
@@ -129,7 +148,7 @@ DEFAULT_MATRIX = {
         "cacore",
         "ss_cevae",
     ],
-    "dataset": ["synthetic", "synthetic_mixed", "criteo_uplift", "nhefs"],
+    "dataset": ["synthetic", "synthetic_mixed", "synthetic_mixed_continuous", "criteo_uplift", "nhefs"],
 }
 
 
@@ -208,24 +227,51 @@ def files_to_models(files: Sequence[str]) -> List[str]:
     return sorted({name for name in resolved if name in KNOWN_MODELS})
 
 
+def filter_matrix(matrix: dict[str, Sequence[str]]) -> dict:
+    """Filter model-dataset combinations to ensure compatibility.
+
+    Specifically, synthetic_mixed_continuous requires models that support k=None.
+    Returns matrix with exclude list for incompatible combinations.
+    """
+    models = matrix.get("model", [])
+    datasets = matrix.get("dataset", [])
+
+    # If synthetic_mixed_continuous is not in datasets, no filtering needed
+    if "synthetic_mixed_continuous" not in datasets:
+        return matrix
+
+    # Build exclude list for models that don't support continuous treatment
+    exclude = []
+    for model in models:
+        if model not in CONTINUOUS_TREATMENT_MODELS:
+            exclude.append({"model": model, "dataset": "synthetic_mixed_continuous"})
+
+    # Return matrix with exclude list if there are exclusions
+    if exclude:
+        return {"model": list(models), "dataset": list(datasets), "exclude": exclude}
+
+    return matrix
+
+
 def choose_matrix(
     event_name: str,
     full_benchmark: bool,
     changed_models: Sequence[str],
     changed_model_files: Sequence[str],
-) -> dict[str, Sequence[str]]:
+) -> dict:
     models = set(name for name in changed_models if name in KNOWN_MODELS)
     models.update(files_to_models(changed_model_files))
 
     if models:
-        return {"model": sorted(models), "dataset": ["synthetic", "synthetic_mixed", "criteo_uplift", "nhefs"]}
+        matrix = {"model": sorted(models), "dataset": ["synthetic", "synthetic_mixed", "synthetic_mixed_continuous", "criteo_uplift", "nhefs"]}
+        return filter_matrix(matrix)
     if event_name == "pull_request":
-        return PR_MATRIX
+        return filter_matrix(PR_MATRIX)
     if event_name == "workflow_dispatch":
-        return WORKFLOW_DISPATCH_MATRIX
+        return filter_matrix(WORKFLOW_DISPATCH_MATRIX)
     if full_benchmark:
-        return FULL_MATRIX
-    return DEFAULT_MATRIX
+        return filter_matrix(FULL_MATRIX)
+    return filter_matrix(DEFAULT_MATRIX)
 
 
 def main() -> int:

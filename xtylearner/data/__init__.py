@@ -14,10 +14,16 @@ from .criteo_uplift_dataset import load_criteo_uplift
 from .nhefs_dataset import load_nhefs_dataset
 
 
+def _load_synthetic_mixed_continuous(**kwargs):
+    """Load mixed synthetic dataset with continuous treatment."""
+    return load_mixed_synthetic_dataset(continuous_treatment=True, **kwargs)
+
+
 _DATASETS: Dict[str, Callable[..., object]] = {
     "toy": load_toy_dataset,
     "synthetic": load_synthetic_dataset,
     "synthetic_mixed": load_mixed_synthetic_dataset,
+    "synthetic_mixed_continuous": _load_synthetic_mixed_continuous,
     "ihdp": load_ihdp,
     "twins": load_twins,
     "criteo_uplift": load_criteo_uplift,
@@ -32,6 +38,7 @@ def get_dataset(name: str, **kwargs):
     ----------
     name:
         Name of the dataset.  One of ``"toy"``, ``"synthetic"``,
+        ``"synthetic_mixed"``, ``"synthetic_mixed_continuous"``,
         ``"ihdp"``, ``"twins"``, ``"criteo_uplift"``, or ``"nhefs"``.
     **kwargs:
         Additional keyword arguments forwarded to the dataset loader.
