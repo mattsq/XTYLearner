@@ -33,8 +33,9 @@ class DummyContinuousModel(DummyModel):
         self.k = None
 
     def predict_treatment_proba(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        params = torch.tensor([[0.0, 1.0]], device=x.device)
-        return params.repeat(x.size(0), 1)
+        # For continuous treatment, return predicted treatment values (not probabilities)
+        # Return shape [batch_size] containing scalar predictions
+        return torch.zeros(x.size(0), device=x.device)
 
 
 class DummyTrainer(BaseTrainer):
@@ -158,7 +159,10 @@ def test_treatment_metrics_continuous():
     y = torch.zeros(2, 1)
     t_obs = torch.tensor([0.1, 0.2])
     metrics = trainer._treatment_metrics(x, y, t_obs)
-    assert metrics == {}
+    # Model predicts 0.0 for all, true values are [0.1, 0.2]
+    # RMSE = sqrt((0.1^2 + 0.2^2)/2) = sqrt(0.025) ≈ 0.158
+    assert "treatment_rmse" in metrics
+    assert metrics["treatment_rmse"] == pytest.approx(0.158, rel=1e-2)
 
 
 class DummyHeadModel(torch.nn.Module):
