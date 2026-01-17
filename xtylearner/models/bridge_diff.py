@@ -84,6 +84,13 @@ class BridgeDiff(nn.Module):
         n_blocks: int = 3,
     ) -> None:
         super().__init__()
+        if k is None:
+            raise ValueError(
+                "BridgeDiff requires discrete treatments (k must be an integer >= 2). "
+                "For continuous treatments, use a different model such as cycle_dual or mean_teacher."
+            )
+        if k < 2:
+            raise ValueError(f"k must be >= 2, got {k}")
         self.d_y = d_y
         self.k = k
         self.timesteps = timesteps
