@@ -174,3 +174,38 @@ def test_mean_teacher_continuous_backward_compatibility():
     # OOD scores should be zeros (original behavior)
     ood_scores = model.predict_ood_score(X, Y)
     assert torch.allclose(ood_scores, torch.zeros(len(X)))
+
+
+def test_mean_teacher_variance_head_gets_gradients():
+    """Test that variance head is actually trained (receives gradients)."""
+    ds = load_mixed_synthetic_dataset(
+        n_samples=20, d_x=2, seed=7, label_ratio=0.5, continuous_treatment=True
+    )
+    X, Y, T_obs = ds.tensors
+
+    # Model with variance heads
+    model = MeanTeacher(d_x=2, d_y=1, k=None, ood_weighting=True)
+
+    # Get initial variance head weights
+    initial_weights = model.student_cons_head.weight.data.clone()
+
+    # Train for several steps
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+    for _ in range(10):
+        optimizer.zero_grad()
+        loss = model.loss(X, Y, T_obs)
+        loss.backward()
+
+        # Check that variance head receives gradients
+        assert model.student_cons_head.weight.grad is not None
+        assert not torch.allclose(
+            model.student_cons_head.weight.grad,
+            torch.zeros_like(model.student_cons_head.weight.grad)
+        )
+
+        optimizer.step()
+        model.step()  # Update teacher via EMA
+
+    # Verify weights have changed (variance head was trained)
+    final_weights = model.student_cons_head.weight.data
+    assert not torch.allclose(initial_weights, final_weights, atol=1e-5)

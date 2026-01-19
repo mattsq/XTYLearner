@@ -347,9 +347,15 @@ class MeanTeacher(nn.Module):
                 teacher_logvar = teacher_logits[:, 1]
 
                 # Heteroscedastic loss (Kendall & Gal, 2017)
-                # Uses teacher's predicted variance as weight
-                precision = (-teacher_logvar).exp()
-                per_sample_loss = precision * (student_mean - teacher_mean) ** 2 + teacher_logvar
+                # Student predicts its own uncertainty to weight the mean prediction error
+                precision = (-student_logvar).exp()
+                mean_loss = precision * (student_mean - teacher_mean) ** 2 + student_logvar
+
+                # Variance consistency: encourage student and teacher to agree on uncertainty
+                var_consistency = (student_logvar - teacher_logvar) ** 2
+
+                # Combined loss trains both mean and variance predictions
+                per_sample_loss = mean_loss + var_consistency
 
                 if self.ood_weighting:
                     # Per-sample weighted consistency loss for OOD robustness
