@@ -87,8 +87,14 @@ class MeanTeacher(nn.Module):
             norm_layer=norm_layer,
             residual=residual,
         )
+
+        # For continuous treatments with OOD weighting, output (mean, log_var)
+        # Otherwise, output single value/logits
+        self.use_variance_head = (k is None) and ood_weighting
+        cons_head_dim = 2 * d_t if self.use_variance_head else d_t
+
         self.student_class_head = nn.Linear(hidden_dims[-1], d_t)  # For supervised loss
-        self.student_cons_head = nn.Linear(hidden_dims[-1], d_t)   # For consistency loss
+        self.student_cons_head = nn.Linear(hidden_dims[-1], cons_head_dim)   # For consistency loss
 
         # Teacher network: backbone + consistency head (EMA copy)
         self.teacher_backbone = deepcopy(self.student_backbone)
@@ -185,7 +191,8 @@ class MeanTeacher(nn.Module):
         ----------
         teacher_output:
             For discrete: Softmax probabilities from teacher network [batch_size, k]
-            For continuous: Raw predictions [batch_size, 1] (OOD weighting disabled)
+            For continuous with variance: [batch_size, 2] where [:, 0] = mean, [:, 1] = log_var
+            For continuous without variance: Raw predictions [batch_size, 1] (uniform weights)
 
         is_discrete:
             Whether this is a discrete treatment problem
@@ -196,8 +203,20 @@ class MeanTeacher(nn.Module):
             Per-sample weights in [0, 1], shape [batch_size]
         """
         if not is_discrete:
-            # For continuous treatments, return uniform weights (no OOD detection)
-            return torch.ones(teacher_output.size(0), device=teacher_output.device)
+            if self.use_variance_head:
+                # Extract variance from teacher output: [mean, log_var]
+                log_var = teacher_output[:, 1]
+                var = log_var.exp()
+
+                # High variance → uncertain → likely OOD → low weight
+                # Map variance to weight: low variance → high weight
+                weights = torch.sigmoid(
+                    self.ood_sharpness * (self.ood_threshold - var)
+                )
+                return weights
+            else:
+                # For continuous treatments without variance, return uniform weights
+                return torch.ones(teacher_output.size(0), device=teacher_output.device)
 
         # Max confidence as in-distribution indicator
         max_conf, _ = teacher_output.max(dim=-1)
@@ -319,22 +338,49 @@ class MeanTeacher(nn.Module):
                 # Standard unweighted consistency loss
                 L_cons = F.mse_loss(student_probs, teacher_probs)
         else:
-            # Continuous: use raw predictions
-            if self.ood_weighting:
-                # OOD weighting disabled for continuous treatments
-                ood_weights = self._compute_ood_weights(teacher_logits, is_discrete=False)
-                per_sample_mse = ((cons_logits - teacher_logits) ** 2).mean(dim=-1)
-                L_cons = (ood_weights * per_sample_mse).mean()
+            # Continuous: use raw predictions or mean/variance
+            if self.use_variance_head:
+                # Split into mean and log_var: [batch_size, 2] -> [batch_size], [batch_size]
+                student_mean = cons_logits[:, 0]
+                student_logvar = cons_logits[:, 1]
+                teacher_mean = teacher_logits[:, 0]
+                teacher_logvar = teacher_logits[:, 1]
+
+                # Heteroscedastic loss (Kendall & Gal, 2017)
+                # Uses teacher's predicted variance as weight
+                precision = (-teacher_logvar).exp()
+                per_sample_loss = precision * (student_mean - teacher_mean) ** 2 + teacher_logvar
+
+                if self.ood_weighting:
+                    # Per-sample weighted consistency loss for OOD robustness
+                    # High variance samples (likely OOD) receive lower weight
+                    ood_weights = self._compute_ood_weights(teacher_logits, is_discrete=False)
+                    L_cons = (ood_weights * per_sample_loss).mean()
+                else:
+                    L_cons = per_sample_loss.mean()
             else:
-                # Standard unweighted consistency loss
-                L_cons = F.mse_loss(cons_logits, teacher_logits)
+                # Standard continuous consistency loss
+                if self.ood_weighting:
+                    # OOD weighting disabled for continuous treatments without variance
+                    ood_weights = self._compute_ood_weights(teacher_logits, is_discrete=False)
+                    per_sample_mse = ((cons_logits - teacher_logits) ** 2).mean(dim=-1)
+                    L_cons = (ood_weights * per_sample_mse).mean()
+                else:
+                    # Standard unweighted consistency loss
+                    L_cons = F.mse_loss(cons_logits, teacher_logits)
 
         lam = self._consistency_weight()
         loss = loss + lam * L_cons
 
         # Logit distance cost: encourage dual heads to agree
         if self.logit_distance_cost > 0:
-            L_dist = F.mse_loss(class_logits, cons_logits)
+            if self.use_variance_head:
+                # For variance heads, only compare mean predictions
+                cons_mean = cons_logits[:, 0:1]  # Keep dimension for proper broadcasting
+                L_dist = F.mse_loss(class_logits, cons_mean)
+            else:
+                # Standard case: compare full outputs
+                L_dist = F.mse_loss(class_logits, cons_logits)
             loss = loss + self.logit_distance_cost * L_dist
 
         return loss
@@ -369,8 +415,12 @@ class MeanTeacher(nn.Module):
             # Discrete: return probabilities
             return logits.softmax(dim=-1)
         else:
-            # Continuous: return raw predictions
-            return logits.squeeze(-1)
+            # Continuous: return mean predictions (or raw if not using variance)
+            if self.use_variance_head:
+                # Return mean prediction only
+                return logits[:, 0]
+            else:
+                return logits.squeeze(-1)
 
     # --------------------------------------------------------------
     @torch.no_grad()
@@ -380,8 +430,9 @@ class MeanTeacher(nn.Module):
         Higher scores indicate samples that are likely OOD (low teacher confidence).
         This can be used for diagnostics or post-hoc filtering.
 
-        Note: OOD detection is only available for discrete treatments (k is not None).
-        For continuous treatments, returns zeros.
+        For discrete treatments: Uses inverse of max probability
+        For continuous treatments with variance: Uses predicted variance (normalized)
+        For continuous treatments without variance: Returns zeros
 
         Parameters
         ----------
@@ -396,8 +447,22 @@ class MeanTeacher(nn.Module):
             OOD scores in [0, 1], shape [batch_size]. Higher = more likely OOD.
         """
         if self.k is None:
-            # OOD detection not supported for continuous treatments
-            return torch.zeros(x.size(0), device=x.device)
+            if self.use_variance_head:
+                # Get teacher predictions including variance
+                inp = torch.cat([x, y], dim=-1)
+                logits = self._teacher_forward(inp)
+
+                # Extract variance (exp of log_var)
+                log_var = logits[:, 1]
+                var = log_var.exp()
+
+                # Normalize variance to [0, 1] range using sigmoid
+                # High variance = high OOD score
+                ood_score = torch.sigmoid(var - self.ood_threshold)
+                return ood_score
+            else:
+                # OOD detection not supported for continuous treatments without variance
+                return torch.zeros(x.size(0), device=x.device)
 
         probs = self.predict_treatment_proba(x, y)
         max_conf, _ = probs.max(dim=-1)
