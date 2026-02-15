@@ -41,6 +41,14 @@ from .openmatch import OpenMatch
 from .clone import Clone
 from .scgm import SCGM
 from .crf import CRFModel, CRFDiscreteModel
+from .deterministic_gae import DeterministicGAE
+from .embed_layers import (
+    C_EmbedAttentionModule,
+    C_ACN,
+    C_PermutationLayer,
+    C_AffineCouplingLayer,
+    C_InvertibleFlow,
+)
 from .registry import get_model, get_model_names, get_model_args
 
 __all__ = [
@@ -88,6 +96,12 @@ __all__ = [
     "UASD",
     "OpenMatch",
     "Clone",
+    "DeterministicGAE",
+    "C_EmbedAttentionModule",
+    "C_ACN",
+    "C_PermutationLayer",
+    "C_AffineCouplingLayer",
+    "C_InvertibleFlow",
     "get_model",
     "get_model_names",
     "get_model_args",

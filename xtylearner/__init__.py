@@ -12,7 +12,12 @@ from .models import (
     BridgeDiff,
     LTFlowDiff,
     ProbCircuitModel,
+    DeterministicGAE,
+    C_EmbedAttentionModule,
+    C_ACN,
+    C_InvertibleFlow,
 )
+from .losses import C_WristbandGaussianLoss, w2_to_standard_normal_sq, S_LossComponents
 from .data import load_tabular_dataset
 
 __all__ = [
@@ -27,5 +32,12 @@ __all__ = [
     "BridgeDiff",
     "LTFlowDiff",
     "ProbCircuitModel",
+    "DeterministicGAE",
+    "C_EmbedAttentionModule",
+    "C_ACN",
+    "C_InvertibleFlow",
+    "C_WristbandGaussianLoss",
+    "w2_to_standard_normal_sq",
+    "S_LossComponents",
     "load_tabular_dataset",
 ]

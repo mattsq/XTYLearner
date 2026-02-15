@@ -137,6 +137,16 @@ The model registry exposes a variety of architectures grouped below by type.
 - ``CRFModel`` / ``CRFDiscreteModel`` – conditional random field models with
   exact marginalisation for continuous or discrete outcomes.
 
+#### Deterministic Gaussian Embedding
+
+- ``DeterministicGAE`` – a deterministic Gaussian autoencoder that uses the
+  Wristband Gaussian Loss to push latent representations toward N(0, I)
+  without sampling, KL tricks, or adversarial training.  Combines Euclidean
+  attention encoding with invertible normalizing flows to learn composable,
+  independent latent factors for counterfactual reasoning.  Supports
+  ``predict_counterfactual`` for estimating outcome distributions by
+  resampling latent blocks.
+
 #### Causal Factor Models
 
 - ``DeconfounderCFM`` – two-stage factor model that learns a substitute
@@ -232,6 +242,49 @@ model = JSBF(d_x=2, d_y=1)
 trainer = Trainer(model, optimizer, loader)
 trainer.fit(5)
 ```
+
+### Wristband Gaussian Loss
+
+The ``C_WristbandGaussianLoss`` in :mod:`xtylearner.losses` encourages
+deterministic encoder outputs to follow a standard normal distribution N(0, I).
+Unlike VAE KL terms or kernel MMD, it decomposes each sample into a direction
+on the unit sphere and a CDF-transformed radius, then applies:
+
+- **Joint repulsion** in wristband (direction, radius) space using a 3-image
+  reflected kernel to handle boundary effects.
+- **Radial uniformity** via a 1D Wasserstein test against Uniform(0, 1).
+- **Moment penalty** with configurable types including squared 2-Wasserstein
+  distance, KL divergence, or Jeffreys divergence.
+
+All components are auto-calibrated by Monte-Carlo sampling at construction
+time, yielding a z-scored loss that is near zero for true Gaussians.
+
+```python
+from xtylearner.losses import C_WristbandGaussianLoss
+
+loss_fn = C_WristbandGaussianLoss(calibration_shape=(256, 8))
+z = encoder(x)  # deterministic embedding
+lc = loss_fn(z)
+lc.total.backward()  # lc also provides .rep, .rad, .ang, .mom diagnostics
+```
+
+The companion ``w2_to_standard_normal_sq`` function computes the squared
+2-Wasserstein distance between the Gaussian fit to a batch of samples and
+N(0, I), useful as a standalone metric.
+
+### Building Blocks
+
+The :mod:`xtylearner.models.embed_layers` module provides reusable
+architecture components:
+
+- ``C_EmbedAttentionModule`` – multi-head softmax attention with learnable
+  key/value prototypes and optional Euclidean logits, affine experts, and
+  per-head temperature.
+- ``C_ACN`` – auto-compressing network: a residual MLP whose blocks are added
+  (not chained) before a final projection.
+- ``C_InvertibleFlow`` – a stack of RealNVP-style affine coupling layers with
+  exact forward and inverse, configurable permutations, and identity-like
+  initialization for training stability.
 
 ### Active Learning
 
