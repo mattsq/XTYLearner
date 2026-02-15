@@ -134,6 +134,10 @@ class DeterministicGAE(nn.Module):
             # Continuous treatment: single head that takes [z, t]
             self.outcome_head = nn.Linear(embed_dim + 1, d_y)
 
+        # Treatment classifier: p(t | x, y) from latent + outcome
+        if k is not None and k > 0:
+            self.cls_t = nn.Linear(embed_dim + d_y, k)
+
         # Wristband loss (calibrated for expected batch/embed shape)
         self.wristband = C_WristbandGaussianLoss(
             calibration_shape=(batch_size_hint, embed_dim),
@@ -288,6 +292,33 @@ class DeterministicGAE(nn.Module):
             else:
                 t_inp = t.float().view(-1, 1)
             return self.outcome_head(torch.cat([z, t_inp], dim=-1))
+
+    @torch.no_grad()
+    def predict_treatment_proba(
+        self, x: torch.Tensor, y: torch.Tensor | None = None
+    ) -> torch.Tensor:
+        """Return treatment probabilities ``p(t | x, y)``.
+
+        Parameters
+        ----------
+        x : Tensor
+            Covariates of shape ``(batch, d_x)``.
+        y : Tensor | None
+            Outcomes of shape ``(batch, d_y)``.  Ignored when ``k`` is None.
+
+        Returns
+        -------
+        Tensor
+            Treatment probability matrix of shape ``(batch, k)``.
+        """
+        if self.k is None or self.k <= 0:
+            return torch.ones(x.size(0), 1, device=x.device)
+        z = self.encode(x)
+        if y is None:
+            y = torch.zeros(x.size(0), self.d_y, device=x.device)
+        y_flat = y.view(x.size(0), -1)
+        logits = self.cls_t(torch.cat([z, y_flat], dim=-1))
+        return F.softmax(logits, dim=-1)
 
     @torch.no_grad()
     def predict_counterfactual(
