@@ -63,6 +63,12 @@ class DeterministicGAE(nn.Module):
         Weight for the reconstruction loss.
     lambda_wb : float
         Weight for the Wristband Gaussian Loss on latents.
+    lambda_cls : float
+        Weight for the treatment classification cross-entropy loss on
+        labelled samples.
+    lambda_ent : float
+        Weight for entropy minimisation on the treatment classifier for
+        unlabelled samples (encourages confident predictions).
     calibration_reps : int
         Monte-Carlo repetitions for Wristband calibration.
     batch_size_hint : int
@@ -85,6 +91,8 @@ class DeterministicGAE(nn.Module):
         flow_blocks: int = 2,
         lambda_rec: float = 1.0,
         lambda_wb: float = 0.1,
+        lambda_cls: float = 1.0,
+        lambda_ent: float = 0.1,
         calibration_reps: int = 512,
         batch_size_hint: int = 256,
     ) -> None:
@@ -95,6 +103,8 @@ class DeterministicGAE(nn.Module):
         self.embed_dim = embed_dim
         self.lambda_rec = lambda_rec
         self.lambda_wb = lambda_wb
+        self.lambda_cls = lambda_cls
+        self.lambda_ent = lambda_ent
 
         # Encoder: x -> embedding via Euclidean attention
         self.encoder = C_EmbedAttentionModule(
@@ -208,6 +218,8 @@ class DeterministicGAE(nn.Module):
         - Outcome prediction loss (MSE for labelled samples)
         - Covariate reconstruction loss (MSE)
         - Wristband Gaussian loss on latent codes
+        - Treatment classification cross-entropy (labelled samples)
+        - Entropy minimisation on ``cls_t`` (unlabelled samples)
 
         Parameters
         ----------
@@ -251,7 +263,32 @@ class DeterministicGAE(nn.Module):
 
             outcome_loss = F.mse_loss(y_pred.squeeze(-1), y_lab.squeeze(-1))
 
-        total = outcome_loss + self.lambda_rec * rec_loss + self.lambda_wb * wb.total
+        # Treatment classification loss (labelled samples)
+        cls_loss = torch.tensor(0.0, device=x.device)
+        if labelled.any() and self.k is not None and self.k > 0:
+            t_lab = t_obs[labelled]
+            y_flat = y[labelled].view(t_lab.size(0), -1)
+            cls_logits = self.cls_t(torch.cat([z[labelled], y_flat], dim=-1))
+            cls_loss = F.cross_entropy(cls_logits, t_lab.long())
+
+        # Entropy minimisation on unlabelled samples
+        ent_loss = torch.tensor(0.0, device=x.device)
+        unlabelled = ~labelled
+        if unlabelled.any() and self.k is not None and self.k > 0:
+            y_unlab = y[unlabelled].view(unlabelled.sum(), -1)
+            cls_logits_u = self.cls_t(
+                torch.cat([z[unlabelled], y_unlab], dim=-1)
+            )
+            p = F.softmax(cls_logits_u, dim=-1)
+            ent_loss = -(p * torch.log(p + 1e-12)).sum(dim=-1).mean()
+
+        total = (
+            outcome_loss
+            + self.lambda_rec * rec_loss
+            + self.lambda_wb * wb.total
+            + self.lambda_cls * cls_loss
+            + self.lambda_ent * ent_loss
+        )
         return total
 
     @torch.no_grad()

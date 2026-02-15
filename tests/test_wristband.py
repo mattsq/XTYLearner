@@ -451,3 +451,59 @@ class TestDeterministicGAE:
 
     def test_trainer_type(self):
         assert DeterministicGAE.trainer_type == "supervised"
+
+    def test_loss_trains_cls_t(self):
+        """cls_t.weight.grad must be non-zero after loss().backward() with labelled data."""
+        model = DeterministicGAE(
+            d_x=4, d_y=1, k=2, embed_dim=4, n_heads=2, n_basis=8,
+            internal_dim=8, calibration_reps=4, batch_size_hint=16,
+        )
+        x = torch.randn(16, 4)
+        y = torch.randn(16, 1)
+        t = torch.randint(0, 2, (16,))
+        loss = model.loss(x, y, t)
+        loss.backward()
+        assert model.cls_t.weight.grad is not None
+        assert model.cls_t.weight.grad.abs().sum().item() > 0
+
+    def test_loss_entropy_on_unlabelled(self):
+        """cls_t gets gradient from entropy term even with mixed labelled/unlabelled."""
+        model = DeterministicGAE(
+            d_x=4, d_y=1, k=2, embed_dim=4, n_heads=2, n_basis=8,
+            internal_dim=8, calibration_reps=4, batch_size_hint=16,
+        )
+        x = torch.randn(8, 4)
+        y = torch.randn(8, 1)
+        t = torch.tensor([0, 1, -1, -1, 0, -1, 1, -1])
+        loss = model.loss(x, y, t)
+        assert torch.isfinite(loss)
+        loss.backward()
+        assert model.cls_t.weight.grad is not None
+        assert model.cls_t.weight.grad.abs().sum().item() > 0
+
+    def test_predict_treatment_proba_after_training(self):
+        """After a few optimiser steps, treatment proba should not be uniform."""
+        torch.manual_seed(42)
+        model = DeterministicGAE(
+            d_x=4, d_y=1, k=2, embed_dim=4, n_heads=2, n_basis=8,
+            internal_dim=8, calibration_reps=4, batch_size_hint=32,
+        )
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+        # Create separable data: t correlates with x[:, 0]
+        x = torch.randn(32, 4)
+        t = (x[:, 0] > 0).long()
+        y = torch.randn(32, 1)
+
+        for _ in range(20):
+            optimizer.zero_grad()
+            loss = model.loss(x, y, t)
+            loss.backward()
+            optimizer.step()
+
+        probs = model.predict_treatment_proba(x, y)
+        # After training, predictions should not all be uniform [0.5, 0.5]
+        max_probs = probs.max(dim=-1).values
+        assert (max_probs > 0.6).any(), (
+            "Treatment head did not learn — all probabilities still near uniform"
+        )
